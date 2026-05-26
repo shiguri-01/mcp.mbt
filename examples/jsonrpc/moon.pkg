@@ -1,7 +1,0 @@
-import {
-  "shiguri/mcp",
-}
-
-options(
-  "is-main": true,
-)

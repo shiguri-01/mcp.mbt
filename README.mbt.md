@@ -110,18 +110,13 @@ payload shape needs to stay fully dynamic.
 Run these from the repository root:
 
 ```bash
-moon run examples/raw-tool
-moon run examples/typed-tool
-moon run examples/jsonrpc
 moon run --target native examples/stdio-server
 moon run --target native examples/stdio-client
 ```
 
-- `examples/raw-tool` uses `Json` pattern matching directly.
-- `examples/typed-tool` uses `FromJson` and `ToJson`.
-- `examples/jsonrpc` sends MCP JSON-RPC messages through `handle_jsonrpc`.
 - `examples/stdio-server` is a real stdio MCP server package for native target.
-- `examples/stdio-client` spawns the stdio server and calls tools, resources, and prompts.
+- `examples/stdio-client` spawns that server over stdio and calls tools,
+  resources, and prompts through the client transport.
 
 `shiguri/mcp/stdio` depends on `moonbitlang/async` and is native-only. On
 Windows, `moonbitlang/async` currently requires an MSVC native toolchain; MinGW
