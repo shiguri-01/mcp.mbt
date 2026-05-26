@@ -53,18 +53,7 @@ pub fn Client::close(self : Client) -> Unit {
 }
 
 ///|
-fn request_id(request : Json) -> Json raise @mcp.McpError {
-  match request {
-    Object({ "id": id, .. }) => id
-    _ => raise @mcp.InvalidRequest("JSON-RPC request id is required")
-  }
-}
-
-///|
-async fn Client::read_matching_response(
-  self : Client,
-  expected_id : Json,
-) -> Json raise @mcp.McpError {
+async fn Client::read_response(self : Client) -> Json raise @mcp.McpError {
   let line = self.reader.read_until("\n") catch {
     error => raise @mcp.InternalError(error.to_string())
   }
@@ -75,37 +64,9 @@ async fn Client::read_matching_response(
   let response = @json.parse(line) catch {
     error => raise @mcp.ParseError(error.to_string())
   }
-  match response {
-    Object({ "id": id, .. }) =>
-      if id == expected_id {
-        parse_response_result(response)
-      } else {
-        self.read_matching_response(expected_id)
-      }
-    _ => self.read_matching_response(expected_id)
-  }
-}
-
-///|
-fn parse_response_result(response : Json) -> Json raise @mcp.McpError {
-  let fields = match response {
-    Object(fields) => fields
-    _ => raise @mcp.InvalidRequest("JSON-RPC response must be an object")
-  }
-  match fields.get("error") {
-    Some(Object(error)) => {
-      let message = match error.get("message") {
-        Some(String(message)) => message
-        _ => "JSON-RPC error"
-      }
-      raise @mcp.InternalError(message)
-    }
-    Some(_) => raise @mcp.InvalidRequest("JSON-RPC error must be an object")
-    None => ()
-  }
-  match fields.get("result") {
+  match self.core.receive_jsonrpc(response) {
     Some(result) => result
-    None => raise @mcp.InvalidRequest("JSON-RPC response result is required")
+    None => self.read_response()
   }
 }
 
@@ -114,11 +75,10 @@ pub async fn Client::request(
   self : Client,
   request : Json,
 ) -> Json raise @mcp.McpError {
-  let id = request_id(request)
   self.writer.write(request.stringify() + "\n") catch {
     error => raise @mcp.InternalError(error.to_string())
   }
-  self.read_matching_response(id)
+  self.read_response()
 }
 
 ///|

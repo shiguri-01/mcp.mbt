@@ -1,4 +1,9 @@
 import {
   "moonbitlang/core/json",
+  "shiguri-01/jsonrpc",
   "shiguri/mcp/schema",
 }
+
+import {
+  "moonbitlang/async",
+} for "test"

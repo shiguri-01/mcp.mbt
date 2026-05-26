@@ -69,6 +69,7 @@ pub fn Client::list_resources_request(Self, cursor? : String) -> Json
 pub fn Client::list_tools_request(Self, cursor? : String) -> Json
 pub fn Client::ping_request(Self) -> Json
 pub fn Client::read_resource_request(Self, uri~ : String) -> Json
+pub async fn Client::receive_jsonrpc(Self, Json) -> Json? raise McpError
 pub fn Client::set_logging_level_request(Self, level~ : LoggingLevel) -> Json
 
 pub(all) struct CompleteResult {
@@ -216,7 +217,7 @@ pub struct Server {
 }
 pub fn Server::Server(name~ : String, version~ : String, instructions? : String, capabilities? : ServerCapabilities) -> Self
 pub fn Server::completion(Self, reference~ : CompletionReference, (CompletionRequest) -> CompleteResult raise McpError) -> Unit raise McpError
-pub fn Server::handle_jsonrpc(Self, Json) -> Json?
+pub async fn Server::handle_jsonrpc(Self, Json) -> Json?
 pub fn Server::initialize(Self, Json?) -> InitializeResult
 pub fn Server::is_initialized(Self) -> Bool
 pub fn Server::json_tool(Self, name~ : String, title? : String, description? : String, input_schema? : Json, output_schema? : Json, annotations? : ToolAnnotations, (Json?) -> CallToolResult raise McpError) -> Unit raise McpError

@@ -14,6 +14,7 @@ description = "Model Context Protocol library for MoonBit"
 
 import {
   "moonbitlang/async@0.19.1",
+  "shiguri-01/jsonrpc@0.2.0",
 }
 
 options(

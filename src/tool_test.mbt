@@ -14,7 +14,7 @@ struct EchoOutput {
 } derive(FromJson, ToJson)
 
 ///|
-test "json tool can be listed and called" {
+async test "json tool can be listed and called" {
   let server = @mcp.Server(name="test-server", version="0.1.0")
   let schema = @schema.schema([
     @schema.string(name="name", description="Name to greet", required=true),
@@ -71,7 +71,7 @@ test "json tool can be listed and called" {
 }
 
 ///|
-test "tool decodes input and encodes structured content" {
+async test "tool decodes input and encodes structured content" {
   let server = @mcp.Server(name="test-server", version="0.1.0")
   try! server.tool(name="echo", fn(input : EchoInput) {
     @mcp.CallToolResult::structured(({ echoed: input.text } : EchoOutput))
@@ -97,7 +97,7 @@ test "tool decodes input and encodes structured content" {
 }
 
 ///|
-test "tool decodes input and returns text content" {
+async test "tool decodes input and returns text content" {
   let server = @mcp.Server(name="test-server", version="0.1.0")
   try! server.tool(name="echo_text", fn(input : EchoInput) {
     @mcp.CallToolResult::text(input.text)

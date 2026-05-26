@@ -9,7 +9,7 @@ impl @mcp.PromptArguments for PromptInput with fn prompt_arguments() {
 }
 
 ///|
-test "prompt decodes string arguments" {
+async test "prompt decodes string arguments" {
   let server = @mcp.Server(name="test-server", version="0.1.0")
   try! server.prompt(name="summarize_typed", fn(input : PromptInput) {
     @mcp.GetPromptResult::user("Summarize \{input.topic}.")
@@ -40,7 +40,7 @@ test "prompt decodes string arguments" {
 }
 
 ///|
-test "resources and string prompts are dispatchable" {
+async test "resources and string prompts are dispatchable" {
   let server = @mcp.Server(name="test-server", version="0.1.0")
   try! server.resource(
     uri="memory://status",

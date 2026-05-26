@@ -70,7 +70,8 @@ without changing the core server API.
 ## Packages
 
 - `shiguri/mcp` is the transport-neutral core package. It contains MCP data
-  types, request builders, and the in-memory server dispatch API.
+  types, request builders, and the in-memory server dispatch API. JSON-RPC 2.0
+  envelope handling is delegated to `shiguri-01/jsonrpc`.
 - `shiguri/mcp/schema` contains the JSON Schema trait and small builders used by
   typed tool inputs.
 - `shiguri/mcp/stdio` is the native stdio transport package. It depends on

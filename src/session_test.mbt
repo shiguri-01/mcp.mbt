@@ -1,5 +1,5 @@
 ///|
-test "list requests support cursor pagination" {
+async test "list requests support cursor pagination" {
   let server = @mcp.Server(name="test-server", version="0.1.0")
   for i in 0..<101 {
     try! server.json_tool(name="tool_\{i}", fn(_) {
@@ -43,7 +43,7 @@ test "list requests support cursor pagination" {
 }
 
 ///|
-test "resource templates are listable" {
+async test "resource templates are listable" {
   let server = @mcp.Server(name="test-server", version="0.1.0")
   try! server.resource_template(
     uri_template="file:///{path}",
@@ -75,7 +75,7 @@ test "resource templates are listable" {
 }
 
 ///|
-test "completion handlers are dispatchable" {
+async test "completion handlers are dispatchable" {
   let server = @mcp.Server(name="test-server", version="0.1.0")
   try! server.completion(reference=@mcp.PromptRef(name="summarize"), fn(
     request,
@@ -119,7 +119,7 @@ test "completion handlers are dispatchable" {
 }
 
 ///|
-test "logging ping and notification builders follow MCP names" {
+async test "logging ping and notification builders follow MCP names" {
   let server = @mcp.Server(name="test-server", version="0.1.0")
   let logging = server.handle_jsonrpc(
     Json::object({

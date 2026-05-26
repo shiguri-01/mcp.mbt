@@ -1,5 +1,5 @@
 ///|
-test "initialize returns server metadata and capabilities" {
+async test "initialize returns server metadata and capabilities" {
   let server = @mcp.Server(name="test-server", version="0.1.0")
   let response = server.handle_jsonrpc(
     Json::object({

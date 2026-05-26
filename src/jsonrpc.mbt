@@ -1,77 +1,84 @@
 ///|
+fn McpError::to_rpc_error(self : McpError) -> @jsonrpc.RpcError {
+  @jsonrpc.RpcError(code=self.code(), message=self.message())
+}
 
 ///|
-fn parse_request_id(value : Json) -> Json raise McpError {
-  match value {
-    String(_) | Number(_) => value
-    Null => raise InvalidRequest("JSON-RPC id must not be null")
-    _ => raise InvalidRequest("JSON-RPC id must be a string or number")
+fn dispatch_jsonrpc_result(
+  server : Server,
+  method_name : String,
+  params : Json?,
+) -> Json raise @jsonrpc.RpcError {
+  try server.dispatch(method_name, params) catch {
+    error => raise error.to_rpc_error()
+  } noraise {
+    result =>
+      match result {
+        Some(result) => result
+        None =>
+          raise InvalidRequest("request method returned no result").to_rpc_error()
+      }
   }
 }
 
 ///|
-fn parse_jsonrpc_message(value : Json) -> (Json?, String, Json?) raise McpError {
-  let fields = match value {
-    Object(fields) => fields
-    _ => raise InvalidRequest("JSON-RPC message must be an object")
-  }
-  match fields.get("jsonrpc") {
-    Some(String("2.0")) => ()
-    _ => raise InvalidRequest("jsonrpc must be \"2.0\"")
-  }
-  let method_name = get_string(fields, "method", "JSON-RPC request")
-  let id = match fields.get("id") {
-    Some(value) => Some(parse_request_id(value))
-    None => None
-  }
-  (id, method_name, fields.get("params"))
-}
-
-///|
-fn jsonrpc_success(id : Json, result : Json) -> Json {
-  Json::object({ "jsonrpc": Json::string("2.0"), "id": id, "result": result })
-}
-
-///|
-fn jsonrpc_error(id : Json?, error : McpError) -> Json {
-  let fields : Map[String, Json] = {
-    "jsonrpc": Json::string("2.0"),
-    "error": error.to_json(),
-  }
-  match id {
-    Some(id) => fields["id"] = id
-    None => fields["id"] = Json::null()
-  }
-  Json::object(fields)
+fn Server::jsonrpc_endpoint(self : Server) -> @jsonrpc.Endpoint {
+  try! @jsonrpc.EndpointBuilder()
+  .handle("initialize", fn(params) -> Json raise @jsonrpc.RpcError {
+    dispatch_jsonrpc_result(self, "initialize", params)
+  })
+  .handle("notifications/initialized", fn(
+    params,
+  ) -> Json raise @jsonrpc.RpcError {
+    dispatch_jsonrpc_result(self, "notifications/initialized", params)
+  })
+  .handle("notifications/cancelled", fn(
+    params,
+  ) -> Json raise @jsonrpc.RpcError {
+    dispatch_jsonrpc_result(self, "notifications/cancelled", params)
+  })
+  .handle("ping", fn(params) -> Json raise @jsonrpc.RpcError {
+    dispatch_jsonrpc_result(self, "ping", params)
+  })
+  .handle("logging/setLevel", fn(params) -> Json raise @jsonrpc.RpcError {
+    dispatch_jsonrpc_result(self, "logging/setLevel", params)
+  })
+  .handle("tools/list", fn(params) -> Json raise @jsonrpc.RpcError {
+    dispatch_jsonrpc_result(self, "tools/list", params)
+  })
+  .handle("tools/call", fn(params) -> Json raise @jsonrpc.RpcError {
+    dispatch_jsonrpc_result(self, "tools/call", params)
+  })
+  .handle("resources/list", fn(params) -> Json raise @jsonrpc.RpcError {
+    dispatch_jsonrpc_result(self, "resources/list", params)
+  })
+  .handle("resources/templates/list", fn(
+    params,
+  ) -> Json raise @jsonrpc.RpcError {
+    dispatch_jsonrpc_result(self, "resources/templates/list", params)
+  })
+  .handle("resources/read", fn(params) -> Json raise @jsonrpc.RpcError {
+    dispatch_jsonrpc_result(self, "resources/read", params)
+  })
+  .handle("prompts/list", fn(params) -> Json raise @jsonrpc.RpcError {
+    dispatch_jsonrpc_result(self, "prompts/list", params)
+  })
+  .handle("prompts/get", fn(params) -> Json raise @jsonrpc.RpcError {
+    dispatch_jsonrpc_result(self, "prompts/get", params)
+  })
+  .handle("completion/complete", fn(params) -> Json raise @jsonrpc.RpcError {
+    dispatch_jsonrpc_result(self, "completion/complete", params)
+  })
+  .build()
 }
 
 ///|
 /// Handle one JSON-RPC message for transport implementations.
-pub fn Server::handle_jsonrpc(self : Server, message : Json) -> Json? {
-  let (id, method_name, params) = parse_jsonrpc_message(message) catch {
-    error => return Some(jsonrpc_error(None, error))
-  }
-  try self.dispatch(method_name, params) catch {
-    error =>
-      match id {
-        Some(id) => return Some(jsonrpc_error(Some(id), error))
-        None => return None
-      }
-  } noraise {
-    result =>
-      match id {
-        Some(id) =>
-          match result {
-            Some(result) => Some(jsonrpc_success(id, result))
-            None =>
-              Some(
-                jsonrpc_error(
-                  Some(id),
-                  InvalidRequest("request method returned no result"),
-                ),
-              )
-          }
-        None => None
-      }
+pub async fn Server::handle_jsonrpc(self : Server, message : Json) -> Json? {
+  let received = self.jsonrpc_endpoint().receive_json(message)
+  match received.outgoing {
+    [response] => Some(response)
+    [] => None
+    responses => Some(@jsonrpc.batch(responses))
   }
 }
