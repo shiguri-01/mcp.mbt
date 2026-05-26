@@ -491,7 +491,7 @@ pub fn ServerCapabilities::tools_only(
 ///|
 pub fn ServerCapabilities::full(
   list_changed? : Bool = false,
-  resource_subscribe? : Bool = false,
+  resource_subscribe? : Bool,
   logging? : Bool = true,
   completions? : Bool = true,
   tasks? : ServerTaskCapabilities,
@@ -499,7 +499,7 @@ pub fn ServerCapabilities::full(
 ) -> ServerCapabilities {
   ServerCapabilities(
     tools=ToolsCapability(list_changed~),
-    resources=ResourcesCapability(subscribe=resource_subscribe, list_changed~),
+    resources=ResourcesCapability(subscribe?=resource_subscribe, list_changed~),
     prompts=PromptsCapability(list_changed~),
     logging~,
     completions~,

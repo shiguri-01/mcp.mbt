@@ -150,6 +150,25 @@ pub fn Client::read_resource_request(self : Client, uri~ : String) -> Json {
 }
 
 ///|
+pub fn Client::subscribe_resource_request(self : Client, uri~ : String) -> Json {
+  self.jsonrpc_request(
+    "resources/subscribe",
+    params=Json::object({ "uri": Json::string(uri) }),
+  )
+}
+
+///|
+pub fn Client::unsubscribe_resource_request(
+  self : Client,
+  uri~ : String,
+) -> Json {
+  self.jsonrpc_request(
+    "resources/unsubscribe",
+    params=Json::object({ "uri": Json::string(uri) }),
+  )
+}
+
+///|
 pub fn Client::list_prompts_request(self : Client, cursor? : String) -> Json {
   let params : Map[String, Json] = {}
   put_optional_string(params, "cursor", cursor)

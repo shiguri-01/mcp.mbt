@@ -105,3 +105,31 @@ test "server capabilities encode known capabilities and extensions" {
   assert_true(tasks.contains("cancel"))
   assert_true(fields.contains("x-server"))
 }
+
+///|
+test "resource subscription dispatch respects capability and resource existence" {
+  let unsupported = Server(name="test-server", version="0.1.0")
+  ignore(try! unsupported.initialize(Some(test_initialize_params())))
+  try! unsupported.notify_initialized()
+  let unsupported_result : Result[Json?, Error] = try? unsupported.dispatch(
+    "resources/subscribe",
+    Some(Json::object({ "uri": Json::string("memory://status") })),
+  )
+  guard unsupported_result is Err(MethodNotFound("resources/subscribe")) else {
+    fail("expected unsupported subscribe method")
+  }
+  let server = Server(
+    name="test-server",
+    version="0.1.0",
+    capabilities=ServerCapabilities::full(resource_subscribe=true),
+  )
+  ignore(try! server.initialize(Some(test_initialize_params())))
+  try! server.notify_initialized()
+  let missing : Result[Json?, Error] = try? server.dispatch(
+    "resources/subscribe",
+    Some(Json::object({ "uri": Json::string("memory://missing") })),
+  )
+  guard missing is Err(ResourceNotFound("memory://missing")) else {
+    fail("expected missing resource error")
+  }
+}

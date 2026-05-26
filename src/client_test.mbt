@@ -44,4 +44,16 @@ test "client builds protocol requests" {
   assert_true(call_fields["method"] == Json::string("tools/call"))
   guard call_fields["params"] is Object(params) else { fail("expected params") }
   assert_true(params["name"] == Json::string("echo"))
+  let subscribe = client.subscribe_resource_request(uri="memory://status")
+  guard subscribe is Object(subscribe_fields) else {
+    fail("expected subscribe request")
+  }
+  assert_true(subscribe_fields["method"] == Json::string("resources/subscribe"))
+  let unsubscribe = client.unsubscribe_resource_request(uri="memory://status")
+  guard unsubscribe is Object(unsubscribe_fields) else {
+    fail("expected unsubscribe request")
+  }
+  assert_true(
+    unsubscribe_fields["method"] == Json::string("resources/unsubscribe"),
+  )
 }
