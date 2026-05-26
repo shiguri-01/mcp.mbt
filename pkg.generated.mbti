@@ -213,9 +213,6 @@ pub fn Server::list_resources(Self) -> Json
 pub fn Server::list_tools(Self) -> Json
 pub fn Server::notify_initialized(Self) -> Unit
 pub fn[A : @json.FromJson + PromptArguments] Server::prompt(Self, name~ : String, title? : String, description? : String, arguments? : Array[PromptArgument], (A) -> GetPromptResult raise McpError) -> Unit raise McpError
-pub fn Server::raw_prompt(Self, Prompt, (Map[String, String]) -> Json raise McpError) -> Unit raise McpError
-pub fn Server::raw_resource(Self, Resource, (String) -> ReadResourceResult raise McpError) -> Unit raise McpError
-pub fn Server::raw_tool(Self, Tool, (Json?) -> CallToolResult raise McpError) -> Unit raise McpError
 pub fn Server::read_resource(Self, Json?) -> ReadResourceResult raise McpError
 pub fn Server::resource(Self, uri~ : String, name? : String, title? : String, description? : String, mime_type? : String, (String) -> ReadResourceResult raise McpError) -> Unit raise McpError
 pub fn Server::string_prompt(Self, name~ : String, title? : String, description? : String, arguments? : Array[PromptArgument], (Map[String, String]) -> GetPromptResult raise McpError) -> Unit raise McpError

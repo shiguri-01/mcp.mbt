@@ -78,12 +78,9 @@ Use the API that matches the shape you want to return:
 | --- | --- |
 | Tool decodes typed input and returns `CallToolResult` | `server.tool(...)` |
 | Tool reads raw `Json?` and returns `CallToolResult` | `server.json_tool(...)` |
-| Tool needs full MCP `Tool` and `CallToolResult` control | `server.raw_tool(...)` |
 | Resource returns full `ReadResourceResult` | `server.resource(...)` |
-| Resource needs a prebuilt `Resource` descriptor | `server.raw_resource(...)` |
 | Prompt decodes typed arguments and returns `GetPromptResult` | `server.prompt(...)` |
 | Prompt reads raw string arguments and returns `GetPromptResult` | `server.string_prompt(...)` |
-| Prompt needs raw JSON result control | `server.raw_prompt(...)` |
 
 ```mbt nocheck
 struct HelloInput {
@@ -129,8 +126,8 @@ try! server.prompt(
 )
 ```
 
-The `json_tool`, `string_prompt`, and `raw_*` methods are escape hatches. Normal
-server code should start with `tool`, `resource`, or `prompt`.
+The `json_tool` and `string_prompt` methods are escape hatches. Normal server
+code should start with `tool`, `resource`, or `prompt`.
 
 `handle` and `handle_jsonrpc` are lower-level dispatch hooks for transports and
 tests. Application code should normally talk through a transport such as

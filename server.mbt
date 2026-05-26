@@ -56,19 +56,6 @@ pub fn Server::Server(
 }
 
 ///|
-/// Register a fully specified tool descriptor and raw JSON handler.
-pub fn Server::raw_tool(
-  self : Server,
-  tool : Tool,
-  handler : ToolHandler,
-) -> Unit raise McpError {
-  if self.tools.contains(tool.name) {
-    raise InvalidParams("tool already registered: \{tool.name}")
-  }
-  self.tools[tool.name] = { tool, handler }
-}
-
-///|
 /// Register a tool with raw `Json?` arguments.
 ///
 /// Use this when MoonBit pattern matching on `Json` is clearer than defining a
@@ -83,7 +70,7 @@ pub fn Server::json_tool(
   annotations? : ToolAnnotations,
   handler : ToolHandler,
 ) -> Unit raise McpError {
-  self.raw_tool(
+  self.register_tool(
     Tool(
       name~,
       title?,
@@ -94,6 +81,42 @@ pub fn Server::json_tool(
     ),
     handler,
   )
+}
+
+///|
+fn Server::register_resource(
+  self : Server,
+  resource : Resource,
+  handler : ResourceHandler,
+) -> Unit raise McpError {
+  if self.resources.contains(resource.uri) {
+    raise InvalidParams("resource already registered: \{resource.uri}")
+  }
+  self.resources[resource.uri] = { resource, handler }
+}
+
+///|
+fn Server::register_prompt(
+  self : Server,
+  prompt : Prompt,
+  handler : PromptHandler,
+) -> Unit raise McpError {
+  if self.prompts.contains(prompt.name) {
+    raise InvalidParams("prompt already registered: \{prompt.name}")
+  }
+  self.prompts[prompt.name] = { prompt, handler }
+}
+
+///|
+fn Server::register_tool(
+  self : Server,
+  tool : Tool,
+  handler : ToolHandler,
+) -> Unit raise McpError {
+  if self.tools.contains(tool.name) {
+    raise InvalidParams("tool already registered: \{tool.name}")
+  }
+  self.tools[tool.name] = { tool, handler }
 }
 
 ///|
@@ -135,19 +158,6 @@ pub fn[A : FromJson + JsonSchema] Server::tool(
 }
 
 ///|
-/// Register a fully specified resource descriptor.
-pub fn Server::raw_resource(
-  self : Server,
-  resource : Resource,
-  handler : ResourceHandler,
-) -> Unit raise McpError {
-  if self.resources.contains(resource.uri) {
-    raise InvalidParams("resource already registered: \{resource.uri}")
-  }
-  self.resources[resource.uri] = { resource, handler }
-}
-
-///|
 /// Register a resource by URI.
 pub fn Server::resource(
   self : Server,
@@ -162,23 +172,10 @@ pub fn Server::resource(
     Some(name) => name
     None => uri
   }
-  self.raw_resource(
+  self.register_resource(
     Resource(uri~, name=resource_name, title?, description?, mime_type?),
     handler,
   )
-}
-
-///|
-/// Register a fully specified prompt descriptor and raw JSON result handler.
-pub fn Server::raw_prompt(
-  self : Server,
-  prompt : Prompt,
-  handler : PromptHandler,
-) -> Unit raise McpError {
-  if self.prompts.contains(prompt.name) {
-    raise InvalidParams("prompt already registered: \{prompt.name}")
-  }
-  self.prompts[prompt.name] = { prompt, handler }
 }
 
 ///|
@@ -191,7 +188,7 @@ pub fn Server::string_prompt(
   arguments? : Array[PromptArgument] = [],
   handler : (Map[String, String]) -> GetPromptResult raise McpError,
 ) -> Unit raise McpError {
-  self.raw_prompt(Prompt(name~, title?, description?, arguments~), fn(
+  self.register_prompt(Prompt(name~, title?, description?, arguments~), fn(
     arguments,
   ) raise McpError {
     handler(arguments).to_json()
