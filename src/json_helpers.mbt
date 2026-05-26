@@ -4,9 +4,8 @@ fn put_optional_string(
   key : String,
   value : String?,
 ) -> Unit {
-  match value {
-    Some(value) => fields[key] = Json::string(value)
-    None => ()
+  if value is Some(value) {
+    fields[key] = Json::string(value)
   }
 }
 
@@ -16,9 +15,8 @@ fn put_optional_bool(
   key : String,
   value : Bool?,
 ) -> Unit {
-  match value {
-    Some(value) => fields[key] = Json::boolean(value)
-    None => ()
+  if value is Some(value) {
+    fields[key] = Json::boolean(value)
   }
 }
 
@@ -28,9 +26,8 @@ fn put_optional_json(
   key : String,
   value : Json?,
 ) -> Unit {
-  match value {
-    Some(value) => fields[key] = value
-    None => ()
+  if value is Some(value) {
+    fields[key] = value
   }
 }
 
@@ -93,6 +90,20 @@ fn get_optional_string(
     Some(String(value)) => Some(value)
     Some(Null) | None => None
     Some(_) => raise InvalidParams("\{context}.\{key} must be a string")
+  }
+}
+
+///|
+fn get_optional_bool(
+  fields : Map[String, Json],
+  key : String,
+  context : String,
+) -> Bool? raise McpError {
+  match fields.get(key) {
+    Some(True) => Some(true)
+    Some(False) => Some(false)
+    Some(Null) | None => None
+    Some(_) => raise InvalidParams("\{context}.\{key} must be a boolean")
   }
 }
 

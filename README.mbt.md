@@ -30,6 +30,10 @@ structured content, so the low-level API accepts JSON directly. The high-level
 tool API uses MoonBit's `FromJson` and `ToJson` traits for normal typed
 handlers.
 
+MCP capabilities are typed. Known `2025-11-25` client and server capabilities
+have dedicated MoonBit structs, while unknown extension capabilities are kept in
+the `extra` map and experimental capabilities remain explicit JSON.
+
 ```mbt check
 ///|
 struct HelloInput {
@@ -157,6 +161,27 @@ try! server.completion(reference=@mcp.PromptRef(name="summarize"), fn(
 
 The `json_tool` and `string_prompt` methods are escape hatches. Normal server
 code should start with `tool`, `resource`, or `prompt`.
+
+Configure advertised server capabilities with typed values:
+
+```mbt nocheck
+let server = @mcp.Server(
+  name="example",
+  version="0.1.0",
+  capabilities=@mcp.ServerCapabilities(
+    tools=@mcp.ToolsCapability(list_changed=true),
+    resources=@mcp.ResourcesCapability(subscribe=true, list_changed=true),
+    prompts=@mcp.PromptsCapability(list_changed=true),
+    logging=true,
+    completions=true,
+    tasks=@mcp.ServerTaskCapabilities(
+      list=true,
+      cancel=true,
+      requests=@mcp.ServerTaskRequestCapabilities(tools_call=true),
+    ),
+  ),
+)
+```
 
 `handle_jsonrpc` is a lower-level dispatch hook for transports and tests.
 Application code should normally talk through a transport such as

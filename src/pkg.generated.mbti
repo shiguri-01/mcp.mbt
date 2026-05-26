@@ -61,7 +61,7 @@ pub fn Client::Client() -> Self
 pub fn Client::call_tool_request(Self, name~ : String, arguments? : Json) -> Json
 pub fn Client::complete_request(Self, reference~ : CompletionReference, argument_name~ : String, argument_value~ : String, context_arguments? : Map[String, String]) -> Json
 pub fn Client::get_prompt_request(Self, name~ : String, arguments? : Json) -> Json
-pub fn Client::initialize_request(Self, client_name~ : String, client_version~ : String, client_title? : String, client_description? : String, client_icons? : Array[Icon], client_website_url? : String, capabilities? : Json) -> Json
+pub fn Client::initialize_request(Self, client_name~ : String, client_version~ : String, client_title? : String, client_description? : String, client_icons? : Array[Icon], client_website_url? : String, capabilities? : ClientCapabilities) -> Json
 pub fn Client::initialized_notification(Self) -> Json
 pub fn Client::list_prompts_request(Self, cursor? : String) -> Json
 pub fn Client::list_resource_templates_request(Self, cursor? : String) -> Json
@@ -71,6 +71,33 @@ pub fn Client::ping_request(Self) -> Json
 pub fn Client::read_resource_request(Self, uri~ : String) -> Json
 pub async fn Client::receive_jsonrpc(Self, Json) -> Json? raise McpError
 pub fn Client::set_logging_level_request(Self, level~ : LoggingLevel) -> Json
+
+pub(all) struct ClientCapabilities {
+  roots : RootsCapability?
+  sampling : SamplingCapability?
+  elicitation : ElicitationCapability?
+  tasks : ClientTaskCapabilities?
+  experimental : Json?
+  extra : Map[String, Json]
+} derive(Eq, @debug.Debug)
+pub fn ClientCapabilities::ClientCapabilities(roots? : RootsCapability, sampling? : SamplingCapability, elicitation? : ElicitationCapability, tasks? : ClientTaskCapabilities, experimental? : Json, extra? : Map[String, Json]) -> Self
+pub fn ClientCapabilities::empty() -> Self
+pub impl ToJson for ClientCapabilities
+
+pub(all) struct ClientTaskCapabilities {
+  list : Bool
+  cancel : Bool
+  requests : ClientTaskRequestCapabilities?
+} derive(Eq, @debug.Debug)
+pub fn ClientTaskCapabilities::ClientTaskCapabilities(list? : Bool, cancel? : Bool, requests? : ClientTaskRequestCapabilities) -> Self
+pub impl ToJson for ClientTaskCapabilities
+
+pub(all) struct ClientTaskRequestCapabilities {
+  sampling_create_message : Bool
+  elicitation_create : Bool
+} derive(Eq, @debug.Debug)
+pub fn ClientTaskRequestCapabilities::ClientTaskRequestCapabilities(sampling_create_message? : Bool, elicitation_create? : Bool) -> Self
+pub impl ToJson for ClientTaskRequestCapabilities
 
 pub(all) struct CompleteResult {
   values : Array[String]
@@ -103,6 +130,13 @@ pub(all) enum ContentBlock {
 } derive(Eq, @debug.Debug)
 pub impl ToJson for ContentBlock
 
+pub(all) struct ElicitationCapability {
+  form : Bool
+  url : Bool
+} derive(Eq, @debug.Debug)
+pub fn ElicitationCapability::ElicitationCapability(form? : Bool, url? : Bool) -> Self
+pub impl ToJson for ElicitationCapability
+
 pub(all) struct GetPromptResult {
   description : String?
   messages : Array[PromptMessage]
@@ -132,7 +166,7 @@ pub impl ToJson for Implementation
 
 pub(all) struct InitializeParams {
   protocol_version : String
-  capabilities : Json
+  capabilities : ClientCapabilities
   client_info : Implementation
   meta : Json?
 } derive(Eq, @debug.Debug)
@@ -188,6 +222,12 @@ pub fn PromptMessage::assistant(String) -> Self
 pub fn PromptMessage::user(String) -> Self
 pub impl ToJson for PromptMessage
 
+pub(all) struct PromptsCapability {
+  list_changed : Bool?
+} derive(Eq, @debug.Debug)
+pub fn PromptsCapability::PromptsCapability(list_changed? : Bool) -> Self
+pub impl ToJson for PromptsCapability
+
 pub(all) struct ReadResourceResult {
   contents : Array[ResourceContent]
   meta : Json?
@@ -232,11 +272,31 @@ pub(all) struct ResourceTemplate {
 pub fn ResourceTemplate::ResourceTemplate(uri_template~ : String, name~ : String, title? : String, description? : String, mime_type? : String, meta? : Json) -> Self
 pub impl ToJson for ResourceTemplate
 
+pub(all) struct ResourcesCapability {
+  subscribe : Bool?
+  list_changed : Bool?
+} derive(Eq, @debug.Debug)
+pub fn ResourcesCapability::ResourcesCapability(subscribe? : Bool, list_changed? : Bool) -> Self
+pub impl ToJson for ResourcesCapability
+
+pub(all) struct RootsCapability {
+  list_changed : Bool?
+} derive(Eq, @debug.Debug)
+pub fn RootsCapability::RootsCapability(list_changed? : Bool) -> Self
+pub impl ToJson for RootsCapability
+
+pub(all) struct SamplingCapability {
+  context : Bool
+  tools : Bool
+} derive(Eq, @debug.Debug)
+pub fn SamplingCapability::SamplingCapability(context? : Bool, tools? : Bool) -> Self
+pub impl ToJson for SamplingCapability
+
 pub struct Server {
   // private fields
 }
 pub fn Server::Server(name~ : String, version~ : String, title? : String, description? : String, icons? : Array[Icon], website_url? : String, instructions? : String, capabilities? : ServerCapabilities) -> Self
-pub fn Server::client_capabilities(Self) -> Json?
+pub fn Server::client_capabilities(Self) -> ClientCapabilities?
 pub fn Server::client_info(Self) -> Implementation?
 pub fn Server::completion(Self, reference~ : CompletionReference, (CompletionRequest) -> CompleteResult raise McpError) -> Unit raise McpError
 pub async fn Server::handle_jsonrpc(Self, Json) -> Json?
@@ -253,16 +313,33 @@ pub fn Server::string_prompt(Self, name~ : String, title? : String, description?
 pub fn[A : @json.FromJson + @schema.JsonSchema] Server::tool(Self, name~ : String, title? : String, description? : String, input_schema? : Json, output_schema? : Json, annotations? : ToolAnnotations, (A) -> CallToolResult raise McpError) -> Unit raise McpError
 
 pub(all) struct ServerCapabilities {
-  tools_list_changed : Bool
-  resources : Json?
-  prompts : Json?
+  tools : ToolsCapability?
+  resources : ResourcesCapability?
+  prompts : PromptsCapability?
   logging : Bool
   completions : Bool
+  tasks : ServerTaskCapabilities?
   experimental : Json?
+  extra : Map[String, Json]
 } derive(Eq, @debug.Debug)
-pub fn ServerCapabilities::full(list_changed? : Bool, logging? : Bool, completions? : Bool, experimental? : Json) -> Self
+pub fn ServerCapabilities::ServerCapabilities(tools? : ToolsCapability, resources? : ResourcesCapability, prompts? : PromptsCapability, logging? : Bool, completions? : Bool, tasks? : ServerTaskCapabilities, experimental? : Json, extra? : Map[String, Json]) -> Self
+pub fn ServerCapabilities::full(list_changed? : Bool, resource_subscribe? : Bool, logging? : Bool, completions? : Bool, tasks? : ServerTaskCapabilities, experimental? : Json) -> Self
 pub fn ServerCapabilities::tools_only(list_changed? : Bool) -> Self
 pub impl ToJson for ServerCapabilities
+
+pub(all) struct ServerTaskCapabilities {
+  list : Bool
+  cancel : Bool
+  requests : ServerTaskRequestCapabilities?
+} derive(Eq, @debug.Debug)
+pub fn ServerTaskCapabilities::ServerTaskCapabilities(list? : Bool, cancel? : Bool, requests? : ServerTaskRequestCapabilities) -> Self
+pub impl ToJson for ServerTaskCapabilities
+
+pub(all) struct ServerTaskRequestCapabilities {
+  tools_call : Bool
+} derive(Eq, @debug.Debug)
+pub fn ServerTaskRequestCapabilities::ServerTaskRequestCapabilities(tools_call? : Bool) -> Self
+pub impl ToJson for ServerTaskRequestCapabilities
 
 type SessionState
 
@@ -287,6 +364,12 @@ pub(all) struct ToolAnnotations {
   open_world_hint : Bool?
 } derive(Eq, @debug.Debug)
 pub impl ToJson for ToolAnnotations
+
+pub(all) struct ToolsCapability {
+  list_changed : Bool?
+} derive(Eq, @debug.Debug)
+pub fn ToolsCapability::ToolsCapability(list_changed? : Bool) -> Self
+pub impl ToJson for ToolsCapability
 
 // Type aliases
 

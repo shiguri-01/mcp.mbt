@@ -81,13 +81,13 @@ pub fn Client::initialize_request(
   client_description? : String,
   client_icons? : Array[Icon] = [],
   client_website_url? : String,
-  capabilities? : Json = Json::object({}),
+  capabilities? : ClientCapabilities = ClientCapabilities::empty(),
 ) -> Json {
   self.jsonrpc_request(
     "initialize",
     params=Json::object({
       "protocolVersion": Json::string(latest_protocol_version),
-      "capabilities": capabilities,
+      "capabilities": capabilities.to_json(),
       "clientInfo": Implementation(
         name=client_name,
         version=client_version,

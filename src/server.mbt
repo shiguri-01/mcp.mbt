@@ -20,7 +20,7 @@ enum SessionState {
 ///|
 pub(all) struct InitializeParams {
   protocol_version : String
-  capabilities : Json
+  capabilities : ClientCapabilities
   client_info : Implementation
   meta : Json?
 } derive(Debug, Eq)
@@ -55,7 +55,7 @@ pub struct Server {
   priv instructions : String?
   priv mut state : SessionState
   priv mut protocol_version : String?
-  priv mut client_capabilities : Json?
+  priv mut client_capabilities : ClientCapabilities?
   priv mut client_info : Implementation?
   priv tools : Map[String, RegisteredTool]
   priv resources : Map[String, RegisteredResource]
@@ -398,10 +398,8 @@ fn parse_initialize_params(params : Json?) -> InitializeParams raise McpError {
   {
     protocol_version: get_string(fields, "protocolVersion", "initialize params"),
     capabilities: match fields.get("capabilities") {
-      Some(Object(_) as capabilities) => capabilities
-      Some(Null) | None => Json::object({})
-      Some(_) =>
-        raise InvalidParams("initialize params.capabilities must be an object")
+      Some(value) => parse_client_capabilities(value)
+      None => ClientCapabilities::empty()
     },
     client_info: match fields.get("clientInfo") {
       Some(value) => parse_implementation(value, "initialize params.clientInfo")
@@ -470,7 +468,7 @@ pub fn Server::negotiated_protocol_version(self : Server) -> String? {
 }
 
 ///|
-pub fn Server::client_capabilities(self : Server) -> Json? {
+pub fn Server::client_capabilities(self : Server) -> ClientCapabilities? {
   self.client_capabilities
 }
 

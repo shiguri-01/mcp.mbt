@@ -107,8 +107,8 @@ async test "initialize negotiates unsupported protocol version to server latest"
   assert_true(
     server_info["websiteUrl"] == Json::string("https://example.com/server"),
   )
-  guard server.client_capabilities() is Some(Object(capabilities)) else {
+  guard server.client_capabilities() is Some(capabilities) else {
     fail("expected stored client capabilities")
   }
-  assert_true(capabilities.contains("roots"))
+  assert_true(capabilities.roots is Some(_))
 }
