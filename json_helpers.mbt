@@ -36,7 +36,19 @@ fn put_optional_json(
 
 ///|
 fn empty_object_schema() -> Json {
-  object([])
+  schema([])
+}
+
+///|
+/// JSON Schema provider for typed tool inputs.
+pub(open) trait JsonSchema {
+  fn json_schema() -> Json
+}
+
+///|
+/// Prompt argument provider for typed prompt inputs.
+pub(open) trait PromptArguments {
+  fn prompt_arguments() -> Array[PromptArgument]
 }
 
 ///|
@@ -48,13 +60,97 @@ pub struct Property {
 } derive(Debug, Eq)
 
 ///|
+/// Build a JSON Schema object for MCP tool input.
+pub fn schema(
+  properties : Array[Property],
+  additional_properties? : Bool = false,
+) -> Json {
+  let property_fields : Map[String, Json] = {}
+  let required : Array[String] = []
+  for property in properties {
+    property_fields[property.name] = property.schema
+    if property.required {
+      required.push(property.name)
+    }
+  }
+  Json::object({
+    "type": Json::string("object"),
+    "properties": Json::object(property_fields),
+    "required": required.to_json(),
+    "additionalProperties": Json::boolean(additional_properties),
+  })
+}
+
+///|
 /// Build an object property from an arbitrary JSON Schema fragment.
-pub fn prop(
+pub fn field(
   name~ : String,
   schema~ : Json,
   required? : Bool = false,
 ) -> Property {
   { name, schema, required }
+}
+
+///|
+/// Build a string field for a JSON Schema object.
+pub fn string_field(
+  name~ : String,
+  description? : String,
+  required? : Bool = false,
+) -> Property {
+  field(name~, schema=string(description?), required~)
+}
+
+///|
+/// Build an integer field for a JSON Schema object.
+pub fn integer_field(
+  name~ : String,
+  description? : String,
+  required? : Bool = false,
+) -> Property {
+  field(name~, schema=integer(description?), required~)
+}
+
+///|
+/// Build a number field for a JSON Schema object.
+pub fn number_field(
+  name~ : String,
+  description? : String,
+  required? : Bool = false,
+) -> Property {
+  field(name~, schema=number(description?), required~)
+}
+
+///|
+/// Build a boolean field for a JSON Schema object.
+pub fn boolean_field(
+  name~ : String,
+  description? : String,
+  required? : Bool = false,
+) -> Property {
+  field(name~, schema=boolean(description?), required~)
+}
+
+///|
+/// Build an array field for a JSON Schema object.
+pub fn array_field(
+  name~ : String,
+  items~ : Json,
+  description? : String,
+  required? : Bool = false,
+) -> Property {
+  field(name~, schema=array(items~, description?), required~)
+}
+
+///|
+/// Build a string enum field for a JSON Schema object.
+pub fn string_enum_field(
+  name~ : String,
+  values~ : Array[String],
+  description? : String,
+  required? : Bool = false,
+) -> Property {
+  field(name~, schema=string_enum(values, description?), required~)
 }
 
 ///|
@@ -106,85 +202,6 @@ pub fn string_enum(values : Array[String], description? : String) -> Json {
   }
   put_optional_string(fields, "description", description)
   Json::object(fields)
-}
-
-///|
-/// Build a required-or-optional string property.
-pub fn string_prop(
-  name~ : String,
-  description? : String,
-  required? : Bool = false,
-) -> Property {
-  prop(name~, schema=string(description?), required~)
-}
-
-///|
-pub fn integer_prop(
-  name~ : String,
-  description? : String,
-  required? : Bool = false,
-) -> Property {
-  prop(name~, schema=integer(description?), required~)
-}
-
-///|
-pub fn number_prop(
-  name~ : String,
-  description? : String,
-  required? : Bool = false,
-) -> Property {
-  prop(name~, schema=number(description?), required~)
-}
-
-///|
-pub fn boolean_prop(
-  name~ : String,
-  description? : String,
-  required? : Bool = false,
-) -> Property {
-  prop(name~, schema=boolean(description?), required~)
-}
-
-///|
-pub fn array_prop(
-  name~ : String,
-  items~ : Json,
-  description? : String,
-  required? : Bool = false,
-) -> Property {
-  prop(name~, schema=array(items~, description?), required~)
-}
-
-///|
-pub fn string_enum_prop(
-  name~ : String,
-  values~ : Array[String],
-  description? : String,
-  required? : Bool = false,
-) -> Property {
-  prop(name~, schema=string_enum(values, description?), required~)
-}
-
-///|
-/// Build a closed JSON Schema object from property descriptors.
-pub fn object(
-  properties : Array[Property],
-  additional_properties? : Bool = false,
-) -> Json {
-  let property_fields : Map[String, Json] = {}
-  let required : Array[String] = []
-  for property in properties {
-    property_fields[property.name] = property.schema
-    if property.required {
-      required.push(property.name)
-    }
-  }
-  Json::object({
-    "type": Json::string("object"),
-    "properties": Json::object(property_fields),
-    "required": required.to_json(),
-    "additionalProperties": Json::boolean(additional_properties),
-  })
 }
 
 ///|

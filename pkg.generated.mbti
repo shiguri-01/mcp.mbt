@@ -9,17 +9,19 @@ import {
 // Values
 pub fn array(items~ : Json, description? : String) -> Json
 
-pub fn array_prop(name~ : String, items~ : Json, description? : String, required? : Bool) -> Property
+pub fn array_field(name~ : String, items~ : Json, description? : String, required? : Bool) -> Property
 
 pub fn boolean(description? : String) -> Json
 
-pub fn boolean_prop(name~ : String, description? : String, required? : Bool) -> Property
+pub fn boolean_field(name~ : String, description? : String, required? : Bool) -> Property
 
 pub fn[T : @json.FromJson] decode_structured_content(Json) -> T raise McpError
 
+pub fn field(name~ : String, schema~ : Json, required? : Bool) -> Property
+
 pub fn integer(description? : String) -> Json
 
-pub fn integer_prop(name~ : String, description? : String, required? : Bool) -> Property
+pub fn integer_field(name~ : String, description? : String, required? : Bool) -> Property
 
 pub fn jsonrpc_error(RequestId?, McpError) -> Json
 
@@ -33,21 +35,19 @@ pub let latest_protocol_version : String
 
 pub fn number(description? : String) -> Json
 
-pub fn number_prop(name~ : String, description? : String, required? : Bool) -> Property
-
-pub fn object(Array[Property], additional_properties? : Bool) -> Json
+pub fn number_field(name~ : String, description? : String, required? : Bool) -> Property
 
 pub fn parse_jsonrpc_result(Json) -> Json raise McpError
 
-pub fn prop(name~ : String, schema~ : Json, required? : Bool) -> Property
+pub fn schema(Array[Property], additional_properties? : Bool) -> Json
 
 pub fn string(description? : String) -> Json
 
 pub fn string_enum(Array[String], description? : String) -> Json
 
-pub fn string_enum_prop(name~ : String, values~ : Array[String], description? : String, required? : Bool) -> Property
+pub fn string_enum_field(name~ : String, values~ : Array[String], description? : String, required? : Bool) -> Property
 
-pub fn string_prop(name~ : String, description? : String, required? : Bool) -> Property
+pub fn string_field(name~ : String, description? : String, required? : Bool) -> Property
 
 pub fn structured_content(Json) -> Json raise McpError
 
@@ -212,14 +212,14 @@ pub fn Server::list_prompts(Self) -> Json
 pub fn Server::list_resources(Self) -> Json
 pub fn Server::list_tools(Self) -> Json
 pub fn Server::notify_initialized(Self) -> Unit
-pub fn[A : @json.FromJson] Server::prompt(Self, name~ : String, title? : String, description? : String, arguments? : Array[PromptArgument], (A) -> GetPromptResult raise McpError) -> Unit raise McpError
+pub fn[A : @json.FromJson + PromptArguments] Server::prompt(Self, name~ : String, title? : String, description? : String, arguments? : Array[PromptArgument], (A) -> GetPromptResult raise McpError) -> Unit raise McpError
 pub fn Server::raw_prompt(Self, Prompt, (Map[String, String]) -> Json raise McpError) -> Unit raise McpError
 pub fn Server::raw_resource(Self, Resource, (String) -> ReadResourceResult raise McpError) -> Unit raise McpError
 pub fn Server::raw_tool(Self, Tool, (Json?) -> CallToolResult raise McpError) -> Unit raise McpError
 pub fn Server::read_resource(Self, Json?) -> ReadResourceResult raise McpError
 pub fn Server::resource(Self, uri~ : String, name? : String, title? : String, description? : String, mime_type? : String, (String) -> ReadResourceResult raise McpError) -> Unit raise McpError
 pub fn Server::string_prompt(Self, name~ : String, title? : String, description? : String, arguments? : Array[PromptArgument], (Map[String, String]) -> GetPromptResult raise McpError) -> Unit raise McpError
-pub fn[A : @json.FromJson] Server::tool(Self, name~ : String, title? : String, description? : String, input_schema? : Json, output_schema? : Json, annotations? : ToolAnnotations, (A) -> CallToolResult raise McpError) -> Unit raise McpError
+pub fn[A : @json.FromJson + JsonSchema] Server::tool(Self, name~ : String, title? : String, description? : String, input_schema? : Json, output_schema? : Json, annotations? : ToolAnnotations, (A) -> CallToolResult raise McpError) -> Unit raise McpError
 
 pub(all) struct ServerCapabilities {
   tools_list_changed : Bool
@@ -256,4 +256,11 @@ pub impl ToJson for ToolAnnotations
 // Type aliases
 
 // Traits
+pub(open) trait JsonSchema {
+  fn json_schema() -> Json
+}
+
+pub(open) trait PromptArguments {
+  fn prompt_arguments() -> Array[PromptArgument]
+}
 

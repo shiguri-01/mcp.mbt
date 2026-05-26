@@ -16,15 +16,16 @@ struct HelloInput {
 } derive(FromJson)
 
 ///|
+impl @mcp.JsonSchema for HelloInput with fn json_schema() {
+  @mcp.schema([@mcp.string_field(name="name", required=true)])
+}
+
+///|
 async fn main {
   let server = @mcp.Server(name="example", version="0.1.0")
-  try! server.tool(
-    name="hello",
-    input_schema=@mcp.object([@mcp.string_prop(name="name", required=true)]),
-    fn(input : HelloInput) {
-      @mcp.CallToolResult::text("Hello, \{input.name}!")
-    },
-  )
+  try! server.tool(name="hello", fn(input : HelloInput) {
+    @mcp.CallToolResult::text("Hello, \{input.name}!")
+  })
   @mcp_stdio.serve(server)
 }
 ```

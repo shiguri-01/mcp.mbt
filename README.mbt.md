@@ -30,16 +30,18 @@ struct HelloInput {
 } derive(FromJson)
 
 ///|
+impl @mcp.JsonSchema for HelloInput with fn json_schema() {
+  @mcp.schema([@mcp.string_field(name="name", required=true)])
+}
+
+///|
 test {
   let server = @mcp.Server(name="example", version="0.1.0")
-  try! server.tool(
-    name="hello",
-    description="Return a greeting",
-    input_schema=@mcp.object([@mcp.string_prop(name="name", required=true)]),
-    fn(input : HelloInput) {
-      @mcp.CallToolResult::text("Hello, \{input.name}!")
-    },
-  )
+  try! server.tool(name="hello", description="Return a greeting", fn(
+    input : HelloInput,
+  ) {
+    @mcp.CallToolResult::text("Hello, \{input.name}!")
+  })
   assert_true(server.is_initialized() == false)
 }
 ```
@@ -88,12 +90,15 @@ struct HelloInput {
   name : String
 } derive(FromJson)
 
+impl @mcp.JsonSchema for HelloInput with fn json_schema() {
+  @mcp.schema([
+    @mcp.string_field(name="name", description="Name to greet", required=true),
+  ])
+}
+
 try! server.tool(
   name="hello",
   description="Return a greeting",
-  input_schema=@mcp.object([
-    @mcp.string_prop(name="name", description="Name to greet", required=true),
-  ]),
   fn(input : HelloInput) {
     @mcp.CallToolResult::text("Hello, \{input.name}!")
   },
@@ -112,11 +117,12 @@ struct SummarizeInput {
   topic : String
 } derive(FromJson)
 
+impl @mcp.PromptArguments for SummarizeInput with fn prompt_arguments() {
+  [@mcp.PromptArgument(name="topic", required=true)]
+}
+
 try! server.prompt(
   name="summarize",
-  arguments=[
-    @mcp.PromptArgument(name="topic", required=true),
-  ],
   fn(input : SummarizeInput) {
     @mcp.GetPromptResult::user("Summarize \{input.topic} in three bullets.")
   },

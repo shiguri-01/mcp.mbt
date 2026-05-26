@@ -98,21 +98,27 @@ pub fn Server::json_tool(
 
 ///|
 /// Register a tool that decodes arguments through `FromJson`.
-pub fn[A : FromJson] Server::tool(
+///
+/// If `input_schema` is omitted, the schema comes from `A::json_schema()`.
+pub fn[A : FromJson + JsonSchema] Server::tool(
   self : Server,
   name~ : String,
   title? : String,
   description? : String,
-  input_schema? : Json = empty_object_schema(),
+  input_schema? : Json,
   output_schema? : Json,
   annotations? : ToolAnnotations,
   handler : (A) -> CallToolResult raise McpError,
 ) -> Unit raise McpError {
+  let schema = match input_schema {
+    Some(schema) => schema
+    None => A::json_schema()
+  }
   self.json_tool(
     name~,
     title?,
     description?,
-    input_schema~,
+    input_schema=schema,
     output_schema?,
     annotations?,
     fn(arguments) raise McpError {
@@ -194,15 +200,22 @@ pub fn Server::string_prompt(
 
 ///|
 /// Register a prompt that decodes string arguments through `FromJson`.
-pub fn[A : FromJson] Server::prompt(
+///
+/// If `arguments` is omitted, the descriptors come from
+/// `A::prompt_arguments()`.
+pub fn[A : FromJson + PromptArguments] Server::prompt(
   self : Server,
   name~ : String,
   title? : String,
   description? : String,
-  arguments? : Array[PromptArgument] = [],
+  arguments? : Array[PromptArgument],
   handler : (A) -> GetPromptResult raise McpError,
 ) -> Unit raise McpError {
-  self.string_prompt(name~, title?, description?, arguments~, fn(
+  let prompt_arguments = match arguments {
+    Some(arguments) => arguments
+    None => A::prompt_arguments()
+  }
+  self.string_prompt(name~, title?, description?, arguments=prompt_arguments, fn(
     arguments,
   ) raise McpError {
     let input : A = @json.from_json(prompt_arguments_json(arguments)) catch {

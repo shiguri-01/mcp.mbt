@@ -4,9 +4,21 @@ struct HelloInput {
 } derive(FromJson)
 
 ///|
+impl @mcp.JsonSchema for HelloInput with fn json_schema() {
+  @mcp.schema([
+    @mcp.string_field(name="name", description="Name to greet", required=true),
+  ])
+}
+
+///|
 struct SummarizeInput {
   topic : String
 } derive(FromJson)
+
+///|
+impl @mcp.PromptArguments for SummarizeInput with fn prompt_arguments() {
+  [@mcp.PromptArgument(name="topic", required=true)]
+}
 
 ///|
 async fn main {
@@ -15,16 +27,11 @@ async fn main {
     version="0.1.0",
     instructions="A minimal MoonBit MCP server over stdio.",
   )
-  try! server.tool(
-    name="hello",
-    description="Return a greeting",
-    input_schema=@mcp.object([
-      @mcp.string_prop(name="name", description="Name to greet", required=true),
-    ]),
-    fn(input : HelloInput) {
-      @mcp.CallToolResult::text("Hello, \{input.name}!")
-    },
-  )
+  try! server.tool(name="hello", description="Return a greeting", fn(
+    input : HelloInput,
+  ) {
+    @mcp.CallToolResult::text("Hello, \{input.name}!")
+  })
   try! server.resource(
     uri="memory://status",
     name="status",
@@ -37,7 +44,6 @@ async fn main {
   try! server.prompt(
     name="summarize",
     description="Create a short summarization prompt",
-    arguments=[@mcp.PromptArgument(name="topic", required=true)],
     fn(input : SummarizeInput) {
       @mcp.GetPromptResult::user(
         "Summarize \{input.topic} in three concise bullets.",

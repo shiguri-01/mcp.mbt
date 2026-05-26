@@ -27,8 +27,8 @@ test "initialize returns server metadata and capabilities" {
 ///|
 test "raw tool can be listed and called" {
   let server = @mcp.Server(name="test-server", version="0.1.0")
-  let schema = @mcp.object([
-    @mcp.string_prop(name="name", description="Name to greet", required=true),
+  let schema = @mcp.schema([
+    @mcp.string_field(name="name", description="Name to greet", required=true),
   ])
   try! server.json_tool(
     name="greet",
@@ -79,6 +79,11 @@ struct EchoInput {
 } derive(FromJson)
 
 ///|
+impl @mcp.JsonSchema for EchoInput with fn json_schema() {
+  @mcp.schema([@mcp.string_field(name="text", required=true)])
+}
+
+///|
 struct EchoOutput {
   echoed : String
 } derive(FromJson, ToJson)
@@ -86,13 +91,9 @@ struct EchoOutput {
 ///|
 test "tool decodes input and encodes structured content" {
   let server = @mcp.Server(name="test-server", version="0.1.0")
-  try! server.tool(
-    name="echo",
-    input_schema=@mcp.object([@mcp.string_prop(name="text", required=true)]),
-    fn(input : EchoInput) {
-      @mcp.CallToolResult::structured(({ echoed: input.text } : EchoOutput))
-    },
-  )
+  try! server.tool(name="echo", fn(input : EchoInput) {
+    @mcp.CallToolResult::structured(({ echoed: input.text } : EchoOutput))
+  })
   let response = try! server.handle(
     "tools/call",
     Some(
@@ -112,11 +113,9 @@ test "tool decodes input and encodes structured content" {
 ///|
 test "tool decodes input and returns text content" {
   let server = @mcp.Server(name="test-server", version="0.1.0")
-  try! server.tool(
-    name="echo_text",
-    input_schema=@mcp.object([@mcp.string_prop(name="text", required=true)]),
-    fn(input : EchoInput) { @mcp.CallToolResult::text(input.text) },
-  )
+  try! server.tool(name="echo_text", fn(input : EchoInput) {
+    @mcp.CallToolResult::text(input.text)
+  })
   let response = try! server.handle(
     "tools/call",
     Some(
@@ -138,15 +137,16 @@ struct PromptInput {
 } derive(FromJson)
 
 ///|
+impl @mcp.PromptArguments for PromptInput with fn prompt_arguments() {
+  [@mcp.PromptArgument(name="topic", required=true)]
+}
+
+///|
 test "prompt decodes string arguments" {
   let server = @mcp.Server(name="test-server", version="0.1.0")
-  try! server.prompt(
-    name="summarize_typed",
-    arguments=[@mcp.PromptArgument(name="topic", required=true)],
-    fn(input : PromptInput) {
-      @mcp.GetPromptResult::user("Summarize \{input.topic}.")
-    },
-  )
+  try! server.prompt(name="summarize_typed", fn(input : PromptInput) {
+    @mcp.GetPromptResult::user("Summarize \{input.topic}.")
+  })
   let prompt = try! server.handle(
     "prompts/get",
     Some(
@@ -241,18 +241,18 @@ test "client builds protocol requests" {
 
 ///|
 test "ergonomic helpers build useful schemas and decode structured content" {
-  let schema = @mcp.object([
-    @mcp.integer_prop(
+  let schema = @mcp.schema([
+    @mcp.integer_field(
       name="count",
       description="Number of items",
       required=true,
     ),
-    @mcp.string_enum_prop(
+    @mcp.string_enum_field(
       name="mode",
       values=["fast", "safe"],
       description="Run mode",
     ),
-    @mcp.array_prop(
+    @mcp.array_field(
       name="flags",
       items=@mcp.string(),
       description="Feature flags",
