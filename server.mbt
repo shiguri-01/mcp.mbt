@@ -85,6 +85,31 @@ pub fn[A : FromJson, B : ToJson] Server::add_tool(
 }
 
 ///|
+pub fn[A : FromJson, B : ToJson] Server::tool_json(
+  self : Server,
+  name~ : String,
+  title? : String,
+  description? : String,
+  input_schema? : Json = empty_object_schema(),
+  output_schema? : Json,
+  annotations? : ToolAnnotations,
+  handler : (A) -> B raise McpError,
+) -> Unit raise McpError {
+  self.add_tool(
+    {
+      name,
+      title,
+      description,
+      input_schema,
+      output_schema,
+      annotations,
+      meta: None,
+    },
+    handler,
+  )
+}
+
+///|
 pub fn Server::add_text_tool(
   self : Server,
   tool : Tool,
@@ -93,6 +118,30 @@ pub fn Server::add_text_tool(
   self.add_tool_raw(tool, fn(arguments) raise McpError {
     CallToolResult::text(handler(arguments))
   })
+}
+
+///|
+pub fn Server::tool_text(
+  self : Server,
+  name~ : String,
+  title? : String,
+  description? : String,
+  input_schema? : Json = empty_object_schema(),
+  annotations? : ToolAnnotations,
+  handler : (Json?) -> String raise McpError,
+) -> Unit raise McpError {
+  self.add_text_tool(
+    {
+      name,
+      title,
+      description,
+      input_schema,
+      output_schema: None,
+      annotations,
+      meta: None,
+    },
+    handler,
+  )
 }
 
 ///|
@@ -124,6 +173,33 @@ pub fn Server::add_text_resource(
 }
 
 ///|
+pub fn Server::resource_text(
+  self : Server,
+  uri~ : String,
+  name? : String,
+  title? : String,
+  description? : String,
+  mime_type? : String = "text/plain",
+  handler : (String) -> String raise McpError,
+) -> Unit raise McpError {
+  let resource_name = match name {
+    Some(name) => name
+    None => uri
+  }
+  self.add_text_resource(
+    {
+      uri,
+      name: resource_name,
+      title,
+      description,
+      mime_type: Some(mime_type),
+      meta: None,
+    },
+    handler,
+  )
+}
+
+///|
 pub fn Server::add_prompt_raw(
   self : Server,
   prompt : Prompt,
@@ -133,6 +209,17 @@ pub fn Server::add_prompt_raw(
     raise InvalidParams("prompt already registered: \{prompt.name}")
   }
   self.prompts[prompt.name] = { prompt, handler }
+}
+
+///|
+pub fn Server::add_prompt_result(
+  self : Server,
+  prompt : Prompt,
+  handler : (Map[String, String]) -> GetPromptResult raise McpError,
+) -> Unit raise McpError {
+  self.add_prompt_raw(prompt, fn(arguments) raise McpError {
+    handler(arguments).to_json()
+  })
 }
 
 ///|
@@ -156,6 +243,18 @@ pub fn Server::add_prompt(
       ]),
     })
   })
+}
+
+///|
+pub fn Server::prompt_text(
+  self : Server,
+  name~ : String,
+  title? : String,
+  description? : String,
+  arguments? : Array[PromptArgument] = [],
+  handler : (Map[String, String]) -> String raise McpError,
+) -> Unit raise McpError {
+  self.add_prompt({ name, title, description, arguments, meta: None }, handler)
 }
 
 ///|

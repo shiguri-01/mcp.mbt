@@ -137,6 +137,15 @@ pub async fn Client::call_tool(
 }
 
 ///|
+pub async fn[T : FromJson] Client::call_tool_as(
+  self : Client,
+  name~ : String,
+  arguments? : Json = Json::object({}),
+) -> T raise @mcp.McpError {
+  @mcp.decode_structured_content(self.call_tool(name~, arguments~))
+}
+
+///|
 pub async fn Client::list_resources(self : Client) -> Json raise @mcp.McpError {
   self.request(self.core.list_resources_request())
 }

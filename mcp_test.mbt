@@ -86,7 +86,7 @@ struct EchoInput {
 ///|
 struct EchoOutput {
   echoed : String
-} derive(ToJson)
+} derive(FromJson, ToJson)
 
 ///|
 test "typed tool decodes input and encodes structured content" {
@@ -183,4 +183,30 @@ test "client builds protocol requests" {
   assert_true(call_fields["method"] == Json::string("tools/call"))
   guard call_fields["params"] is Object(params) else { fail("expected params") }
   assert_true(params["name"] == Json::string("echo"))
+}
+
+///|
+test "ergonomic helpers build useful schemas and decode structured content" {
+  let schema = @mcp.object_schema(
+    properties={
+      "count": @mcp.integer_property_schema(description="Number of items"),
+      "mode": @mcp.string_enum_schema(["fast", "safe"], description="Run mode"),
+      "flags": @mcp.array_schema(
+        items=@mcp.string_property_schema(),
+        description="Feature flags",
+      ),
+    },
+    required=["count"],
+  )
+  guard schema is Object({ "properties": Object(properties), .. }) else {
+    fail("expected object schema")
+  }
+  assert_true(properties.contains("count"))
+  let decoded : EchoOutput = try! @mcp.decode_structured_content(
+    Json::object({
+      "content": Json::array([]),
+      "structuredContent": Json::object({ "echoed": Json::string("ok") }),
+    }),
+  )
+  assert_true(decoded.echoed == "ok")
 }

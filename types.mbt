@@ -74,6 +74,25 @@ pub fn Tool::new(
 }
 
 ///|
+pub fn Tool::text(
+  name~ : String,
+  title? : String,
+  description? : String,
+  input_schema? : Json = empty_object_schema(),
+  annotations? : ToolAnnotations,
+) -> Tool {
+  {
+    name,
+    title,
+    description,
+    input_schema,
+    output_schema: None,
+    annotations,
+    meta: None,
+  }
+}
+
+///|
 pub(all) struct Resource {
   uri : String
   name : String
@@ -106,6 +125,17 @@ pub fn Resource::to_json(self : Resource) -> Json {
   put_optional_string(fields, "mimeType", self.mime_type)
   put_optional_json(fields, "_meta", self.meta)
   Json::object(fields)
+}
+
+///|
+pub fn Resource::text(
+  uri~ : String,
+  name~ : String,
+  title? : String,
+  description? : String,
+  mime_type? : String = "text/plain",
+) -> Resource {
+  { uri, name, title, description, mime_type: Some(mime_type), meta: None }
 }
 
 ///|
@@ -282,6 +312,75 @@ pub fn CallToolResult::text(text : String) -> CallToolResult {
 ///|
 pub fn CallToolResult::json(value : Json) -> CallToolResult {
   { content: [], structured_content: Some(value), is_error: false, meta: None }
+}
+
+///|
+pub fn CallToolResult::text_json(text : String, value : Json) -> CallToolResult {
+  {
+    content: [Text(text)],
+    structured_content: Some(value),
+    is_error: false,
+    meta: None,
+  }
+}
+
+///|
+pub fn CallToolResult::error_text(text : String) -> CallToolResult {
+  {
+    content: [Text(text)],
+    structured_content: None,
+    is_error: true,
+    meta: None,
+  }
+}
+
+///|
+pub(all) struct PromptMessage {
+  role : String
+  content : ContentBlock
+} derive(Debug, Eq)
+
+///|
+pub fn PromptMessage::user(text : String) -> PromptMessage {
+  { role: "user", content: Text(text) }
+}
+
+///|
+pub fn PromptMessage::assistant(text : String) -> PromptMessage {
+  { role: "assistant", content: Text(text) }
+}
+
+///|
+pub fn PromptMessage::to_json(self : PromptMessage) -> Json {
+  Json::object({
+    "role": Json::string(self.role),
+    "content": self.content.to_json(),
+  })
+}
+
+///|
+pub(all) struct GetPromptResult {
+  description : String?
+  messages : Array[PromptMessage]
+  meta : Json?
+} derive(Debug, Eq)
+
+///|
+pub fn GetPromptResult::to_json(self : GetPromptResult) -> Json {
+  let fields : Map[String, Json] = {
+    "messages": self.messages.map(fn(message) { message.to_json() }).to_json(),
+  }
+  put_optional_string(fields, "description", self.description)
+  put_optional_json(fields, "_meta", self.meta)
+  Json::object(fields)
+}
+
+///|
+pub fn GetPromptResult::user(
+  text : String,
+  description? : String,
+) -> GetPromptResult {
+  { description, messages: [PromptMessage::user(text)], meta: None }
 }
 
 ///|

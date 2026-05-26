@@ -50,6 +50,50 @@ pub fn string_property_schema(description? : String) -> Json {
 }
 
 ///|
+pub fn integer_property_schema(description? : String) -> Json {
+  let fields : Map[String, Json] = { "type": Json::string("integer") }
+  put_optional_string(fields, "description", description)
+  Json::object(fields)
+}
+
+///|
+pub fn number_property_schema(description? : String) -> Json {
+  let fields : Map[String, Json] = { "type": Json::string("number") }
+  put_optional_string(fields, "description", description)
+  Json::object(fields)
+}
+
+///|
+pub fn boolean_property_schema(description? : String) -> Json {
+  let fields : Map[String, Json] = { "type": Json::string("boolean") }
+  put_optional_string(fields, "description", description)
+  Json::object(fields)
+}
+
+///|
+pub fn array_schema(items~ : Json, description? : String) -> Json {
+  let fields : Map[String, Json] = {
+    "type": Json::string("array"),
+    "items": items,
+  }
+  put_optional_string(fields, "description", description)
+  Json::object(fields)
+}
+
+///|
+pub fn string_enum_schema(
+  values : Array[String],
+  description? : String,
+) -> Json {
+  let fields : Map[String, Json] = {
+    "type": Json::string("string"),
+    "enum": values.to_json(),
+  }
+  put_optional_string(fields, "description", description)
+  Json::object(fields)
+}
+
+///|
 pub fn object_schema(
   properties~ : Map[String, Json],
   required? : Array[String] = [],

@@ -7,7 +7,15 @@ import {
 }
 
 // Values
+pub fn array_schema(items~ : Json, description? : String) -> Json
+
+pub fn boolean_property_schema(description? : String) -> Json
+
+pub fn[T : @json.FromJson] decode_structured_content(Json) -> T raise McpError
+
 pub fn empty_object_schema() -> Json
+
+pub fn integer_property_schema(description? : String) -> Json
 
 pub fn jsonrpc_error(RequestId?, McpError) -> Json
 
@@ -19,11 +27,17 @@ pub fn jsonrpc_success(RequestId, Json) -> Json
 
 pub let latest_protocol_version : String
 
+pub fn number_property_schema(description? : String) -> Json
+
 pub fn object_schema(properties~ : Map[String, Json], required? : Array[String], additional_properties? : Bool) -> Json
 
 pub fn parse_jsonrpc_result(Json) -> Json raise McpError
 
+pub fn string_enum_schema(Array[String], description? : String) -> Json
+
 pub fn string_property_schema(description? : String) -> Json
+
+pub fn structured_content(Json) -> Json raise McpError
 
 // Errors
 pub(all) suberror McpError {
@@ -44,8 +58,10 @@ pub(all) struct CallToolResult {
   is_error : Bool
   meta : Json?
 } derive(Eq, @debug.Debug)
+pub fn CallToolResult::error_text(String) -> Self
 pub fn CallToolResult::json(Json) -> Self
 pub fn CallToolResult::text(String) -> Self
+pub fn CallToolResult::text_json(String, Json) -> Self
 pub fn CallToolResult::to_json(Self) -> Json
 
 pub struct Client {
@@ -69,6 +85,14 @@ pub(all) enum ContentBlock {
   Resource(Json)
 } derive(Eq, @debug.Debug)
 pub fn ContentBlock::to_json(Self) -> Json
+
+pub(all) struct GetPromptResult {
+  description : String?
+  messages : Array[PromptMessage]
+  meta : Json?
+} derive(Eq, @debug.Debug)
+pub fn GetPromptResult::to_json(Self) -> Json
+pub fn GetPromptResult::user(String, description? : String) -> Self
 
 pub(all) struct Implementation {
   name : String
@@ -111,6 +135,14 @@ pub(all) struct PromptArgument {
 pub fn PromptArgument::new(name~ : String, title? : String, description? : String, required? : Bool) -> Self
 pub fn PromptArgument::to_json(Self) -> Json
 
+pub(all) struct PromptMessage {
+  role : String
+  content : ContentBlock
+} derive(Eq, @debug.Debug)
+pub fn PromptMessage::assistant(String) -> Self
+pub fn PromptMessage::to_json(Self) -> Json
+pub fn PromptMessage::user(String) -> Self
+
 pub(all) struct ReadResourceResult {
   contents : Array[ResourceContent]
   meta : Json?
@@ -139,6 +171,7 @@ pub(all) struct Resource {
   meta : Json?
 } derive(Eq, @debug.Debug)
 pub fn Resource::new(uri~ : String, name~ : String, title? : String, description? : String, mime_type? : String, meta? : Json) -> Self
+pub fn Resource::text(uri~ : String, name~ : String, title? : String, description? : String, mime_type? : String) -> Self
 pub fn Resource::to_json(Self) -> Json
 
 pub(all) enum ResourceContent {
@@ -152,6 +185,7 @@ pub struct Server {
 }
 pub fn Server::add_prompt(Self, Prompt, (Map[String, String]) -> String raise McpError) -> Unit raise McpError
 pub fn Server::add_prompt_raw(Self, Prompt, (Map[String, String]) -> Json raise McpError) -> Unit raise McpError
+pub fn Server::add_prompt_result(Self, Prompt, (Map[String, String]) -> GetPromptResult raise McpError) -> Unit raise McpError
 pub fn Server::add_resource(Self, Resource, (String) -> ReadResourceResult raise McpError) -> Unit raise McpError
 pub fn Server::add_text_resource(Self, Resource, (String) -> String raise McpError) -> Unit raise McpError
 pub fn Server::add_text_tool(Self, Tool, (Json?) -> String raise McpError) -> Unit raise McpError
@@ -168,7 +202,11 @@ pub fn Server::list_resources(Self) -> Json
 pub fn Server::list_tools(Self) -> Json
 pub fn Server::new(name~ : String, version~ : String, instructions? : String, capabilities? : ServerCapabilities) -> Self
 pub fn Server::notify_initialized(Self) -> Unit
+pub fn Server::prompt_text(Self, name~ : String, title? : String, description? : String, arguments? : Array[PromptArgument], (Map[String, String]) -> String raise McpError) -> Unit raise McpError
 pub fn Server::read_resource(Self, Json?) -> ReadResourceResult raise McpError
+pub fn Server::resource_text(Self, uri~ : String, name? : String, title? : String, description? : String, mime_type? : String, (String) -> String raise McpError) -> Unit raise McpError
+pub fn[A : @json.FromJson, B : ToJson] Server::tool_json(Self, name~ : String, title? : String, description? : String, input_schema? : Json, output_schema? : Json, annotations? : ToolAnnotations, (A) -> B raise McpError) -> Unit raise McpError
+pub fn Server::tool_text(Self, name~ : String, title? : String, description? : String, input_schema? : Json, annotations? : ToolAnnotations, (Json?) -> String raise McpError) -> Unit raise McpError
 
 pub(all) struct ServerCapabilities {
   tools_list_changed : Bool
@@ -190,6 +228,7 @@ pub(all) struct Tool {
   meta : Json?
 } derive(Eq, @debug.Debug)
 pub fn Tool::new(name~ : String, title? : String, description? : String, input_schema? : Json, output_schema? : Json, annotations? : ToolAnnotations, meta? : Json) -> Self
+pub fn Tool::text(name~ : String, title? : String, description? : String, input_schema? : Json, annotations? : ToolAnnotations) -> Self
 pub fn Tool::to_json(Self) -> Json
 
 pub(all) struct ToolAnnotations {
