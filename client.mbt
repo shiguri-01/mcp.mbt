@@ -9,21 +9,17 @@ pub fn Client::Client() -> Client {
 }
 
 ///|
-pub fn Client::next_request_id(self : Client) -> RequestId {
+fn Client::next_request_id(self : Client) -> Json {
   let id = self.next_id
   self.next_id = self.next_id + 1
-  NumberId(id)
+  Json::number(id.to_double(), repr="\{id}")
 }
 
 ///|
-pub fn jsonrpc_request(
-  id : RequestId,
-  method_name : String,
-  params? : Json,
-) -> Json {
+fn jsonrpc_request(id : Json, method_name : String, params? : Json) -> Json {
   let fields : Map[String, Json] = {
     "jsonrpc": Json::string("2.0"),
-    "id": id.to_json(),
+    "id": id,
     "method": Json::string(method_name),
   }
   put_optional_json(fields, "params", params)
@@ -31,33 +27,13 @@ pub fn jsonrpc_request(
 }
 
 ///|
-pub fn jsonrpc_notification(method_name : String, params? : Json) -> Json {
+fn jsonrpc_notification(method_name : String, params? : Json) -> Json {
   let fields : Map[String, Json] = {
     "jsonrpc": Json::string("2.0"),
     "method": Json::string(method_name),
   }
   put_optional_json(fields, "params", params)
   Json::object(fields)
-}
-
-///|
-pub fn parse_jsonrpc_result(response : Json) -> Json raise McpError {
-  let fields = expect_object(response, "JSON-RPC response")
-  match fields.get("error") {
-    Some(Object(error)) => {
-      let message = match error.get("message") {
-        Some(String(message)) => message
-        _ => "JSON-RPC error"
-      }
-      raise InternalError(message)
-    }
-    Some(_) => raise InvalidRequest("JSON-RPC error must be an object")
-    None => ()
-  }
-  match fields.get("result") {
-    Some(result) => result
-    None => raise InvalidRequest("JSON-RPC response result is required")
-  }
 }
 
 ///|

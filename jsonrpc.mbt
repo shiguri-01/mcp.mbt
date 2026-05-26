@@ -1,36 +1,16 @@
 ///|
-pub(all) enum RequestId {
-  StringId(String)
-  NumberId(Int)
-} derive(Debug, Eq)
 
 ///|
-pub impl ToJson for RequestId with fn to_json(self : RequestId) -> Json {
-  match self {
-    StringId(value) => Json::string(value)
-    NumberId(value) => Json::number(value.to_double(), repr="\{value}")
-  }
-}
-
-///|
-fn parse_request_id(value : Json) -> RequestId raise McpError {
+fn parse_request_id(value : Json) -> Json raise McpError {
   match value {
-    String(value) => StringId(value)
-    Number(value, repr=_) => NumberId(value.to_int())
+    String(_) | Number(_) => value
     Null => raise InvalidRequest("JSON-RPC id must not be null")
     _ => raise InvalidRequest("JSON-RPC id must be a string or number")
   }
 }
 
 ///|
-pub(all) struct JsonRpcRequest {
-  id : RequestId?
-  method_name : String
-  params : Json?
-} derive(Debug, Eq)
-
-///|
-pub fn JsonRpcRequest::from_json(value : Json) -> JsonRpcRequest raise McpError {
+fn parse_jsonrpc_message(value : Json) -> (Json?, String, Json?) raise McpError {
   let fields = match value {
     Object(fields) => fields
     _ => raise InvalidRequest("JSON-RPC message must be an object")
@@ -44,45 +24,42 @@ pub fn JsonRpcRequest::from_json(value : Json) -> JsonRpcRequest raise McpError 
     Some(value) => Some(parse_request_id(value))
     None => None
   }
-  { id, method_name, params: fields.get("params") }
+  (id, method_name, fields.get("params"))
 }
 
 ///|
-pub fn jsonrpc_success(id : RequestId, result : Json) -> Json {
-  Json::object({
-    "jsonrpc": Json::string("2.0"),
-    "id": id.to_json(),
-    "result": result,
-  })
+fn jsonrpc_success(id : Json, result : Json) -> Json {
+  Json::object({ "jsonrpc": Json::string("2.0"), "id": id, "result": result })
 }
 
 ///|
-pub fn jsonrpc_error(id : RequestId?, error : McpError) -> Json {
+fn jsonrpc_error(id : Json?, error : McpError) -> Json {
   let fields : Map[String, Json] = {
     "jsonrpc": Json::string("2.0"),
     "error": error.to_json(),
   }
   match id {
-    Some(id) => fields["id"] = id.to_json()
+    Some(id) => fields["id"] = id
     None => fields["id"] = Json::null()
   }
   Json::object(fields)
 }
 
 ///|
+/// Handle one JSON-RPC message for transport implementations.
 pub fn Server::handle_jsonrpc(self : Server, message : Json) -> Json? {
-  let request = JsonRpcRequest::from_json(message) catch {
+  let (id, method_name, params) = parse_jsonrpc_message(message) catch {
     error => return Some(jsonrpc_error(None, error))
   }
-  try self.handle(request.method_name, request.params) catch {
+  try self.dispatch(method_name, params) catch {
     error =>
-      match request.id {
+      match id {
         Some(id) => return Some(jsonrpc_error(Some(id), error))
         None => return None
       }
   } noraise {
     result =>
-      match request.id {
+      match id {
         Some(id) =>
           match result {
             Some(result) => Some(jsonrpc_success(id, result))

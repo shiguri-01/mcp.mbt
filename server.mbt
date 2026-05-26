@@ -246,7 +246,7 @@ pub fn Server::is_initialized(self : Server) -> Bool {
 }
 
 ///|
-pub fn Server::list_tools(self : Server) -> Json {
+fn Server::list_tools(self : Server) -> Json {
   Json::object({
     "tools": self.tools
     .values()
@@ -256,7 +256,7 @@ pub fn Server::list_tools(self : Server) -> Json {
 }
 
 ///|
-pub fn Server::list_resources(self : Server) -> Json {
+fn Server::list_resources(self : Server) -> Json {
   Json::object({
     "resources": self.resources
     .values()
@@ -266,7 +266,7 @@ pub fn Server::list_resources(self : Server) -> Json {
 }
 
 ///|
-pub fn Server::read_resource(
+fn Server::read_resource(
   self : Server,
   params : Json?,
 ) -> ReadResourceResult raise McpError {
@@ -283,7 +283,7 @@ pub fn Server::read_resource(
 }
 
 ///|
-pub fn Server::list_prompts(self : Server) -> Json {
+fn Server::list_prompts(self : Server) -> Json {
   Json::object({
     "prompts": self.prompts
     .values()
@@ -321,7 +321,7 @@ fn prompt_arguments_json(arguments : Map[String, String]) -> Json {
 }
 
 ///|
-pub fn Server::get_prompt(self : Server, params : Json?) -> Json raise McpError {
+fn Server::get_prompt(self : Server, params : Json?) -> Json raise McpError {
   let value = match params {
     Some(value) => value
     None => raise InvalidParams("prompts/get params are required")
@@ -336,7 +336,7 @@ pub fn Server::get_prompt(self : Server, params : Json?) -> Json raise McpError 
 }
 
 ///|
-pub fn Server::call_tool(
+fn Server::call_tool(
   self : Server,
   params : Json?,
 ) -> CallToolResult raise McpError {
@@ -355,7 +355,7 @@ pub fn Server::call_tool(
 
 ///|
 /// Dispatch an MCP method and return the JSON result, if the method has one.
-pub fn Server::handle(
+fn Server::dispatch(
   self : Server,
   method_name : String,
   params : Json?,

@@ -78,11 +78,34 @@ async fn Client::read_matching_response(
   match response {
     Object({ "id": id, .. }) =>
       if id == expected_id {
-        @mcp.parse_jsonrpc_result(response)
+        parse_response_result(response)
       } else {
         self.read_matching_response(expected_id)
       }
     _ => self.read_matching_response(expected_id)
+  }
+}
+
+///|
+fn parse_response_result(response : Json) -> Json raise @mcp.McpError {
+  let fields = match response {
+    Object(fields) => fields
+    _ => raise @mcp.InvalidRequest("JSON-RPC response must be an object")
+  }
+  match fields.get("error") {
+    Some(Object(error)) => {
+      let message = match error.get("message") {
+        Some(String(message)) => message
+        _ => "JSON-RPC error"
+      }
+      raise @mcp.InternalError(message)
+    }
+    Some(_) => raise @mcp.InvalidRequest("JSON-RPC error must be an object")
+    None => ()
+  }
+  match fields.get("result") {
+    Some(result) => result
+    None => raise @mcp.InvalidRequest("JSON-RPC response result is required")
   }
 }
 

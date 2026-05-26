@@ -14,16 +14,23 @@ test "prompt decodes string arguments" {
   try! server.prompt(name="summarize_typed", fn(input : PromptInput) {
     @mcp.GetPromptResult::user("Summarize \{input.topic}.")
   })
-  let prompt = try! server.handle(
-    "prompts/get",
-    Some(
-      Json::object({
+  let prompt = server.handle_jsonrpc(
+    Json::object({
+      "jsonrpc": Json::string("2.0"),
+      "id": Json::number(1.0, repr="1"),
+      "method": Json::string("prompts/get"),
+      "params": Json::object({
         "name": Json::string("summarize_typed"),
         "arguments": Json::object({ "topic": Json::string("MCP") }),
       }),
-    ),
+    }),
   )
-  guard prompt is Some(Object({ "messages": Array([Object(message)]), .. })) else {
+  guard prompt
+    is Some(
+      Object(
+        { "result": Object({ "messages": Array([Object(message)]), .. }), .. }
+      )
+    ) else {
     fail("expected prompt message")
   }
   guard message["content"] is Object(content) else {
@@ -55,30 +62,56 @@ test "resources and string prompts are dispatchable" {
       }
     },
   )
-  let resources = try! server.handle("resources/list", None)
+  let resources = server.handle_jsonrpc(
+    Json::object({
+      "jsonrpc": Json::string("2.0"),
+      "id": Json::number(1.0, repr="1"),
+      "method": Json::string("resources/list"),
+    }),
+  )
   guard resources
-    is Some(Object({ "resources": Array([Object(resource)]), .. })) else {
+    is Some(
+      Object(
+        { "result": Object({ "resources": Array([Object(resource)]), .. }), .. }
+      )
+    ) else {
     fail("expected one resource")
   }
   assert_true(resource["uri"] == Json::string("memory://status"))
-  let read = try! server.handle(
-    "resources/read",
-    Some(Json::object({ "uri": Json::string("memory://status") })),
+  let read = server.handle_jsonrpc(
+    Json::object({
+      "jsonrpc": Json::string("2.0"),
+      "id": Json::number(2.0, repr="2"),
+      "method": Json::string("resources/read"),
+      "params": Json::object({ "uri": Json::string("memory://status") }),
+    }),
   )
-  guard read is Some(Object({ "contents": Array([Object(content)]), .. })) else {
+  guard read
+    is Some(
+      Object(
+        { "result": Object({ "contents": Array([Object(content)]), .. }), .. }
+      )
+    ) else {
     fail("expected resource content")
   }
   assert_true(content["text"] == Json::string("ready"))
-  let prompt = try! server.handle(
-    "prompts/get",
-    Some(
-      Json::object({
+  let prompt = server.handle_jsonrpc(
+    Json::object({
+      "jsonrpc": Json::string("2.0"),
+      "id": Json::number(3.0, repr="3"),
+      "method": Json::string("prompts/get"),
+      "params": Json::object({
         "name": Json::string("summarize"),
         "arguments": Json::object({ "topic": Json::string("MCP") }),
       }),
-    ),
+    }),
   )
-  guard prompt is Some(Object({ "messages": Array([Object(message)]), .. })) else {
+  guard prompt
+    is Some(
+      Object(
+        { "result": Object({ "messages": Array([Object(message)]), .. }), .. }
+      )
+    ) else {
     fail("expected prompt message")
   }
   guard message["content"] is Object(prompt_content) else {
