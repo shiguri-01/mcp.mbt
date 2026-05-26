@@ -90,6 +90,10 @@ without changing the core server API.
 - `shiguri-01/mcp/examples/stdio-server` and
   `shiguri-01/mcp/examples/stdio-client` are runnable examples. They exercise a
   real MCP stdio session instead of printing mock output.
+- `shiguri-01/mcp/examples/http-server` and
+  `shiguri-01/mcp/examples/http-client` are runnable Streamable HTTP examples.
+  Start the server first, then run the client against
+  `http://127.0.0.1:8080/mcp`.
 
 ## Server API
 
