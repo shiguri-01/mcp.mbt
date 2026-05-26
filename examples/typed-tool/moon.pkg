@@ -1,0 +1,8 @@
+import {
+  "moonbitlang/core/json",
+  "shiguri/mcp",
+}
+
+options(
+  "is-main": true,
+)

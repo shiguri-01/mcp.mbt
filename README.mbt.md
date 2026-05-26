@@ -54,3 +54,17 @@ Use `Result` only when an error needs to be stored as a value. Handler APIs use
 
 JSON Schema is represented as `Json` for now. Validation can be layered on later
 without changing the core server API.
+
+## Examples
+
+Run these from the repository root:
+
+```bash
+moon run examples/raw-tool
+moon run examples/typed-tool
+moon run examples/jsonrpc
+```
+
+- `examples/raw-tool` uses `Json` pattern matching directly.
+- `examples/typed-tool` uses `FromJson` and `ToJson`.
+- `examples/jsonrpc` sends MCP JSON-RPC messages through `handle_jsonrpc`.
