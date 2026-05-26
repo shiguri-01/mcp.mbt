@@ -26,7 +26,7 @@ handlers.
 ```mbt check
 ///|
 test {
-  let server = @mcp.Server::new(name="example", version="0.1.0")
+  let server = @mcp.Server::Server(name="example", version="0.1.0")
   try! server.tool_text(
     name="hello",
     description="Return a greeting",

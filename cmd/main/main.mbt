@@ -1,6 +1,6 @@
 ///|
 fn main {
-  let server = @mcp.Server::new(name="example", version="0.1.0")
+  let server = @mcp.Server::Server(name="example", version="0.1.0")
   try! server.add_text_tool(
     @mcp.Tool::{
       name: "hello",

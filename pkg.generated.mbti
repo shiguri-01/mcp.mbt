@@ -67,6 +67,7 @@ pub impl ToJson for CallToolResult
 pub struct Client {
   // private fields
 }
+pub fn Client::Client() -> Self
 pub fn Client::call_tool_request(Self, name~ : String, arguments? : Json) -> Json
 pub fn Client::get_prompt_request(Self, name~ : String, arguments? : Json) -> Json
 pub fn Client::initialize_request(Self, client_name~ : String, client_version~ : String, capabilities? : Json) -> Json
@@ -74,7 +75,6 @@ pub fn Client::initialized_notification(Self) -> Json
 pub fn Client::list_prompts_request(Self) -> Json
 pub fn Client::list_resources_request(Self) -> Json
 pub fn Client::list_tools_request(Self) -> Json
-pub fn Client::new() -> Self
 pub fn Client::next_request_id(Self) -> RequestId
 pub fn Client::read_resource_request(Self, uri~ : String) -> Json
 
@@ -180,6 +180,7 @@ pub impl ToJson for ResourceContent
 pub struct Server {
   // private fields
 }
+pub fn Server::Server(name~ : String, version~ : String, instructions? : String, capabilities? : ServerCapabilities) -> Self
 pub fn Server::add_prompt(Self, Prompt, (Map[String, String]) -> String raise McpError) -> Unit raise McpError
 pub fn Server::add_prompt_raw(Self, Prompt, (Map[String, String]) -> Json raise McpError) -> Unit raise McpError
 pub fn Server::add_prompt_result(Self, Prompt, (Map[String, String]) -> GetPromptResult raise McpError) -> Unit raise McpError
@@ -197,7 +198,6 @@ pub fn Server::is_initialized(Self) -> Bool
 pub fn Server::list_prompts(Self) -> Json
 pub fn Server::list_resources(Self) -> Json
 pub fn Server::list_tools(Self) -> Json
-pub fn Server::new(name~ : String, version~ : String, instructions? : String, capabilities? : ServerCapabilities) -> Self
 pub fn Server::notify_initialized(Self) -> Unit
 pub fn Server::prompt_text(Self, name~ : String, title? : String, description? : String, arguments? : Array[PromptArgument], (Map[String, String]) -> String raise McpError) -> Unit raise McpError
 pub fn Server::read_resource(Self, Json?) -> ReadResourceResult raise McpError

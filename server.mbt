@@ -37,7 +37,7 @@ pub struct Server {
 }
 
 ///|
-pub fn Server::new(
+pub fn Server::Server(
   name~ : String,
   version~ : String,
   instructions? : String,

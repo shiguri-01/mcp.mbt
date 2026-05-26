@@ -8,7 +8,7 @@ fn print_response(response : Json?) -> Unit {
 
 ///|
 fn main {
-  let server = @mcp.Server::new(
+  let server = @mcp.Server::Server(
     name="jsonrpc-example",
     version="0.1.0",
     instructions="Example server that handles JSON-RPC MCP messages.",

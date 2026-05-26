@@ -11,7 +11,7 @@ struct AddOutput {
 
 ///|
 fn main {
-  let server = @mcp.Server::new(name="typed-tool-example", version="0.1.0")
+  let server = @mcp.Server::Server(name="typed-tool-example", version="0.1.0")
   let input_schema = @mcp.object_schema(
     properties={
       "left": Json::object({ "type": Json::string("integer") }),

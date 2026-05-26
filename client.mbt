@@ -4,7 +4,7 @@ pub struct Client {
 }
 
 ///|
-pub fn Client::new() -> Client {
+pub fn Client::Client() -> Client {
   { next_id: 1 }
 }
 
