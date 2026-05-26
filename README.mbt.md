@@ -23,6 +23,7 @@ The core package is transport-neutral and targets MCP `2025-11-25`:
 - raw JSON escape hatches
 - JSON-RPC 2.0 request/response envelope helpers
 - native stdio server and client helpers
+- native Streamable HTTP server and client helpers
 
 The public API intentionally keeps a raw `Json` escape hatch. MCP has open
 extension points such as `_meta`, JSON Schema, experimental capabilities, and
@@ -80,6 +81,12 @@ without changing the core server API.
   typed tool inputs.
 - `shiguri-01/mcp/stdio` is the native stdio transport package. It depends on
   `moonbitlang/async`, process pipes, and the native backend.
+- `shiguri-01/mcp/http` is the native Streamable HTTP transport package. It
+  implements POST-based JSON-RPC exchange, `MCP-Session-Id` session management,
+  `DELETE` session termination, Origin checks, and HTTP header validation per
+  the 2025-11-25 transport specification:
+  <https://modelcontextprotocol.io/specification/2025-11-25/basic/transports>.
+  Standalone GET SSE streams currently return `405 Method Not Allowed`.
 - `shiguri-01/mcp/examples/stdio-server` and
   `shiguri-01/mcp/examples/stdio-client` are runnable examples. They exercise a
   real MCP stdio session instead of printing mock output.

@@ -1,0 +1,14 @@
+import {
+  "moonbitlang/async",
+  "moonbitlang/async/http" @async_http,
+  "moonbitlang/async/io",
+  "moonbitlang/core/encoding/utf8",
+  "moonbitlang/core/json",
+  "shiguri-01/mcp",
+}
+
+import {
+  "moonbitlang/core/debug",
+} for "test"
+
+supported_targets = "+native"
