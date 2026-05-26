@@ -1,0 +1,131 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "shiguri/mcp"
+
+import {
+  "moonbitlang/core/debug",
+  "moonbitlang/core/json",
+}
+
+// Values
+pub fn empty_object_schema() -> Json
+
+pub fn jsonrpc_error(RequestId?, McpError) -> Json
+
+pub fn jsonrpc_success(RequestId, Json) -> Json
+
+pub let latest_protocol_version : String
+
+pub fn object_schema(properties~ : Map[String, Json], required? : Array[String], additional_properties? : Bool) -> Json
+
+pub fn string_property_schema(description? : String) -> Json
+
+// Errors
+pub(all) suberror McpError {
+  ParseError(String)
+  InvalidRequest(String)
+  MethodNotFound(String)
+  InvalidParams(String)
+  InternalError(String)
+} derive(Eq, @debug.Debug)
+pub fn McpError::code(Self) -> Int
+pub fn McpError::message(Self) -> String
+pub fn McpError::to_json(Self) -> Json
+
+// Types and methods
+pub(all) struct CallToolResult {
+  content : Array[ContentBlock]
+  structured_content : Json?
+  is_error : Bool
+  meta : Json?
+} derive(Eq, @debug.Debug)
+pub fn CallToolResult::json(Json) -> Self
+pub fn CallToolResult::text(String) -> Self
+pub fn CallToolResult::to_json(Self) -> Json
+
+pub(all) enum ContentBlock {
+  Text(String)
+  Image(data~ : String, mime_type~ : String)
+  Audio(data~ : String, mime_type~ : String)
+  Resource(Json)
+} derive(Eq, @debug.Debug)
+pub fn ContentBlock::to_json(Self) -> Json
+
+pub(all) struct Implementation {
+  name : String
+  version : String
+} derive(Eq, @debug.Debug)
+pub fn Implementation::to_json(Self) -> Json
+
+pub(all) struct InitializeResult {
+  protocol_version : String
+  capabilities : ServerCapabilities
+  server_info : Implementation
+  instructions : String?
+  meta : Json?
+} derive(Eq, @debug.Debug)
+pub fn InitializeResult::to_json(Self) -> Json
+
+pub(all) struct JsonRpcRequest {
+  id : RequestId?
+  method_name : String
+  params : Json?
+} derive(Eq, @debug.Debug)
+pub fn JsonRpcRequest::from_json(Json) -> Self raise McpError
+
+type RegisteredTool
+
+pub(all) enum RequestId {
+  StringId(String)
+  NumberId(Int)
+} derive(Eq, @debug.Debug)
+pub fn RequestId::to_json(Self) -> Json
+
+pub struct Server {
+  // private fields
+}
+pub fn Server::add_text_tool(Self, Tool, (Json?) -> String raise McpError) -> Unit raise McpError
+pub fn[A : @json.FromJson, B : ToJson] Server::add_tool(Self, Tool, (A) -> B raise McpError) -> Unit raise McpError
+pub fn Server::add_tool_raw(Self, Tool, (Json?) -> CallToolResult raise McpError) -> Unit raise McpError
+pub fn Server::call_tool(Self, Json?) -> CallToolResult raise McpError
+pub fn Server::handle(Self, String, Json?) -> Json? raise McpError
+pub fn Server::handle_jsonrpc(Self, Json) -> Json?
+pub fn Server::initialize(Self, Json?) -> InitializeResult
+pub fn Server::is_initialized(Self) -> Bool
+pub fn Server::list_tools(Self) -> Json
+pub fn Server::new(name~ : String, version~ : String, instructions? : String, capabilities? : ServerCapabilities) -> Self
+pub fn Server::notify_initialized(Self) -> Unit
+
+pub(all) struct ServerCapabilities {
+  tools_list_changed : Bool
+  resources : Json?
+  prompts : Json?
+  experimental : Json?
+} derive(Eq, @debug.Debug)
+pub fn ServerCapabilities::to_json(Self) -> Json
+pub fn ServerCapabilities::tools_only(list_changed? : Bool) -> Self
+
+pub(all) struct Tool {
+  name : String
+  title : String?
+  description : String?
+  input_schema : Json
+  output_schema : Json?
+  annotations : ToolAnnotations?
+  meta : Json?
+} derive(Eq, @debug.Debug)
+pub fn Tool::new(name~ : String, title? : String, description? : String, input_schema? : Json, output_schema? : Json, annotations? : ToolAnnotations, meta? : Json) -> Self
+pub fn Tool::to_json(Self) -> Json
+
+pub(all) struct ToolAnnotations {
+  title : String?
+  read_only_hint : Bool?
+  destructive_hint : Bool?
+  idempotent_hint : Bool?
+  open_world_hint : Bool?
+} derive(Eq, @debug.Debug)
+pub fn ToolAnnotations::to_json(Self) -> Json
+
+// Type aliases
+
+// Traits
+
