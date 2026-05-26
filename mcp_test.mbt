@@ -30,7 +30,7 @@ test "raw tool can be listed and called" {
   let schema = @mcp.object([
     @mcp.string_prop(name="name", description="Name to greet", required=true),
   ])
-  try! server.text_tool(
+  try! server.tool(
     name="greet",
     description="Return a greeting",
     input_schema=schema,
@@ -40,7 +40,7 @@ test "raw tool can be listed and called" {
         _ => raise @mcp.InvalidParams("arguments are required")
       }
       match fields.get("name") {
-        Some(String(name)) => "Hello, \{name}!"
+        Some(String(name)) => @mcp.CallToolResult::text("Hello, \{name}!")
         _ => raise @mcp.InvalidParams("name is required")
       }
     },
@@ -86,10 +86,12 @@ struct EchoOutput {
 ///|
 test "typed tool decodes input and encodes structured content" {
   let server = @mcp.Server(name="test-server", version="0.1.0")
-  try! server.structured_tool(
+  try! server.typed_tool(
     name="echo",
     input_schema=@mcp.object([@mcp.string_prop(name="text", required=true)]),
-    fn(input : EchoInput) -> EchoOutput { { echoed: input.text } },
+    fn(input : EchoInput) {
+      @mcp.CallToolResult::structured(({ echoed: input.text } : EchoOutput))
+    },
   )
   let response = try! server.handle(
     "tools/call",
@@ -110,10 +112,10 @@ test "typed tool decodes input and encodes structured content" {
 ///|
 test "typed text tool decodes input and returns text content" {
   let server = @mcp.Server(name="test-server", version="0.1.0")
-  try! server.typed_text_tool(
+  try! server.typed_tool(
     name="echo_text",
     input_schema=@mcp.object([@mcp.string_prop(name="text", required=true)]),
-    fn(input : EchoInput) { input.text },
+    fn(input : EchoInput) { @mcp.CallToolResult::text(input.text) },
   )
   let response = try! server.handle(
     "tools/call",
@@ -138,10 +140,12 @@ struct PromptInput {
 ///|
 test "typed text prompt decodes string arguments" {
   let server = @mcp.Server(name="test-server", version="0.1.0")
-  try! server.typed_text_prompt(
+  try! server.typed_prompt(
     name="summarize_typed",
     arguments=[@mcp.PromptArgument(name="topic", required=true)],
-    fn(input : PromptInput) { "Summarize \{input.topic}." },
+    fn(input : PromptInput) {
+      @mcp.GetPromptResult::user("Summarize \{input.topic}.")
+    },
   )
   let prompt = try! server.handle(
     "prompts/get",
@@ -164,20 +168,22 @@ test "typed text prompt decodes string arguments" {
 ///|
 test "resources and prompts are dispatchable" {
   let server = @mcp.Server(name="test-server", version="0.1.0")
-  try! server.text_resource(
+  try! server.resource(
     uri="memory://status",
     name="status",
     description="Current status",
     mime_type="text/plain",
-    fn(_) { "ready" },
+    fn(uri) {
+      @mcp.ReadResourceResult::text(uri~, text="ready", mime_type="text/plain")
+    },
   )
-  try! server.text_prompt(
+  try! server.prompt(
     name="summarize",
     description="Build a summarize prompt",
     arguments=[@mcp.PromptArgument(name="topic", required=true)],
     fn(arguments) raise @mcp.McpError {
       match arguments.get("topic") {
-        Some(topic) => "Summarize \{topic}."
+        Some(topic) => @mcp.GetPromptResult::user("Summarize \{topic}.")
         None => raise @mcp.InvalidParams("topic is required")
       }
     },

@@ -67,7 +67,7 @@ pub fn Server::raw_tool(
 }
 
 ///|
-pub fn[A : FromJson, B : ToJson] Server::structured_tool(
+pub fn Server::tool(
   self : Server,
   name~ : String,
   title? : String,
@@ -75,7 +75,7 @@ pub fn[A : FromJson, B : ToJson] Server::structured_tool(
   input_schema? : Json = empty_object_schema(),
   output_schema? : Json,
   annotations? : ToolAnnotations,
-  handler : (A) -> B raise McpError,
+  handler : ToolHandler,
 ) -> Unit raise McpError {
   self.raw_tool(
     Tool(
@@ -86,6 +86,28 @@ pub fn[A : FromJson, B : ToJson] Server::structured_tool(
       output_schema?,
       annotations?,
     ),
+    handler,
+  )
+}
+
+///|
+pub fn[A : FromJson] Server::typed_tool(
+  self : Server,
+  name~ : String,
+  title? : String,
+  description? : String,
+  input_schema? : Json = empty_object_schema(),
+  output_schema? : Json,
+  annotations? : ToolAnnotations,
+  handler : (A) -> CallToolResult raise McpError,
+) -> Unit raise McpError {
+  self.tool(
+    name~,
+    title?,
+    description?,
+    input_schema~,
+    output_schema?,
+    annotations?,
     fn(arguments) raise McpError {
       let json = match arguments {
         Some(value) => value
@@ -94,48 +116,7 @@ pub fn[A : FromJson, B : ToJson] Server::structured_tool(
       let input : A = @json.from_json(json) catch {
         error => raise InvalidParams(error.to_string())
       }
-      CallToolResult::json(handler(input).to_json())
-    },
-  )
-}
-
-///|
-pub fn Server::text_tool(
-  self : Server,
-  name~ : String,
-  title? : String,
-  description? : String,
-  input_schema? : Json = empty_object_schema(),
-  annotations? : ToolAnnotations,
-  handler : (Json?) -> String raise McpError,
-) -> Unit raise McpError {
-  self.raw_tool(
-    Tool::text(name~, title?, description?, input_schema~, annotations?),
-    fn(arguments) raise McpError { CallToolResult::text(handler(arguments)) },
-  )
-}
-
-///|
-pub fn[A : FromJson] Server::typed_text_tool(
-  self : Server,
-  name~ : String,
-  title? : String,
-  description? : String,
-  input_schema? : Json = empty_object_schema(),
-  annotations? : ToolAnnotations,
-  handler : (A) -> String raise McpError,
-) -> Unit raise McpError {
-  self.raw_tool(
-    Tool::text(name~, title?, description?, input_schema~, annotations?),
-    fn(arguments) raise McpError {
-      let json = match arguments {
-        Some(value) => value
-        None => Json::null()
-      }
-      let input : A = @json.from_json(json) catch {
-        error => raise InvalidParams(error.to_string())
-      }
-      CallToolResult::text(handler(input))
+      handler(input)
     },
   )
 }
@@ -173,32 +154,6 @@ pub fn Server::resource(
 }
 
 ///|
-pub fn Server::text_resource(
-  self : Server,
-  uri~ : String,
-  name? : String,
-  title? : String,
-  description? : String,
-  mime_type? : String = "text/plain",
-  handler : (String) -> String raise McpError,
-) -> Unit raise McpError {
-  self.resource(uri~, name?, title?, description?, mime_type~, fn(
-    request_uri,
-  ) raise McpError {
-    {
-      contents: [
-        ResourceText(
-          uri=request_uri,
-          text=handler(request_uri),
-          mime_type=Some(mime_type),
-        ),
-      ],
-      meta: None,
-    }
-  })
-}
-
-///|
 pub fn Server::raw_prompt(
   self : Server,
   prompt : Prompt,
@@ -227,61 +182,21 @@ pub fn Server::prompt(
 }
 
 ///|
-pub fn Server::text_prompt(
+pub fn[A : FromJson] Server::typed_prompt(
   self : Server,
   name~ : String,
   title? : String,
   description? : String,
   arguments? : Array[PromptArgument] = [],
-  handler : (Map[String, String]) -> String raise McpError,
+  handler : (A) -> GetPromptResult raise McpError,
 ) -> Unit raise McpError {
-  self.raw_prompt(Prompt(name~, title?, description?, arguments~), fn(
-    arguments,
-  ) raise McpError {
-    let description = match description {
-      Some(description) => description
-      None => ""
-    }
-    Json::object({
-      "description": Json::string(description),
-      "messages": Json::array([
-        Json::object({
-          "role": Json::string("user"),
-          "content": ContentBlock::Text(handler(arguments)).to_json(),
-        }),
-      ]),
-    })
-  })
-}
-
-///|
-pub fn[A : FromJson] Server::typed_text_prompt(
-  self : Server,
-  name~ : String,
-  title? : String,
-  description? : String,
-  arguments? : Array[PromptArgument] = [],
-  handler : (A) -> String raise McpError,
-) -> Unit raise McpError {
-  self.raw_prompt(Prompt(name~, title?, description?, arguments~), fn(
+  self.prompt(name~, title?, description?, arguments~, fn(
     arguments,
   ) raise McpError {
     let input : A = @json.from_json(prompt_arguments_json(arguments)) catch {
       error => raise InvalidParams(error.to_string())
     }
-    let description = match description {
-      Some(description) => description
-      None => ""
-    }
-    Json::object({
-      "description": Json::string(description),
-      "messages": Json::array([
-        Json::object({
-          "role": Json::string("user"),
-          "content": ContentBlock::Text(handler(input)).to_json(),
-        }),
-      ]),
-    })
+    handler(input)
   })
 }
 

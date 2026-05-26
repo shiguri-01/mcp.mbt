@@ -15,27 +15,33 @@ async fn main {
     version="0.1.0",
     instructions="A minimal MoonBit MCP server over stdio.",
   )
-  try! server.typed_text_tool(
+  try! server.typed_tool(
     name="hello",
     description="Return a greeting",
     input_schema=@mcp.object([
       @mcp.string_prop(name="name", description="Name to greet", required=true),
     ]),
-    fn(input : HelloInput) { "Hello, \{input.name}!" },
+    fn(input : HelloInput) {
+      @mcp.CallToolResult::text("Hello, \{input.name}!")
+    },
   )
-  try! server.text_resource(
+  try! server.resource(
     uri="memory://status",
     name="status",
     description="Server status",
     mime_type="text/plain",
-    fn(_) { "ready" },
+    fn(uri) {
+      @mcp.ReadResourceResult::text(uri~, text="ready", mime_type="text/plain")
+    },
   )
-  try! server.typed_text_prompt(
+  try! server.typed_prompt(
     name="summarize",
     description="Create a short summarization prompt",
     arguments=[@mcp.PromptArgument(name="topic", required=true)],
     fn(input : SummarizeInput) {
-      "Summarize \{input.topic} in three concise bullets."
+      @mcp.GetPromptResult::user(
+        "Summarize \{input.topic} in three concise bullets.",
+      )
     },
   )
   @mcp_stdio.serve(server)

@@ -317,6 +317,11 @@ pub fn CallToolResult::json(value : Json) -> CallToolResult {
 }
 
 ///|
+pub fn[T : ToJson] CallToolResult::structured(value : T) -> CallToolResult {
+  CallToolResult::json(value.to_json())
+}
+
+///|
 pub fn CallToolResult::text_json(text : String, value : Json) -> CallToolResult {
   {
     content: [Text(text)],

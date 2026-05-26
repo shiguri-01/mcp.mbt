@@ -27,8 +27,8 @@ handlers.
 ///|
 test {
   let server = @mcp.Server(name="example", version="0.1.0")
-  try! server.text_tool(name="hello", description="Return a greeting", fn(_) {
-    "Hello from MoonBit MCP"
+  try! server.tool(name="hello", description="Return a greeting", fn(_) {
+    @mcp.CallToolResult::text("Hello from MoonBit MCP")
   })
   let result = try! server.handle("tools/list", None)
   guard result is Some(Object(fields)) else {
@@ -61,16 +61,13 @@ Use the API that matches the shape you want to return:
 
 | Use case | API |
 | --- | --- |
-| Tool reads raw `Json?` and returns plain text content | `server.text_tool(...)` |
-| Tool decodes typed input and returns plain text content | `server.typed_text_tool(...)` |
-| Tool decodes typed input and returns typed structured content | `server.structured_tool(...)` |
+| Tool reads raw `Json?` and returns `CallToolResult` | `server.tool(...)` |
+| Tool decodes typed input and returns `CallToolResult` | `server.typed_tool(...)` |
 | Tool needs full MCP `Tool` and `CallToolResult` control | `server.raw_tool(...)` |
-| Resource returns plain text content | `server.text_resource(...)` |
 | Resource returns full `ReadResourceResult` | `server.resource(...)` |
 | Resource needs a prebuilt `Resource` descriptor | `server.raw_resource(...)` |
-| Prompt reads raw string arguments and returns one text user message | `server.text_prompt(...)` |
-| Prompt decodes typed arguments and returns one text user message | `server.typed_text_prompt(...)` |
-| Prompt returns full `GetPromptResult` | `server.prompt(...)` |
+| Prompt reads raw string arguments and returns `GetPromptResult` | `server.prompt(...)` |
+| Prompt decodes typed arguments and returns `GetPromptResult` | `server.typed_prompt(...)` |
 | Prompt needs raw JSON result control | `server.raw_prompt(...)` |
 
 ```mbt nocheck
@@ -78,40 +75,43 @@ struct HelloInput {
   name : String
 } derive(FromJson)
 
-try! server.typed_text_tool(
+try! server.typed_tool(
   name="hello",
   description="Return a greeting",
   input_schema=@mcp.object([
     @mcp.string_prop(name="name", description="Name to greet", required=true),
   ]),
-  fn(input : HelloInput) { "Hello, \{input.name}!" },
+  fn(input : HelloInput) {
+    @mcp.CallToolResult::text("Hello, \{input.name}!")
+  },
 )
 
-try! server.text_resource(
+try! server.resource(
   uri="memory://status",
   name="status",
   description="Server status",
-  fn(_) { "ready" },
+  fn(uri) {
+    @mcp.ReadResourceResult::text(uri~, text="ready", mime_type="text/plain")
+  },
 )
 
 struct SummarizeInput {
   topic : String
 } derive(FromJson)
 
-try! server.typed_text_prompt(
+try! server.typed_prompt(
   name="summarize",
   arguments=[
     @mcp.PromptArgument(name="topic", required=true),
   ],
   fn(input : SummarizeInput) {
-    "Summarize \{input.topic} in three bullets."
+    @mcp.GetPromptResult::user("Summarize \{input.topic} in three bullets.")
   },
 )
 ```
 
 The `raw_*` methods are the low-level escape hatches. Normal server code should
-start with `typed_text_tool`, `structured_tool`, `text_resource`, or
-`typed_text_prompt`.
+start with `typed_tool`, `resource`, or `typed_prompt`.
 
 ## Examples
 
