@@ -30,7 +30,7 @@ test "raw tool can be listed and called" {
   let schema = @mcp.object([
     @mcp.string_prop(name="name", description="Name to greet", required=true),
   ])
-  try! server.add_text_tool(
+  try! server.text_tool(
     name="greet",
     description="Return a greeting",
     input_schema=schema,
@@ -86,7 +86,7 @@ struct EchoOutput {
 ///|
 test "typed tool decodes input and encodes structured content" {
   let server = @mcp.Server(name="test-server", version="0.1.0")
-  try! server.add_tool(
+  try! server.structured_tool(
     name="echo",
     input_schema=@mcp.object([@mcp.string_prop(name="text", required=true)]),
     fn(input : EchoInput) -> EchoOutput { { echoed: input.text } },
@@ -110,14 +110,14 @@ test "typed tool decodes input and encodes structured content" {
 ///|
 test "resources and prompts are dispatchable" {
   let server = @mcp.Server(name="test-server", version="0.1.0")
-  try! server.add_text_resource(
+  try! server.text_resource(
     uri="memory://status",
     name="status",
     description="Current status",
     mime_type="text/plain",
     fn(_) { "ready" },
   )
-  try! server.add_prompt(
+  try! server.text_prompt(
     name="summarize",
     description="Build a summarize prompt",
     arguments=[

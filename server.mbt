@@ -55,7 +55,7 @@ pub fn Server::Server(
 }
 
 ///|
-pub fn Server::register_tool(
+pub fn Server::raw_tool(
   self : Server,
   tool : Tool,
   handler : ToolHandler,
@@ -67,7 +67,7 @@ pub fn Server::register_tool(
 }
 
 ///|
-pub fn[A : FromJson, B : ToJson] Server::add_tool(
+pub fn[A : FromJson, B : ToJson] Server::structured_tool(
   self : Server,
   name~ : String,
   title? : String,
@@ -77,7 +77,7 @@ pub fn[A : FromJson, B : ToJson] Server::add_tool(
   annotations? : ToolAnnotations,
   handler : (A) -> B raise McpError,
 ) -> Unit raise McpError {
-  self.register_tool(
+  self.raw_tool(
     Tool::{
       name,
       title,
@@ -101,7 +101,7 @@ pub fn[A : FromJson, B : ToJson] Server::add_tool(
 }
 
 ///|
-pub fn Server::add_text_tool(
+pub fn Server::text_tool(
   self : Server,
   name~ : String,
   title? : String,
@@ -110,14 +110,14 @@ pub fn Server::add_text_tool(
   annotations? : ToolAnnotations,
   handler : (Json?) -> String raise McpError,
 ) -> Unit raise McpError {
-  self.register_tool(
+  self.raw_tool(
     Tool::text(name~, title?, description?, input_schema~, annotations?),
     fn(arguments) raise McpError { CallToolResult::text(handler(arguments)) },
   )
 }
 
 ///|
-pub fn Server::register_resource(
+pub fn Server::raw_resource(
   self : Server,
   resource : Resource,
   handler : ResourceHandler,
@@ -129,7 +129,7 @@ pub fn Server::register_resource(
 }
 
 ///|
-pub fn Server::add_resource(
+pub fn Server::resource(
   self : Server,
   uri~ : String,
   name? : String,
@@ -142,7 +142,7 @@ pub fn Server::add_resource(
     Some(name) => name
     None => uri
   }
-  self.register_resource(
+  self.raw_resource(
     Resource::{
       uri,
       name: resource_name,
@@ -156,7 +156,7 @@ pub fn Server::add_resource(
 }
 
 ///|
-pub fn Server::add_text_resource(
+pub fn Server::text_resource(
   self : Server,
   uri~ : String,
   name? : String,
@@ -165,7 +165,7 @@ pub fn Server::add_text_resource(
   mime_type? : String = "text/plain",
   handler : (String) -> String raise McpError,
 ) -> Unit raise McpError {
-  self.add_resource(uri~, name?, title?, description?, mime_type~, fn(
+  self.resource(uri~, name?, title?, description?, mime_type~, fn(
     request_uri,
   ) raise McpError {
     {
@@ -182,7 +182,7 @@ pub fn Server::add_text_resource(
 }
 
 ///|
-pub fn Server::register_prompt(
+pub fn Server::raw_prompt(
   self : Server,
   prompt : Prompt,
   handler : PromptHandler,
@@ -194,7 +194,7 @@ pub fn Server::register_prompt(
 }
 
 ///|
-pub fn Server::add_prompt_result(
+pub fn Server::prompt(
   self : Server,
   name~ : String,
   title? : String,
@@ -202,14 +202,15 @@ pub fn Server::add_prompt_result(
   arguments? : Array[PromptArgument] = [],
   handler : (Map[String, String]) -> GetPromptResult raise McpError,
 ) -> Unit raise McpError {
-  self.register_prompt(
-    Prompt::{ name, title, description, arguments, meta: None },
-    fn(arguments) raise McpError { handler(arguments).to_json() },
-  )
+  self.raw_prompt(Prompt::{ name, title, description, arguments, meta: None }, fn(
+    arguments,
+  ) raise McpError {
+    handler(arguments).to_json()
+  })
 }
 
 ///|
-pub fn Server::add_prompt(
+pub fn Server::text_prompt(
   self : Server,
   name~ : String,
   title? : String,
@@ -217,24 +218,23 @@ pub fn Server::add_prompt(
   arguments? : Array[PromptArgument] = [],
   handler : (Map[String, String]) -> String raise McpError,
 ) -> Unit raise McpError {
-  self.register_prompt(
-    Prompt::{ name, title, description, arguments, meta: None },
-    fn(arguments) raise McpError {
-      let description = match description {
-        Some(description) => description
-        None => ""
-      }
-      Json::object({
-        "description": Json::string(description),
-        "messages": Json::array([
-          Json::object({
-            "role": Json::string("user"),
-            "content": ContentBlock::Text(handler(arguments)).to_json(),
-          }),
-        ]),
-      })
-    },
-  )
+  self.raw_prompt(Prompt::{ name, title, description, arguments, meta: None }, fn(
+    arguments,
+  ) raise McpError {
+    let description = match description {
+      Some(description) => description
+      None => ""
+    }
+    Json::object({
+      "description": Json::string(description),
+      "messages": Json::array([
+        Json::object({
+          "role": Json::string("user"),
+          "content": ContentBlock::Text(handler(arguments)).to_json(),
+        }),
+      ]),
+    })
+  })
 }
 
 ///|

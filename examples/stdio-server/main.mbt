@@ -5,7 +5,7 @@ async fn main {
     version="0.1.0",
     instructions="A minimal MoonBit MCP server over stdio.",
   )
-  try! server.add_text_tool(
+  try! server.text_tool(
     name="hello",
     description="Return a greeting",
     input_schema=@mcp.object([
@@ -18,14 +18,14 @@ async fn main {
       }
     },
   )
-  try! server.add_text_resource(
+  try! server.text_resource(
     uri="memory://status",
     name="status",
     description="Server status",
     mime_type="text/plain",
     fn(_) { "ready" },
   )
-  try! server.add_prompt(
+  try! server.text_prompt(
     name="summarize",
     description="Create a short summarization prompt",
     arguments=[

@@ -27,9 +27,7 @@ handlers.
 ///|
 test {
   let server = @mcp.Server(name="example", version="0.1.0")
-  try! server.add_text_tool(name="hello", description="Return a greeting", fn(
-    _,
-  ) {
+  try! server.text_tool(name="hello", description="Return a greeting", fn(_) {
     "Hello from MoonBit MCP"
   })
   let result = try! server.handle("tools/list", None)
@@ -59,10 +57,22 @@ without changing the core server API.
 
 ## Server API
 
-Use high-level helpers for normal server code:
+Use the API that matches the shape you want to return:
+
+| Use case | API |
+| --- | --- |
+| Tool returns plain text content | `server.text_tool(...)` |
+| Tool decodes typed input and returns typed structured content | `server.structured_tool(...)` |
+| Tool needs full MCP `Tool` and `CallToolResult` control | `server.raw_tool(...)` |
+| Resource returns plain text content | `server.text_resource(...)` |
+| Resource returns full `ReadResourceResult` | `server.resource(...)` |
+| Resource needs a prebuilt `Resource` descriptor | `server.raw_resource(...)` |
+| Prompt returns one text user message | `server.text_prompt(...)` |
+| Prompt returns full `GetPromptResult` | `server.prompt(...)` |
+| Prompt needs raw JSON result control | `server.raw_prompt(...)` |
 
 ```mbt nocheck
-try! server.add_text_tool(
+try! server.text_tool(
   name="hello",
   description="Return a greeting",
   input_schema=@mcp.object([
@@ -76,14 +86,14 @@ try! server.add_text_tool(
   },
 )
 
-try! server.add_text_resource(
+try! server.text_resource(
   uri="memory://status",
   name="status",
   description="Server status",
   fn(_) { "ready" },
 )
 
-try! server.add_prompt(
+try! server.text_prompt(
   name="summarize",
   arguments=[
     @mcp.PromptArgument::{
@@ -102,8 +112,8 @@ try! server.add_prompt(
 )
 ```
 
-Drop down to `register_tool`, `register_resource`, and `register_prompt` when the MCP
-payload shape needs to stay fully dynamic.
+The `raw_*` methods are the low-level escape hatches. Normal server code should
+start with `text_tool`, `structured_tool`, `text_resource`, or `text_prompt`.
 
 ## Examples
 
