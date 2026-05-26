@@ -108,6 +108,60 @@ test "typed tool decodes input and encodes structured content" {
 }
 
 ///|
+test "typed text tool decodes input and returns text content" {
+  let server = @mcp.Server(name="test-server", version="0.1.0")
+  try! server.typed_text_tool(
+    name="echo_text",
+    input_schema=@mcp.object([@mcp.string_prop(name="text", required=true)]),
+    fn(input : EchoInput) { input.text },
+  )
+  let response = try! server.handle(
+    "tools/call",
+    Some(
+      Json::object({
+        "name": Json::string("echo_text"),
+        "arguments": Json::object({ "text": Json::string("ok") }),
+      }),
+    ),
+  )
+  guard response is Some(Object({ "content": Array([Object(content)]), .. })) else {
+    fail("expected text content")
+  }
+  assert_true(content["text"] == Json::string("ok"))
+}
+
+///|
+struct PromptInput {
+  topic : String
+} derive(FromJson)
+
+///|
+test "typed text prompt decodes string arguments" {
+  let server = @mcp.Server(name="test-server", version="0.1.0")
+  try! server.typed_text_prompt(
+    name="summarize_typed",
+    arguments=[@mcp.PromptArgument(name="topic", required=true)],
+    fn(input : PromptInput) { "Summarize \{input.topic}." },
+  )
+  let prompt = try! server.handle(
+    "prompts/get",
+    Some(
+      Json::object({
+        "name": Json::string("summarize_typed"),
+        "arguments": Json::object({ "topic": Json::string("MCP") }),
+      }),
+    ),
+  )
+  guard prompt is Some(Object({ "messages": Array([Object(message)]), .. })) else {
+    fail("expected prompt message")
+  }
+  guard message["content"] is Object(content) else {
+    fail("expected prompt content")
+  }
+  assert_true(content["text"] == Json::string("Summarize MCP."))
+}
+
+///|
 test "resources and prompts are dispatchable" {
   let server = @mcp.Server(name="test-server", version="0.1.0")
   try! server.text_resource(
@@ -120,14 +174,7 @@ test "resources and prompts are dispatchable" {
   try! server.text_prompt(
     name="summarize",
     description="Build a summarize prompt",
-    arguments=[
-      @mcp.PromptArgument::{
-        name: "topic",
-        title: None,
-        description: None,
-        required: true,
-      },
-    ],
+    arguments=[@mcp.PromptArgument(name="topic", required=true)],
     fn(arguments) raise @mcp.McpError {
       match arguments.get("topic") {
         Some(topic) => "Summarize \{topic}."

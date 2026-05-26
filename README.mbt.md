@@ -61,29 +61,30 @@ Use the API that matches the shape you want to return:
 
 | Use case | API |
 | --- | --- |
-| Tool returns plain text content | `server.text_tool(...)` |
+| Tool reads raw `Json?` and returns plain text content | `server.text_tool(...)` |
+| Tool decodes typed input and returns plain text content | `server.typed_text_tool(...)` |
 | Tool decodes typed input and returns typed structured content | `server.structured_tool(...)` |
 | Tool needs full MCP `Tool` and `CallToolResult` control | `server.raw_tool(...)` |
 | Resource returns plain text content | `server.text_resource(...)` |
 | Resource returns full `ReadResourceResult` | `server.resource(...)` |
 | Resource needs a prebuilt `Resource` descriptor | `server.raw_resource(...)` |
-| Prompt returns one text user message | `server.text_prompt(...)` |
+| Prompt reads raw string arguments and returns one text user message | `server.text_prompt(...)` |
+| Prompt decodes typed arguments and returns one text user message | `server.typed_text_prompt(...)` |
 | Prompt returns full `GetPromptResult` | `server.prompt(...)` |
 | Prompt needs raw JSON result control | `server.raw_prompt(...)` |
 
 ```mbt nocheck
-try! server.text_tool(
+struct HelloInput {
+  name : String
+} derive(FromJson)
+
+try! server.typed_text_tool(
   name="hello",
   description="Return a greeting",
   input_schema=@mcp.object([
     @mcp.string_prop(name="name", description="Name to greet", required=true),
   ]),
-  fn(args) raise @mcp.McpError {
-    match args {
-      Some(Object({ "name": String(name), .. })) => "Hello, \{name}!"
-      _ => raise @mcp.InvalidParams("name must be a string")
-    }
-  },
+  fn(input : HelloInput) { "Hello, \{input.name}!" },
 )
 
 try! server.text_resource(
@@ -93,27 +94,24 @@ try! server.text_resource(
   fn(_) { "ready" },
 )
 
-try! server.text_prompt(
+struct SummarizeInput {
+  topic : String
+} derive(FromJson)
+
+try! server.typed_text_prompt(
   name="summarize",
   arguments=[
-    @mcp.PromptArgument::{
-      name: "topic",
-      title: None,
-      description: None,
-      required: true,
-    },
+    @mcp.PromptArgument(name="topic", required=true),
   ],
-  fn(args) raise @mcp.McpError {
-    match args.get("topic") {
-      Some(topic) => "Summarize \{topic} in three bullets."
-      None => raise @mcp.InvalidParams("topic is required")
-    }
+  fn(input : SummarizeInput) {
+    "Summarize \{input.topic} in three bullets."
   },
 )
 ```
 
 The `raw_*` methods are the low-level escape hatches. Normal server code should
-start with `text_tool`, `structured_tool`, `text_resource`, or `text_prompt`.
+start with `typed_text_tool`, `structured_tool`, `text_resource`, or
+`typed_text_prompt`.
 
 ## Examples
 
