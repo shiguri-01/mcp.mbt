@@ -37,6 +37,7 @@ pub struct Server {
 }
 
 ///|
+/// Create a transport-neutral MCP server dispatcher.
 pub fn Server::Server(
   name~ : String,
   version~ : String,
@@ -55,6 +56,7 @@ pub fn Server::Server(
 }
 
 ///|
+/// Register a fully specified tool descriptor and raw JSON handler.
 pub fn Server::raw_tool(
   self : Server,
   tool : Tool,
@@ -67,6 +69,10 @@ pub fn Server::raw_tool(
 }
 
 ///|
+/// Register a tool with raw `Json?` arguments.
+///
+/// Use this when MoonBit pattern matching on `Json` is clearer than defining a
+/// typed input struct.
 pub fn Server::tool(
   self : Server,
   name~ : String,
@@ -91,6 +97,7 @@ pub fn Server::tool(
 }
 
 ///|
+/// Register a tool that decodes arguments through `FromJson`.
 pub fn[A : FromJson] Server::typed_tool(
   self : Server,
   name~ : String,
@@ -122,6 +129,7 @@ pub fn[A : FromJson] Server::typed_tool(
 }
 
 ///|
+/// Register a fully specified resource descriptor.
 pub fn Server::raw_resource(
   self : Server,
   resource : Resource,
@@ -134,6 +142,7 @@ pub fn Server::raw_resource(
 }
 
 ///|
+/// Register a resource by URI.
 pub fn Server::resource(
   self : Server,
   uri~ : String,
@@ -154,6 +163,7 @@ pub fn Server::resource(
 }
 
 ///|
+/// Register a fully specified prompt descriptor and raw JSON result handler.
 pub fn Server::raw_prompt(
   self : Server,
   prompt : Prompt,
@@ -166,6 +176,7 @@ pub fn Server::raw_prompt(
 }
 
 ///|
+/// Register a prompt whose arguments are exposed as strings.
 pub fn Server::prompt(
   self : Server,
   name~ : String,
@@ -182,6 +193,7 @@ pub fn Server::prompt(
 }
 
 ///|
+/// Register a prompt that decodes string arguments through `FromJson`.
 pub fn[A : FromJson] Server::typed_prompt(
   self : Server,
   name~ : String,
@@ -201,6 +213,7 @@ pub fn[A : FromJson] Server::typed_prompt(
 }
 
 ///|
+/// Handle MCP `initialize` params and return the server capabilities.
 pub fn Server::initialize(self : Server, _params : Json?) -> InitializeResult {
   self.initialized = true
   {
@@ -331,6 +344,7 @@ pub fn Server::call_tool(
 }
 
 ///|
+/// Dispatch an MCP method and return the JSON result, if the method has one.
 pub fn Server::handle(
   self : Server,
   method_name : String,

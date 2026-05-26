@@ -1,4 +1,5 @@
 ///|
+/// MCP implementation metadata advertised during `initialize`.
 pub(all) struct Implementation {
   name : String
   version : String
@@ -33,6 +34,7 @@ pub impl ToJson for ToolAnnotations with fn to_json(self : ToolAnnotations) -> J
 }
 
 ///|
+/// MCP tool descriptor.
 pub(all) struct Tool {
   name : String
   title : String?
@@ -44,6 +46,7 @@ pub(all) struct Tool {
 } derive(Debug, Eq)
 
 ///|
+/// Construct a tool descriptor.
 pub fn Tool::Tool(
   name~ : String,
   title? : String,
@@ -128,6 +131,7 @@ pub impl ToJson for Resource with fn to_json(self : Resource) -> Json {
 }
 
 ///|
+/// Convenience descriptor for a text-oriented resource.
 pub fn Resource::text(
   uri~ : String,
   name~ : String,
@@ -180,6 +184,7 @@ pub impl ToJson for ReadResourceResult with fn to_json(
 }
 
 ///|
+/// Construct a single text resource read result.
 pub fn ReadResourceResult::text(
   uri~ : String,
   text~ : String,
@@ -197,6 +202,7 @@ pub(all) struct PromptArgument {
 } derive(Debug, Eq)
 
 ///|
+/// Construct a prompt argument descriptor.
 pub fn PromptArgument::PromptArgument(
   name~ : String,
   title? : String,
@@ -302,6 +308,7 @@ pub impl ToJson for CallToolResult with fn to_json(self : CallToolResult) -> Jso
 }
 
 ///|
+/// Return a plain text tool result.
 pub fn CallToolResult::text(text : String) -> CallToolResult {
   {
     content: [Text(text)],
@@ -312,11 +319,13 @@ pub fn CallToolResult::text(text : String) -> CallToolResult {
 }
 
 ///|
+/// Return structured content without a text block.
 pub fn CallToolResult::json(value : Json) -> CallToolResult {
   { content: [], structured_content: Some(value), is_error: false, meta: None }
 }
 
 ///|
+/// Return typed structured content through `ToJson`.
 pub fn[T : ToJson] CallToolResult::structured(value : T) -> CallToolResult {
   CallToolResult::json(value.to_json())
 }
@@ -332,6 +341,7 @@ pub fn CallToolResult::text_json(text : String, value : Json) -> CallToolResult 
 }
 
 ///|
+/// Return a tool error as MCP content, not as a JSON-RPC protocol error.
 pub fn CallToolResult::error_text(text : String) -> CallToolResult {
   {
     content: [Text(text)],
@@ -383,6 +393,7 @@ pub impl ToJson for GetPromptResult with fn to_json(self : GetPromptResult) -> J
 }
 
 ///|
+/// Construct a single user prompt message result.
 pub fn GetPromptResult::user(
   text : String,
   description? : String,

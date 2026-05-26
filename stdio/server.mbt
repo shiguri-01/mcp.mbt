@@ -1,4 +1,5 @@
 ///|
+/// Serve an MCP server over newline-delimited JSON-RPC on stdin/stdout.
 pub async fn serve(server : @mcp.Server) -> Unit {
   while @async_stdio.stdin.read_until("\n") is Some(line) {
     let message = @json.parse(line.trim()) catch {

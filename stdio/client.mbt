@@ -1,4 +1,5 @@
 ///|
+/// Stdio MCP client that owns the spawned server process and pipe handles.
 pub struct Client {
   priv core : @mcp.Client
   priv process : @process.Process
@@ -7,6 +8,7 @@ pub struct Client {
 }
 
 ///|
+/// Spawn a stdio MCP server process and connect stdin/stdout pipes.
 pub async fn[X] Client::spawn(
   group : @async.TaskGroup[X],
   command : String,
@@ -38,11 +40,13 @@ pub async fn[X] Client::spawn(
 }
 
 ///|
+/// Return the OS process id of the spawned server.
 pub fn Client::pid(self : Client) -> Int {
   self.process.pid
 }
 
 ///|
+/// Close the client-side pipe handles.
 pub fn Client::close(self : Client) -> Unit {
   self.writer.close()
   self.reader.close()
@@ -105,6 +109,7 @@ pub async fn Client::notify(
 }
 
 ///|
+/// Send `initialize` and then `notifications/initialized`.
 pub async fn Client::initialize(
   self : Client,
   client_name~ : String,
@@ -132,6 +137,7 @@ pub async fn Client::call_tool(
 }
 
 ///|
+/// Decode a tool result's `structuredContent` through `FromJson`.
 pub async fn[T : FromJson] Client::call_tool_as(
   self : Client,
   name~ : String,

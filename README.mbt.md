@@ -55,6 +55,16 @@ Use `Result` only when an error needs to be stored as a value. Handler APIs use
 JSON Schema is represented as `Json` for now. Validation can be layered on later
 without changing the core server API.
 
+## Packages
+
+- `shiguri/mcp` is the transport-neutral core package. It contains MCP data
+  types, JSON-RPC helpers, schema builders, and the in-memory server/client
+  dispatch API.
+- `shiguri/mcp/stdio` is the native stdio transport package. It depends on
+  `moonbitlang/async`, process pipes, and the native backend.
+- `examples/stdio-server` and `examples/stdio-client` are the runnable examples.
+  They exercise a real MCP stdio session instead of printing mock output.
+
 ## Server API
 
 Use the API that matches the shape you want to return:

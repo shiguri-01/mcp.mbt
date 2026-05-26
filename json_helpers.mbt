@@ -40,6 +40,7 @@ fn empty_object_schema() -> Json {
 }
 
 ///|
+/// JSON Schema object property descriptor used by `object`.
 pub struct Property {
   priv name : String
   priv schema : Json
@@ -47,6 +48,7 @@ pub struct Property {
 } derive(Debug, Eq)
 
 ///|
+/// Build an object property from an arbitrary JSON Schema fragment.
 pub fn prop(
   name~ : String,
   schema~ : Json,
@@ -56,6 +58,7 @@ pub fn prop(
 }
 
 ///|
+/// Build a JSON Schema string type.
 pub fn string(description? : String) -> Json {
   let fields : Map[String, Json] = { "type": Json::string("string") }
   put_optional_string(fields, "description", description)
@@ -84,6 +87,7 @@ pub fn boolean(description? : String) -> Json {
 }
 
 ///|
+/// Build a JSON Schema array type.
 pub fn array(items~ : Json, description? : String) -> Json {
   let fields : Map[String, Json] = {
     "type": Json::string("array"),
@@ -94,6 +98,7 @@ pub fn array(items~ : Json, description? : String) -> Json {
 }
 
 ///|
+/// Build a JSON Schema string enum.
 pub fn string_enum(values : Array[String], description? : String) -> Json {
   let fields : Map[String, Json] = {
     "type": Json::string("string"),
@@ -104,6 +109,7 @@ pub fn string_enum(values : Array[String], description? : String) -> Json {
 }
 
 ///|
+/// Build a required-or-optional string property.
 pub fn string_prop(
   name~ : String,
   description? : String,
@@ -160,6 +166,7 @@ pub fn string_enum_prop(
 }
 
 ///|
+/// Build a closed JSON Schema object from property descriptors.
 pub fn object(
   properties : Array[Property],
   additional_properties? : Bool = false,
