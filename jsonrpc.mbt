@@ -5,7 +5,7 @@ pub(all) enum RequestId {
 } derive(Debug, Eq)
 
 ///|
-pub fn RequestId::to_json(self : RequestId) -> Json {
+pub impl ToJson for RequestId with fn to_json(self : RequestId) -> Json {
   match self {
     StringId(value) => Json::string(value)
     NumberId(value) => Json::number(value.to_double(), repr="\{value}")

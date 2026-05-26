@@ -5,7 +5,7 @@ pub(all) struct Implementation {
 } derive(Debug, Eq)
 
 ///|
-pub fn Implementation::to_json(self : Implementation) -> Json {
+pub impl ToJson for Implementation with fn to_json(self : Implementation) -> Json {
   Json::object({
     "name": Json::string(self.name),
     "version": Json::string(self.version),
@@ -22,7 +22,7 @@ pub(all) struct ToolAnnotations {
 } derive(Debug, Eq)
 
 ///|
-pub fn ToolAnnotations::to_json(self : ToolAnnotations) -> Json {
+pub impl ToJson for ToolAnnotations with fn to_json(self : ToolAnnotations) -> Json {
   let fields : Map[String, Json] = {}
   put_optional_string(fields, "title", self.title)
   put_optional_bool(fields, "readOnlyHint", self.read_only_hint)
@@ -44,7 +44,7 @@ pub(all) struct Tool {
 } derive(Debug, Eq)
 
 ///|
-pub fn Tool::to_json(self : Tool) -> Json {
+pub impl ToJson for Tool with fn to_json(self : Tool) -> Json {
   let fields : Map[String, Json] = {
     "name": Json::string(self.name),
     "inputSchema": self.input_schema,
@@ -61,7 +61,7 @@ pub fn Tool::to_json(self : Tool) -> Json {
 }
 
 ///|
-pub fn Tool::new(
+pub fn Tool::Tool(
   name~ : String,
   title? : String,
   description? : String,
@@ -103,7 +103,7 @@ pub(all) struct Resource {
 } derive(Debug, Eq)
 
 ///|
-pub fn Resource::new(
+pub fn Resource::Resource(
   uri~ : String,
   name~ : String,
   title? : String,
@@ -115,7 +115,7 @@ pub fn Resource::new(
 }
 
 ///|
-pub fn Resource::to_json(self : Resource) -> Json {
+pub impl ToJson for Resource with fn to_json(self : Resource) -> Json {
   let fields : Map[String, Json] = {
     "uri": Json::string(self.uri),
     "name": Json::string(self.name),
@@ -145,7 +145,7 @@ pub(all) enum ResourceContent {
 } derive(Debug, Eq)
 
 ///|
-pub fn ResourceContent::to_json(self : ResourceContent) -> Json {
+pub impl ToJson for ResourceContent with fn to_json(self : ResourceContent) -> Json {
   let fields : Map[String, Json] = {}
   match self {
     ResourceText(uri~, text~, mime_type~) => {
@@ -169,7 +169,9 @@ pub(all) struct ReadResourceResult {
 } derive(Debug, Eq)
 
 ///|
-pub fn ReadResourceResult::to_json(self : ReadResourceResult) -> Json {
+pub impl ToJson for ReadResourceResult with fn to_json(
+  self : ReadResourceResult,
+) -> Json {
   let fields : Map[String, Json] = {
     "contents": self.contents.map(fn(content) { content.to_json() }).to_json(),
   }
@@ -195,7 +197,7 @@ pub(all) struct PromptArgument {
 } derive(Debug, Eq)
 
 ///|
-pub fn PromptArgument::new(
+pub fn PromptArgument::PromptArgument(
   name~ : String,
   title? : String,
   description? : String,
@@ -205,7 +207,7 @@ pub fn PromptArgument::new(
 }
 
 ///|
-pub fn PromptArgument::to_json(self : PromptArgument) -> Json {
+pub impl ToJson for PromptArgument with fn to_json(self : PromptArgument) -> Json {
   let fields : Map[String, Json] = { "name": Json::string(self.name) }
   put_optional_string(fields, "title", self.title)
   put_optional_string(fields, "description", self.description)
@@ -225,7 +227,7 @@ pub(all) struct Prompt {
 } derive(Debug, Eq)
 
 ///|
-pub fn Prompt::new(
+pub fn Prompt::Prompt(
   name~ : String,
   title? : String,
   description? : String,
@@ -236,7 +238,7 @@ pub fn Prompt::new(
 }
 
 ///|
-pub fn Prompt::to_json(self : Prompt) -> Json {
+pub impl ToJson for Prompt with fn to_json(self : Prompt) -> Json {
   let fields : Map[String, Json] = { "name": Json::string(self.name) }
   put_optional_string(fields, "title", self.title)
   put_optional_string(fields, "description", self.description)
@@ -258,7 +260,7 @@ pub(all) enum ContentBlock {
 } derive(Debug, Eq)
 
 ///|
-pub fn ContentBlock::to_json(self : ContentBlock) -> Json {
+pub impl ToJson for ContentBlock with fn to_json(self : ContentBlock) -> Json {
   match self {
     Text(text) =>
       Json::object({ "type": Json::string("text"), "text": Json::string(text) })
@@ -287,7 +289,7 @@ pub(all) struct CallToolResult {
 } derive(Debug, Eq)
 
 ///|
-pub fn CallToolResult::to_json(self : CallToolResult) -> Json {
+pub impl ToJson for CallToolResult with fn to_json(self : CallToolResult) -> Json {
   let fields : Map[String, Json] = {
     "content": self.content.map(fn(block) { block.to_json() }).to_json(),
   }
@@ -351,7 +353,7 @@ pub fn PromptMessage::assistant(text : String) -> PromptMessage {
 }
 
 ///|
-pub fn PromptMessage::to_json(self : PromptMessage) -> Json {
+pub impl ToJson for PromptMessage with fn to_json(self : PromptMessage) -> Json {
   Json::object({
     "role": Json::string(self.role),
     "content": self.content.to_json(),
@@ -366,7 +368,7 @@ pub(all) struct GetPromptResult {
 } derive(Debug, Eq)
 
 ///|
-pub fn GetPromptResult::to_json(self : GetPromptResult) -> Json {
+pub impl ToJson for GetPromptResult with fn to_json(self : GetPromptResult) -> Json {
   let fields : Map[String, Json] = {
     "messages": self.messages.map(fn(message) { message.to_json() }).to_json(),
   }
@@ -419,7 +421,9 @@ pub fn ServerCapabilities::full(
 }
 
 ///|
-pub fn ServerCapabilities::to_json(self : ServerCapabilities) -> Json {
+pub impl ToJson for ServerCapabilities with fn to_json(
+  self : ServerCapabilities,
+) -> Json {
   let fields : Map[String, Json] = {
     "tools": Json::object({
       "listChanged": Json::boolean(self.tools_list_changed),
@@ -441,7 +445,7 @@ pub(all) struct InitializeResult {
 } derive(Debug, Eq)
 
 ///|
-pub fn InitializeResult::to_json(self : InitializeResult) -> Json {
+pub impl ToJson for InitializeResult with fn to_json(self : InitializeResult) -> Json {
   let fields : Map[String, Json] = {
     "protocolVersion": Json::string(self.protocol_version),
     "capabilities": self.capabilities.to_json(),
@@ -484,7 +488,7 @@ pub fn McpError::message(self : McpError) -> String {
 }
 
 ///|
-pub fn McpError::to_json(self : McpError) -> Json {
+pub impl ToJson for McpError with fn to_json(self : McpError) -> Json {
   Json::object({
     "code": Json::number(self.code().to_double(), repr="\{self.code()}"),
     "message": Json::string(self.message()),

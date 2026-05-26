@@ -20,7 +20,7 @@ fn main {
     required=["left", "right"],
   )
   try! server.add_tool(
-    @mcp.Tool::new(
+    @mcp.Tool::Tool(
       name="add",
       description="Add two integers with FromJson/ToJson",
       input_schema~,

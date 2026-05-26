@@ -8,7 +8,7 @@ fn main {
     required=["name"],
   )
   try! server.add_text_tool(
-    @mcp.Tool::new(
+    @mcp.Tool::Tool(
       name="greet",
       description="Build a greeting from raw JSON arguments",
       input_schema~,

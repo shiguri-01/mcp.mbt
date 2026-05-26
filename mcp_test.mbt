@@ -34,7 +34,7 @@ test "raw tool can be listed and called" {
     required=["name"],
   )
   try! server.add_text_tool(
-    @mcp.Tool::new(
+    @mcp.Tool::Tool(
       name="greet",
       description="Return a greeting",
       input_schema=schema,
@@ -92,7 +92,7 @@ struct EchoOutput {
 test "typed tool decodes input and encodes structured content" {
   let server = @mcp.Server::new(name="test-server", version="0.1.0")
   try! server.add_tool(
-    @mcp.Tool::new(name="echo", input_schema=@mcp.empty_object_schema()),
+    @mcp.Tool::Tool(name="echo", input_schema=@mcp.empty_object_schema()),
     fn(input : EchoInput) -> EchoOutput { { echoed: input.text } },
   )
   let response = try! server.handle(
@@ -115,7 +115,7 @@ test "typed tool decodes input and encodes structured content" {
 test "resources and prompts are dispatchable" {
   let server = @mcp.Server::new(name="test-server", version="0.1.0")
   try! server.add_text_resource(
-    @mcp.Resource::new(
+    @mcp.Resource::Resource(
       uri="memory://status",
       name="status",
       description="Current status",
@@ -124,9 +124,13 @@ test "resources and prompts are dispatchable" {
     fn(_) { "ready" },
   )
   try! server.add_prompt(
-    @mcp.Prompt::new(name="summarize", description="Build a summarize prompt", arguments=[
-      @mcp.PromptArgument::new(name="topic", required=true),
-    ]),
+    @mcp.Prompt::Prompt(
+      name="summarize",
+      description="Build a summarize prompt",
+      arguments=[
+        @mcp.PromptArgument::PromptArgument(name="topic", required=true),
+      ],
+    ),
     fn(arguments) raise @mcp.McpError {
       match arguments.get("topic") {
         Some(topic) => "Summarize \{topic}."

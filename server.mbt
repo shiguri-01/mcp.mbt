@@ -96,15 +96,14 @@ pub fn[A : FromJson, B : ToJson] Server::tool_json(
   handler : (A) -> B raise McpError,
 ) -> Unit raise McpError {
   self.add_tool(
-    {
-      name,
-      title,
-      description,
-      input_schema,
-      output_schema,
-      annotations,
-      meta: None,
-    },
+    Tool::Tool(
+      name~,
+      title?,
+      description?,
+      input_schema~,
+      output_schema?,
+      annotations?,
+    ),
     handler,
   )
 }
@@ -131,15 +130,7 @@ pub fn Server::tool_text(
   handler : (Json?) -> String raise McpError,
 ) -> Unit raise McpError {
   self.add_text_tool(
-    {
-      name,
-      title,
-      description,
-      input_schema,
-      output_schema: None,
-      annotations,
-      meta: None,
-    },
+    Tool::text(name~, title?, description?, input_schema~, annotations?),
     handler,
   )
 }
@@ -187,14 +178,7 @@ pub fn Server::resource_text(
     None => uri
   }
   self.add_text_resource(
-    {
-      uri,
-      name: resource_name,
-      title,
-      description,
-      mime_type: Some(mime_type),
-      meta: None,
-    },
+    Resource::text(uri~, name=resource_name, title?, description?, mime_type~),
     handler,
   )
 }
@@ -254,7 +238,10 @@ pub fn Server::prompt_text(
   arguments? : Array[PromptArgument] = [],
   handler : (Map[String, String]) -> String raise McpError,
 ) -> Unit raise McpError {
-  self.add_prompt({ name, title, description, arguments, meta: None }, handler)
+  self.add_prompt(
+    Prompt::Prompt(name~, title?, description?, arguments~),
+    handler,
+  )
 }
 
 ///|

@@ -14,7 +14,7 @@ fn main {
     instructions="Example server that handles JSON-RPC MCP messages.",
   )
   try! server.add_text_tool(
-    @mcp.Tool::new(
+    @mcp.Tool::Tool(
       name="ping",
       description="Return pong",
       input_schema=@mcp.empty_object_schema(),
