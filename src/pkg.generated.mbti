@@ -41,17 +41,25 @@ pub fn McpError::message(Self) -> String
 pub impl ToJson for McpError
 
 // Types and methods
+pub(all) struct Annotations {
+  audience : Array[Role]
+  priority : Double?
+  last_modified : String?
+} derive(Eq, @debug.Debug)
+pub fn Annotations::Annotations(audience? : Array[Role], priority? : Double, last_modified? : String) -> Self
+pub impl ToJson for Annotations
+
 pub(all) struct CallToolResult {
   content : Array[ContentBlock]
   structured_content : Json?
   is_error : Bool
   meta : Json?
 } derive(Eq, @debug.Debug)
-pub fn CallToolResult::error_text(String) -> Self
+pub fn CallToolResult::error_text(String, annotations? : Annotations, meta? : Json) -> Self
 pub fn CallToolResult::json(Json) -> Self
 pub fn[T : ToJson] CallToolResult::structured(T) -> Self
-pub fn CallToolResult::text(String) -> Self
-pub fn CallToolResult::text_json(String, Json) -> Self
+pub fn CallToolResult::text(String, annotations? : Annotations, meta? : Json) -> Self
+pub fn CallToolResult::text_json(String, Json, annotations? : Annotations, meta? : Json) -> Self
 pub impl ToJson for CallToolResult
 
 pub struct Client {
@@ -123,11 +131,19 @@ pub(all) struct CompletionRequest {
 } derive(Eq, @debug.Debug)
 
 pub(all) enum ContentBlock {
-  Text(String)
-  Image(data~ : String, mime_type~ : String)
-  Audio(data~ : String, mime_type~ : String)
-  Resource(Json)
+  TextContent(text~ : String, annotations~ : Annotations?, meta~ : Json?)
+  ImageContent(data~ : String, mime_type~ : String, annotations~ : Annotations?, meta~ : Json?)
+  AudioContent(data~ : String, mime_type~ : String, annotations~ : Annotations?, meta~ : Json?)
+  EmbeddedResource(resource~ : ResourceContent, annotations~ : Annotations?, meta~ : Json?)
+  ResourceLink(ResourceLink)
+  Raw(Json)
 } derive(Eq, @debug.Debug)
+pub fn ContentBlock::audio(data~ : String, mime_type~ : String, annotations? : Annotations, meta? : Json) -> Self
+pub fn ContentBlock::embedded_resource(resource~ : ResourceContent, annotations? : Annotations, meta? : Json) -> Self
+pub fn ContentBlock::image(data~ : String, mime_type~ : String, annotations? : Annotations, meta? : Json) -> Self
+pub fn ContentBlock::raw(Json) -> Self
+pub fn ContentBlock::resource_link(ResourceLink) -> Self
+pub fn ContentBlock::text(String, annotations? : Annotations, meta? : Json) -> Self
 pub impl ToJson for ContentBlock
 
 pub(all) struct ElicitationCapability {
@@ -149,9 +165,17 @@ pub(all) struct Icon {
   src : String
   mime_type : String?
   sizes : Array[String]
+  theme : IconTheme?
 } derive(Eq, @debug.Debug)
-pub fn Icon::Icon(src~ : String, mime_type? : String, sizes? : Array[String]) -> Self
+pub fn Icon::Icon(src~ : String, mime_type? : String, sizes? : Array[String], theme? : IconTheme) -> Self
 pub impl ToJson for Icon
+
+pub(all) enum IconTheme {
+  Light
+  Dark
+} derive(Eq, @debug.Debug)
+pub fn IconTheme::to_string(Self) -> String
+pub impl ToJson for IconTheme
 
 pub(all) struct Implementation {
   name : String
@@ -249,17 +273,36 @@ pub(all) struct Resource {
   title : String?
   description : String?
   mime_type : String?
+  icons : Array[Icon]
+  annotations : Annotations?
+  size : Int?
   meta : Json?
 } derive(Eq, @debug.Debug)
-pub fn Resource::Resource(uri~ : String, name~ : String, title? : String, description? : String, mime_type? : String, meta? : Json) -> Self
-pub fn Resource::text(uri~ : String, name~ : String, title? : String, description? : String, mime_type? : String) -> Self
+pub fn Resource::Resource(uri~ : String, name~ : String, title? : String, description? : String, mime_type? : String, icons? : Array[Icon], annotations? : Annotations, size? : Int, meta? : Json) -> Self
+pub fn Resource::text(uri~ : String, name~ : String, title? : String, description? : String, mime_type? : String, annotations? : Annotations, size? : Int) -> Self
 pub impl ToJson for Resource
 
 pub(all) enum ResourceContent {
-  ResourceText(uri~ : String, text~ : String, mime_type~ : String?)
-  ResourceBlob(uri~ : String, blob~ : String, mime_type~ : String?)
+  ResourceText(uri~ : String, text~ : String, mime_type~ : String?, meta~ : Json?)
+  ResourceBlob(uri~ : String, blob~ : String, mime_type~ : String?, meta~ : Json?)
 } derive(Eq, @debug.Debug)
+pub fn ResourceContent::blob(uri~ : String, blob~ : String, mime_type? : String, meta? : Json) -> Self
+pub fn ResourceContent::text(uri~ : String, text~ : String, mime_type? : String, meta? : Json) -> Self
 pub impl ToJson for ResourceContent
+
+pub(all) struct ResourceLink {
+  uri : String
+  name : String
+  title : String?
+  description : String?
+  mime_type : String?
+  icons : Array[Icon]
+  annotations : Annotations?
+  size : Int?
+  meta : Json?
+} derive(Eq, @debug.Debug)
+pub fn ResourceLink::ResourceLink(uri~ : String, name~ : String, title? : String, description? : String, mime_type? : String, icons? : Array[Icon], annotations? : Annotations, size? : Int, meta? : Json) -> Self
+pub impl ToJson for ResourceLink
 
 pub(all) struct ResourceTemplate {
   uri_template : String
@@ -267,9 +310,11 @@ pub(all) struct ResourceTemplate {
   title : String?
   description : String?
   mime_type : String?
+  icons : Array[Icon]
+  annotations : Annotations?
   meta : Json?
 } derive(Eq, @debug.Debug)
-pub fn ResourceTemplate::ResourceTemplate(uri_template~ : String, name~ : String, title? : String, description? : String, mime_type? : String, meta? : Json) -> Self
+pub fn ResourceTemplate::ResourceTemplate(uri_template~ : String, name~ : String, title? : String, description? : String, mime_type? : String, icons? : Array[Icon], annotations? : Annotations, meta? : Json) -> Self
 pub impl ToJson for ResourceTemplate
 
 pub(all) struct ResourcesCapability {
@@ -278,6 +323,13 @@ pub(all) struct ResourcesCapability {
 } derive(Eq, @debug.Debug)
 pub fn ResourcesCapability::ResourcesCapability(subscribe? : Bool, list_changed? : Bool) -> Self
 pub impl ToJson for ResourcesCapability
+
+pub(all) enum Role {
+  User
+  Assistant
+} derive(Eq, @debug.Debug)
+pub fn Role::to_string(Self) -> String
+pub impl ToJson for Role
 
 pub(all) struct RootsCapability {
   list_changed : Bool?

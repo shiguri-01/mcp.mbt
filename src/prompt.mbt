@@ -70,12 +70,12 @@ pub(all) struct PromptMessage {
 
 ///|
 pub fn PromptMessage::user(text : String) -> PromptMessage {
-  { role: "user", content: Text(text) }
+  { role: "user", content: ContentBlock::text(text) }
 }
 
 ///|
 pub fn PromptMessage::assistant(text : String) -> PromptMessage {
-  { role: "assistant", content: Text(text) }
+  { role: "assistant", content: ContentBlock::text(text) }
 }
 
 ///|

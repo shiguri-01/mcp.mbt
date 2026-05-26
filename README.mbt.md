@@ -162,6 +162,40 @@ try! server.completion(reference=@mcp.PromptRef(name="summarize"), fn(
 The `json_tool` and `string_prompt` methods are escape hatches. Normal server
 code should start with `tool`, `resource`, or `prompt`.
 
+## Content Blocks
+
+Content blocks follow the MCP
+[`2025-11-25` content schema](https://modelcontextprotocol.io/specification/2025-11-25/schema#content).
+Use typed constructors for normal content:
+
+```mbt nocheck
+let annotations = @mcp.Annotations(
+  audience=[@mcp.Role::User],
+  priority=0.8,
+)
+
+let text = @mcp.ContentBlock::text("Ready", annotations~)
+let embedded = @mcp.ContentBlock::embedded_resource(
+  resource=@mcp.ResourceContent::text(
+    uri="memory://status",
+    text="ready",
+    mime_type="text/plain",
+  ),
+)
+let link = @mcp.ContentBlock::resource_link(
+  @mcp.ResourceLink(
+    uri="file:///tmp/report.md",
+    name="report",
+    title="Report",
+    mime_type="text/markdown",
+    size=2048,
+  ),
+)
+```
+
+`ContentBlock::raw` remains available for future or vendor-specific content
+blocks. Prefer typed constructors when the shape is covered by this package.
+
 Configure advertised server capabilities with typed values:
 
 ```mbt nocheck

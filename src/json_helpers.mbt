@@ -21,6 +21,17 @@ fn put_optional_bool(
 }
 
 ///|
+fn put_optional_int(
+  fields : Map[String, Json],
+  key : String,
+  value : Int?,
+) -> Unit {
+  if value is Some(value) {
+    fields[key] = Json::number(value.to_double(), repr="\{value}")
+  }
+}
+
+///|
 fn put_optional_json(
   fields : Map[String, Json],
   key : String,
