@@ -55,7 +55,7 @@ pub fn Server::Server(
 }
 
 ///|
-pub fn Server::add_tool_raw(
+pub fn Server::register_tool(
   self : Server,
   tool : Tool,
   handler : ToolHandler,
@@ -69,24 +69,6 @@ pub fn Server::add_tool_raw(
 ///|
 pub fn[A : FromJson, B : ToJson] Server::add_tool(
   self : Server,
-  tool : Tool,
-  handler : (A) -> B raise McpError,
-) -> Unit raise McpError {
-  self.add_tool_raw(tool, fn(arguments) raise McpError {
-    let json = match arguments {
-      Some(value) => value
-      None => Json::null()
-    }
-    let input : A = @json.from_json(json) catch {
-      error => raise InvalidParams(error.to_string())
-    }
-    CallToolResult::json(handler(input).to_json())
-  })
-}
-
-///|
-pub fn[A : FromJson, B : ToJson] Server::tool_json(
-  self : Server,
   name~ : String,
   title? : String,
   description? : String,
@@ -95,7 +77,7 @@ pub fn[A : FromJson, B : ToJson] Server::tool_json(
   annotations? : ToolAnnotations,
   handler : (A) -> B raise McpError,
 ) -> Unit raise McpError {
-  self.add_tool(
+  self.register_tool(
     Tool::{
       name,
       title,
@@ -105,23 +87,21 @@ pub fn[A : FromJson, B : ToJson] Server::tool_json(
       annotations,
       meta: None,
     },
-    handler,
+    fn(arguments) raise McpError {
+      let json = match arguments {
+        Some(value) => value
+        None => Json::null()
+      }
+      let input : A = @json.from_json(json) catch {
+        error => raise InvalidParams(error.to_string())
+      }
+      CallToolResult::json(handler(input).to_json())
+    },
   )
 }
 
 ///|
 pub fn Server::add_text_tool(
-  self : Server,
-  tool : Tool,
-  handler : (Json?) -> String raise McpError,
-) -> Unit raise McpError {
-  self.add_tool_raw(tool, fn(arguments) raise McpError {
-    CallToolResult::text(handler(arguments))
-  })
-}
-
-///|
-pub fn Server::tool_text(
   self : Server,
   name~ : String,
   title? : String,
@@ -130,14 +110,14 @@ pub fn Server::tool_text(
   annotations? : ToolAnnotations,
   handler : (Json?) -> String raise McpError,
 ) -> Unit raise McpError {
-  self.add_text_tool(
+  self.register_tool(
     Tool::text(name~, title?, description?, input_schema~, annotations?),
-    handler,
+    fn(arguments) raise McpError { CallToolResult::text(handler(arguments)) },
   )
 }
 
 ///|
-pub fn Server::add_resource(
+pub fn Server::register_resource(
   self : Server,
   resource : Resource,
   handler : ResourceHandler,
@@ -149,23 +129,34 @@ pub fn Server::add_resource(
 }
 
 ///|
-pub fn Server::add_text_resource(
+pub fn Server::add_resource(
   self : Server,
-  resource : Resource,
-  handler : (String) -> String raise McpError,
+  uri~ : String,
+  name? : String,
+  title? : String,
+  description? : String,
+  mime_type? : String,
+  handler : ResourceHandler,
 ) -> Unit raise McpError {
-  self.add_resource(resource, fn(uri) raise McpError {
-    {
-      contents: [
-        ResourceText(uri~, text=handler(uri), mime_type=resource.mime_type),
-      ],
+  let resource_name = match name {
+    Some(name) => name
+    None => uri
+  }
+  self.register_resource(
+    Resource::{
+      uri,
+      name: resource_name,
+      title,
+      description,
+      mime_type,
       meta: None,
-    }
-  })
+    },
+    handler,
+  )
 }
 
 ///|
-pub fn Server::resource_text(
+pub fn Server::add_text_resource(
   self : Server,
   uri~ : String,
   name? : String,
@@ -174,18 +165,24 @@ pub fn Server::resource_text(
   mime_type? : String = "text/plain",
   handler : (String) -> String raise McpError,
 ) -> Unit raise McpError {
-  let resource_name = match name {
-    Some(name) => name
-    None => uri
-  }
-  self.add_text_resource(
-    Resource::text(uri~, name=resource_name, title?, description?, mime_type~),
-    handler,
-  )
+  self.add_resource(uri~, name?, title?, description?, mime_type~, fn(
+    request_uri,
+  ) raise McpError {
+    {
+      contents: [
+        ResourceText(
+          uri=request_uri,
+          text=handler(request_uri),
+          mime_type=Some(mime_type),
+        ),
+      ],
+      meta: None,
+    }
+  })
 }
 
 ///|
-pub fn Server::add_prompt_raw(
+pub fn Server::register_prompt(
   self : Server,
   prompt : Prompt,
   handler : PromptHandler,
@@ -199,39 +196,20 @@ pub fn Server::add_prompt_raw(
 ///|
 pub fn Server::add_prompt_result(
   self : Server,
-  prompt : Prompt,
+  name~ : String,
+  title? : String,
+  description? : String,
+  arguments? : Array[PromptArgument] = [],
   handler : (Map[String, String]) -> GetPromptResult raise McpError,
 ) -> Unit raise McpError {
-  self.add_prompt_raw(prompt, fn(arguments) raise McpError {
-    handler(arguments).to_json()
-  })
+  self.register_prompt(
+    Prompt::{ name, title, description, arguments, meta: None },
+    fn(arguments) raise McpError { handler(arguments).to_json() },
+  )
 }
 
 ///|
 pub fn Server::add_prompt(
-  self : Server,
-  prompt : Prompt,
-  handler : (Map[String, String]) -> String raise McpError,
-) -> Unit raise McpError {
-  self.add_prompt_raw(prompt, fn(arguments) raise McpError {
-    let description = match prompt.description {
-      Some(description) => description
-      None => ""
-    }
-    Json::object({
-      "description": Json::string(description),
-      "messages": Json::array([
-        Json::object({
-          "role": Json::string("user"),
-          "content": ContentBlock::Text(handler(arguments)).to_json(),
-        }),
-      ]),
-    })
-  })
-}
-
-///|
-pub fn Server::prompt_text(
   self : Server,
   name~ : String,
   title? : String,
@@ -239,9 +217,23 @@ pub fn Server::prompt_text(
   arguments? : Array[PromptArgument] = [],
   handler : (Map[String, String]) -> String raise McpError,
 ) -> Unit raise McpError {
-  self.add_prompt(
+  self.register_prompt(
     Prompt::{ name, title, description, arguments, meta: None },
-    handler,
+    fn(arguments) raise McpError {
+      let description = match description {
+        Some(description) => description
+        None => ""
+      }
+      Json::object({
+        "description": Json::string(description),
+        "messages": Json::array([
+          Json::object({
+            "role": Json::string("user"),
+            "content": ContentBlock::Text(handler(arguments)).to_json(),
+          }),
+        ]),
+      })
+    },
   )
 }
 

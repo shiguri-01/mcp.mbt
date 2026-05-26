@@ -27,7 +27,7 @@ handlers.
 ///|
 test {
   let server = @mcp.Server(name="example", version="0.1.0")
-  try! server.tool_text(
+  try! server.add_text_tool(
     name="hello",
     description="Return a greeting",
     input_schema=@mcp.empty_object_schema(),
@@ -63,7 +63,7 @@ without changing the core server API.
 Use high-level helpers for normal server code:
 
 ```mbt nocheck
-try! server.tool_text(
+try! server.add_text_tool(
   name="hello",
   description="Return a greeting",
   input_schema=@mcp.object_schema(
@@ -80,14 +80,14 @@ try! server.tool_text(
   },
 )
 
-try! server.resource_text(
+try! server.add_text_resource(
   uri="memory://status",
   name="status",
   description="Server status",
   fn(_) { "ready" },
 )
 
-try! server.prompt_text(
+try! server.add_prompt(
   name="summarize",
   arguments=[
     @mcp.PromptArgument::{
@@ -106,7 +106,7 @@ try! server.prompt_text(
 )
 ```
 
-Drop down to `add_tool_raw`, `add_resource`, and `add_prompt_raw` when the MCP
+Drop down to `register_tool`, `register_resource`, and `register_prompt` when the MCP
 payload shape needs to stay fully dynamic.
 
 ## Examples

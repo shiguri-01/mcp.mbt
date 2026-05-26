@@ -181,14 +181,12 @@ pub struct Server {
   // private fields
 }
 pub fn Server::Server(name~ : String, version~ : String, instructions? : String, capabilities? : ServerCapabilities) -> Self
-pub fn Server::add_prompt(Self, Prompt, (Map[String, String]) -> String raise McpError) -> Unit raise McpError
-pub fn Server::add_prompt_raw(Self, Prompt, (Map[String, String]) -> Json raise McpError) -> Unit raise McpError
-pub fn Server::add_prompt_result(Self, Prompt, (Map[String, String]) -> GetPromptResult raise McpError) -> Unit raise McpError
-pub fn Server::add_resource(Self, Resource, (String) -> ReadResourceResult raise McpError) -> Unit raise McpError
-pub fn Server::add_text_resource(Self, Resource, (String) -> String raise McpError) -> Unit raise McpError
-pub fn Server::add_text_tool(Self, Tool, (Json?) -> String raise McpError) -> Unit raise McpError
-pub fn[A : @json.FromJson, B : ToJson] Server::add_tool(Self, Tool, (A) -> B raise McpError) -> Unit raise McpError
-pub fn Server::add_tool_raw(Self, Tool, (Json?) -> CallToolResult raise McpError) -> Unit raise McpError
+pub fn Server::add_prompt(Self, name~ : String, title? : String, description? : String, arguments? : Array[PromptArgument], (Map[String, String]) -> String raise McpError) -> Unit raise McpError
+pub fn Server::add_prompt_result(Self, name~ : String, title? : String, description? : String, arguments? : Array[PromptArgument], (Map[String, String]) -> GetPromptResult raise McpError) -> Unit raise McpError
+pub fn Server::add_resource(Self, uri~ : String, name? : String, title? : String, description? : String, mime_type? : String, (String) -> ReadResourceResult raise McpError) -> Unit raise McpError
+pub fn Server::add_text_resource(Self, uri~ : String, name? : String, title? : String, description? : String, mime_type? : String, (String) -> String raise McpError) -> Unit raise McpError
+pub fn Server::add_text_tool(Self, name~ : String, title? : String, description? : String, input_schema? : Json, annotations? : ToolAnnotations, (Json?) -> String raise McpError) -> Unit raise McpError
+pub fn[A : @json.FromJson, B : ToJson] Server::add_tool(Self, name~ : String, title? : String, description? : String, input_schema? : Json, output_schema? : Json, annotations? : ToolAnnotations, (A) -> B raise McpError) -> Unit raise McpError
 pub fn Server::call_tool(Self, Json?) -> CallToolResult raise McpError
 pub fn Server::get_prompt(Self, Json?) -> Json raise McpError
 pub fn Server::handle(Self, String, Json?) -> Json? raise McpError
@@ -199,11 +197,10 @@ pub fn Server::list_prompts(Self) -> Json
 pub fn Server::list_resources(Self) -> Json
 pub fn Server::list_tools(Self) -> Json
 pub fn Server::notify_initialized(Self) -> Unit
-pub fn Server::prompt_text(Self, name~ : String, title? : String, description? : String, arguments? : Array[PromptArgument], (Map[String, String]) -> String raise McpError) -> Unit raise McpError
 pub fn Server::read_resource(Self, Json?) -> ReadResourceResult raise McpError
-pub fn Server::resource_text(Self, uri~ : String, name? : String, title? : String, description? : String, mime_type? : String, (String) -> String raise McpError) -> Unit raise McpError
-pub fn[A : @json.FromJson, B : ToJson] Server::tool_json(Self, name~ : String, title? : String, description? : String, input_schema? : Json, output_schema? : Json, annotations? : ToolAnnotations, (A) -> B raise McpError) -> Unit raise McpError
-pub fn Server::tool_text(Self, name~ : String, title? : String, description? : String, input_schema? : Json, annotations? : ToolAnnotations, (Json?) -> String raise McpError) -> Unit raise McpError
+pub fn Server::register_prompt(Self, Prompt, (Map[String, String]) -> Json raise McpError) -> Unit raise McpError
+pub fn Server::register_resource(Self, Resource, (String) -> ReadResourceResult raise McpError) -> Unit raise McpError
+pub fn Server::register_tool(Self, Tool, (Json?) -> CallToolResult raise McpError) -> Unit raise McpError
 
 pub(all) struct ServerCapabilities {
   tools_list_changed : Bool
