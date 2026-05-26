@@ -16,8 +16,8 @@ struct HelloInput {
 } derive(FromJson)
 
 ///|
-impl @mcp.JsonSchema for HelloInput with fn json_schema() {
-  @mcp.schema([@mcp.string_field(name="name", required=true)])
+impl @schema.JsonSchema for HelloInput with fn json_schema() {
+  @schema.schema([@schema.string_field(name="name", required=true)])
 }
 
 ///|

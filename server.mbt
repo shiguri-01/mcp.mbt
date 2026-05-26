@@ -123,7 +123,7 @@ fn Server::register_tool(
 /// Register a tool that decodes arguments through `FromJson`.
 ///
 /// If `input_schema` is omitted, the schema comes from `A::json_schema()`.
-pub fn[A : FromJson + JsonSchema] Server::tool(
+pub fn[A : FromJson + @schema.JsonSchema] Server::tool(
   self : Server,
   name~ : String,
   title? : String,

@@ -2,6 +2,7 @@ import {
   "moonbitlang/async",
   "moonbitlang/core/json",
   "shiguri/mcp",
+  "shiguri/mcp/schema",
   "shiguri/mcp/stdio" @mcp_stdio,
 }
 

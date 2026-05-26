@@ -1,4 +1,3 @@
 import {
   "moonbitlang/core/json",
-  "shiguri/mcp/schema",
 }

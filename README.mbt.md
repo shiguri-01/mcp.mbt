@@ -30,8 +30,8 @@ struct HelloInput {
 } derive(FromJson)
 
 ///|
-impl @mcp.JsonSchema for HelloInput with fn json_schema() {
-  @mcp.schema([@mcp.string_field(name="name", required=true)])
+impl @schema.JsonSchema for HelloInput with fn json_schema() {
+  @schema.schema([@schema.string_field(name="name", required=true)])
 }
 
 ///|
@@ -63,8 +63,9 @@ without changing the core server API.
 ## Packages
 
 - `shiguri/mcp` is the transport-neutral core package. It contains MCP data
-  types, JSON-RPC helpers, schema builders, and the in-memory server/client
-  dispatch API.
+  types, JSON-RPC helpers, and the in-memory server/client dispatch API.
+- `shiguri/mcp/schema` contains the JSON Schema trait and small builders used by
+  typed tool inputs.
 - `shiguri/mcp/stdio` is the native stdio transport package. It depends on
   `moonbitlang/async`, process pipes, and the native backend.
 - `examples/stdio-server` and `examples/stdio-client` are the runnable examples.
@@ -87,9 +88,9 @@ struct HelloInput {
   name : String
 } derive(FromJson)
 
-impl @mcp.JsonSchema for HelloInput with fn json_schema() {
-  @mcp.schema([
-    @mcp.string_field(name="name", description="Name to greet", required=true),
+impl @schema.JsonSchema for HelloInput with fn json_schema() {
+  @schema.schema([
+    @schema.string_field(name="name", description="Name to greet", required=true),
   ])
 }
 
