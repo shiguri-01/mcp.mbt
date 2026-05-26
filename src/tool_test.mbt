@@ -14,6 +14,20 @@ struct EchoOutput {
 } derive(FromJson, ToJson)
 
 ///|
+async fn initialize_tool_test_server(server : @mcp.Server) -> Unit {
+  let client = @mcp.Client()
+  ignore(
+    server.handle_jsonrpc(
+      client.initialize_request(
+        client_name="test-client",
+        client_version="0.1.0",
+      ),
+    ),
+  )
+  ignore(server.handle_jsonrpc(client.initialized_notification()))
+}
+
+///|
 async test "json tool can be listed and called" {
   let server = @mcp.Server(name="test-server", version="0.1.0")
   let schema = @schema.schema([
@@ -35,6 +49,7 @@ async test "json tool can be listed and called" {
     },
   )
 
+  initialize_tool_test_server(server)
   let list_response = server.handle_jsonrpc(
     Json::object({
       "jsonrpc": Json::string("2.0"),
@@ -76,6 +91,7 @@ async test "tool decodes input and encodes structured content" {
   try! server.tool(name="echo", fn(input : EchoInput) {
     @mcp.CallToolResult::structured(({ echoed: input.text } : EchoOutput))
   })
+  initialize_tool_test_server(server)
   let response = server.handle_jsonrpc(
     Json::object({
       "jsonrpc": Json::string("2.0"),
@@ -102,6 +118,7 @@ async test "tool decodes input and returns text content" {
   try! server.tool(name="echo_text", fn(input : EchoInput) {
     @mcp.CallToolResult::text(input.text)
   })
+  initialize_tool_test_server(server)
   let response = server.handle_jsonrpc(
     Json::object({
       "jsonrpc": Json::string("2.0"),

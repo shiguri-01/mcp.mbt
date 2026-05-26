@@ -11,6 +11,21 @@ type PromptHandler = (Map[String, String]) -> Json raise McpError
 type CompletionHandler = (CompletionRequest) -> CompleteResult raise McpError
 
 ///|
+enum SessionState {
+  Created
+  InitializeResponded
+  Ready
+}
+
+///|
+pub(all) struct InitializeParams {
+  protocol_version : String
+  capabilities : Json
+  client_info : Implementation
+  meta : Json?
+} derive(Debug, Eq)
+
+///|
 struct RegisteredTool {
   tool : Tool
   handler : ToolHandler
@@ -38,12 +53,15 @@ pub struct Server {
   priv info : Implementation
   priv capabilities : ServerCapabilities
   priv instructions : String?
+  priv mut state : SessionState
+  priv mut protocol_version : String?
+  priv mut client_capabilities : Json?
+  priv mut client_info : Implementation?
   priv tools : Map[String, RegisteredTool]
   priv resources : Map[String, RegisteredResource]
   priv resource_templates : Map[String, RegisteredResourceTemplate]
   priv prompts : Map[String, RegisteredPrompt]
   priv completions : Map[String, CompletionHandler]
-  priv mut initialized : Bool
   priv mut logging_level : LoggingLevel
 }
 
@@ -52,19 +70,33 @@ pub struct Server {
 pub fn Server::Server(
   name~ : String,
   version~ : String,
+  title? : String,
+  description? : String,
+  icons? : Array[Icon] = [],
+  website_url? : String,
   instructions? : String,
   capabilities? : ServerCapabilities = ServerCapabilities::full(),
 ) -> Server {
   {
-    info: { name, version },
+    info: Implementation(
+      name~,
+      version~,
+      title?,
+      description?,
+      icons~,
+      website_url?,
+    ),
     capabilities,
     instructions,
+    state: Created,
+    protocol_version: None,
+    client_capabilities: None,
+    client_info: None,
     tools: {},
     resources: {},
     resource_templates: {},
     prompts: {},
     completions: {},
-    initialized: false,
     logging_level: Info,
   }
 }
@@ -289,11 +321,125 @@ pub fn Server::completion(
 }
 
 ///|
-/// Handle MCP `initialize` params and return the server capabilities.
-pub fn Server::initialize(self : Server, _params : Json?) -> InitializeResult {
-  self.initialized = true
+fn parse_string_array(
+  value : Json,
+  context : String,
+) -> Array[String] raise McpError {
+  match value {
+    Array(values) => {
+      let strings : Array[String] = []
+      for value in values {
+        match value {
+          String(value) => strings.push(value)
+          _ => raise InvalidParams("\{context} items must be strings")
+        }
+      }
+      strings
+    }
+    _ => raise InvalidParams("\{context} must be an array")
+  }
+}
+
+///|
+fn parse_icon(value : Json, context : String) -> Icon raise McpError {
+  let fields = expect_object(value, context)
+  let sizes = match fields.get("sizes") {
+    Some(value) => parse_string_array(value, "\{context}.sizes")
+    None => []
+  }
+  Icon(
+    src=get_string(fields, "src", context),
+    mime_type?=get_optional_string(fields, "mimeType", context),
+    sizes~,
+  )
+}
+
+///|
+fn parse_icons(
+  fields : Map[String, Json],
+  context : String,
+) -> Array[Icon] raise McpError {
+  match fields.get("icons") {
+    Some(Array(values)) => {
+      let icons : Array[Icon] = []
+      for i, value in values {
+        icons.push(parse_icon(value, "\{context}.icons[\{i}]"))
+      }
+      icons
+    }
+    Some(Null) | None => []
+    Some(_) => raise InvalidParams("\{context}.icons must be an array")
+  }
+}
+
+///|
+fn parse_implementation(
+  value : Json,
+  context : String,
+) -> Implementation raise McpError {
+  let fields = expect_object(value, context)
+  Implementation(
+    name=get_string(fields, "name", context),
+    version=get_string(fields, "version", context),
+    title?=get_optional_string(fields, "title", context),
+    description?=get_optional_string(fields, "description", context),
+    icons=parse_icons(fields, context),
+    website_url?=get_optional_string(fields, "websiteUrl", context),
+  )
+}
+
+///|
+fn parse_initialize_params(params : Json?) -> InitializeParams raise McpError {
+  let value = match params {
+    Some(value) => value
+    None => raise InvalidParams("initialize params are required")
+  }
+  let fields = expect_object(value, "initialize params")
   {
-    protocol_version: latest_protocol_version,
+    protocol_version: get_string(fields, "protocolVersion", "initialize params"),
+    capabilities: match fields.get("capabilities") {
+      Some(Object(_) as capabilities) => capabilities
+      Some(Null) | None => Json::object({})
+      Some(_) =>
+        raise InvalidParams("initialize params.capabilities must be an object")
+    },
+    client_info: match fields.get("clientInfo") {
+      Some(value) => parse_implementation(value, "initialize params.clientInfo")
+      None => raise InvalidParams("initialize params.clientInfo is required")
+    },
+    meta: match fields.get("_meta") {
+      Some(value) => Some(value)
+      None => None
+    },
+  }
+}
+
+///|
+/// Handle MCP `initialize` params and return the negotiated server capabilities.
+///
+/// Lifecycle source:
+/// https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle
+pub fn Server::initialize(
+  self : Server,
+  params : Json?,
+) -> InitializeResult raise McpError {
+  match self.state {
+    Created => ()
+    InitializeResponded | Ready =>
+      raise InvalidRequest("initialize must only be sent once")
+  }
+  let params = parse_initialize_params(params)
+  let protocol_version = if params.protocol_version == latest_protocol_version {
+    params.protocol_version
+  } else {
+    latest_protocol_version
+  }
+  self.protocol_version = Some(protocol_version)
+  self.client_capabilities = Some(params.capabilities)
+  self.client_info = Some(params.client_info)
+  self.state = InitializeResponded
+  {
+    protocol_version,
     capabilities: self.capabilities,
     server_info: self.info,
     instructions: self.instructions,
@@ -302,13 +448,35 @@ pub fn Server::initialize(self : Server, _params : Json?) -> InitializeResult {
 }
 
 ///|
-pub fn Server::notify_initialized(self : Server) -> Unit {
-  self.initialized = true
+pub fn Server::notify_initialized(self : Server) -> Unit raise McpError {
+  match self.state {
+    InitializeResponded => self.state = Ready
+    Created =>
+      raise InvalidRequest(
+        "notifications/initialized received before initialize",
+      )
+    Ready => ()
+  }
 }
 
 ///|
 pub fn Server::is_initialized(self : Server) -> Bool {
-  self.initialized
+  self.state is Ready
+}
+
+///|
+pub fn Server::negotiated_protocol_version(self : Server) -> String? {
+  self.protocol_version
+}
+
+///|
+pub fn Server::client_capabilities(self : Server) -> Json? {
+  self.client_capabilities
+}
+
+///|
+pub fn Server::client_info(self : Server) -> Implementation? {
+  self.client_info
 }
 
 ///|
@@ -505,12 +673,41 @@ fn Server::set_logging_level(
 }
 
 ///|
+fn Server::ensure_method_allowed(
+  self : Server,
+  method_name : String,
+) -> Unit raise McpError {
+  match self.state {
+    Created =>
+      match method_name {
+        "initialize" | "ping" => ()
+        _ => raise InvalidRequest("initialize must be the first MCP request")
+      }
+    InitializeResponded =>
+      match method_name {
+        "notifications/initialized" | "ping" => ()
+        _ =>
+          raise InvalidRequest(
+            "notifications/initialized is required before normal operation",
+          )
+      }
+    Ready =>
+      match method_name {
+        "initialize" =>
+          raise InvalidRequest("initialize must only be sent once")
+        _ => ()
+      }
+  }
+}
+
+///|
 /// Dispatch an MCP method and return the JSON result, if the method has one.
 fn Server::dispatch(
   self : Server,
   method_name : String,
   params : Json?,
 ) -> Json? raise McpError {
+  self.ensure_method_allowed(method_name)
   match method_name {
     "initialize" => Some(self.initialize(params).to_json())
     "notifications/initialized" => {

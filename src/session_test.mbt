@@ -1,4 +1,18 @@
 ///|
+async fn initialize_server(server : @mcp.Server) -> Unit {
+  let client = @mcp.Client()
+  ignore(
+    server.handle_jsonrpc(
+      client.initialize_request(
+        client_name="test-client",
+        client_version="0.1.0",
+      ),
+    ),
+  )
+  ignore(server.handle_jsonrpc(client.initialized_notification()))
+}
+
+///|
 async test "list requests support cursor pagination" {
   let server = @mcp.Server(name="test-server", version="0.1.0")
   for i in 0..<101 {
@@ -6,6 +20,7 @@ async test "list requests support cursor pagination" {
       @mcp.CallToolResult::text("ok")
     })
   }
+  initialize_server(server)
   let first = server.handle_jsonrpc(
     Json::object({
       "jsonrpc": Json::string("2.0"),
@@ -51,6 +66,7 @@ async test "resource templates are listable" {
     description="A file resource",
     mime_type="text/plain",
   )
+  initialize_server(server)
   let response = server.handle_jsonrpc(
     Json::object({
       "jsonrpc": Json::string("2.0"),
@@ -85,6 +101,7 @@ async test "completion handlers are dispatchable" {
     }
     @mcp.CompleteResult(values=["MCP", "MoonBit"], total=2)
   })
+  initialize_server(server)
   let response = server.handle_jsonrpc(
     Json::object({
       "jsonrpc": Json::string("2.0"),
@@ -121,6 +138,17 @@ async test "completion handlers are dispatchable" {
 ///|
 async test "logging ping and notification builders follow MCP names" {
   let server = @mcp.Server(name="test-server", version="0.1.0")
+  let pre_initialize_ping = server.handle_jsonrpc(
+    Json::object({
+      "jsonrpc": Json::string("2.0"),
+      "id": Json::number(0.0, repr="0"),
+      "method": Json::string("ping"),
+    }),
+  )
+  guard pre_initialize_ping is Some(Object({ "result": Object(_), .. })) else {
+    fail("expected pre-initialize ping result")
+  }
+  initialize_server(server)
   let logging = server.handle_jsonrpc(
     Json::object({
       "jsonrpc": Json::string("2.0"),

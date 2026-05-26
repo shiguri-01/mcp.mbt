@@ -61,7 +61,7 @@ pub fn Client::Client() -> Self
 pub fn Client::call_tool_request(Self, name~ : String, arguments? : Json) -> Json
 pub fn Client::complete_request(Self, reference~ : CompletionReference, argument_name~ : String, argument_value~ : String, context_arguments? : Map[String, String]) -> Json
 pub fn Client::get_prompt_request(Self, name~ : String, arguments? : Json) -> Json
-pub fn Client::initialize_request(Self, client_name~ : String, client_version~ : String, capabilities? : Json) -> Json
+pub fn Client::initialize_request(Self, client_name~ : String, client_version~ : String, client_title? : String, client_description? : String, client_icons? : Array[Icon], client_website_url? : String, capabilities? : Json) -> Json
 pub fn Client::initialized_notification(Self) -> Json
 pub fn Client::list_prompts_request(Self, cursor? : String) -> Json
 pub fn Client::list_resource_templates_request(Self, cursor? : String) -> Json
@@ -111,11 +111,31 @@ pub(all) struct GetPromptResult {
 pub fn GetPromptResult::user(String, description? : String) -> Self
 pub impl ToJson for GetPromptResult
 
+pub(all) struct Icon {
+  src : String
+  mime_type : String?
+  sizes : Array[String]
+} derive(Eq, @debug.Debug)
+pub fn Icon::Icon(src~ : String, mime_type? : String, sizes? : Array[String]) -> Self
+pub impl ToJson for Icon
+
 pub(all) struct Implementation {
   name : String
+  title : String?
   version : String
+  description : String?
+  icons : Array[Icon]
+  website_url : String?
 } derive(Eq, @debug.Debug)
+pub fn Implementation::Implementation(name~ : String, version~ : String, title? : String, description? : String, icons? : Array[Icon], website_url? : String) -> Self
 pub impl ToJson for Implementation
+
+pub(all) struct InitializeParams {
+  protocol_version : String
+  capabilities : Json
+  client_info : Implementation
+  meta : Json?
+} derive(Eq, @debug.Debug)
 
 pub(all) struct InitializeResult {
   protocol_version : String
@@ -215,14 +235,17 @@ pub impl ToJson for ResourceTemplate
 pub struct Server {
   // private fields
 }
-pub fn Server::Server(name~ : String, version~ : String, instructions? : String, capabilities? : ServerCapabilities) -> Self
+pub fn Server::Server(name~ : String, version~ : String, title? : String, description? : String, icons? : Array[Icon], website_url? : String, instructions? : String, capabilities? : ServerCapabilities) -> Self
+pub fn Server::client_capabilities(Self) -> Json?
+pub fn Server::client_info(Self) -> Implementation?
 pub fn Server::completion(Self, reference~ : CompletionReference, (CompletionRequest) -> CompleteResult raise McpError) -> Unit raise McpError
 pub async fn Server::handle_jsonrpc(Self, Json) -> Json?
-pub fn Server::initialize(Self, Json?) -> InitializeResult
+pub fn Server::initialize(Self, Json?) -> InitializeResult raise McpError
 pub fn Server::is_initialized(Self) -> Bool
 pub fn Server::json_tool(Self, name~ : String, title? : String, description? : String, input_schema? : Json, output_schema? : Json, annotations? : ToolAnnotations, (Json?) -> CallToolResult raise McpError) -> Unit raise McpError
 pub fn Server::logging_level(Self) -> LoggingLevel
-pub fn Server::notify_initialized(Self) -> Unit
+pub fn Server::negotiated_protocol_version(Self) -> String?
+pub fn Server::notify_initialized(Self) -> Unit raise McpError
 pub fn[A : @json.FromJson + PromptArguments] Server::prompt(Self, name~ : String, title? : String, description? : String, arguments? : Array[PromptArgument], (A) -> GetPromptResult raise McpError) -> Unit raise McpError
 pub fn Server::resource(Self, uri~ : String, name? : String, title? : String, description? : String, mime_type? : String, (String) -> ReadResourceResult raise McpError) -> Unit raise McpError
 pub fn Server::resource_template(Self, uri_template~ : String, name? : String, title? : String, description? : String, mime_type? : String) -> Unit raise McpError
@@ -240,6 +263,8 @@ pub(all) struct ServerCapabilities {
 pub fn ServerCapabilities::full(list_changed? : Bool, logging? : Bool, completions? : Bool, experimental? : Json) -> Self
 pub fn ServerCapabilities::tools_only(list_changed? : Bool) -> Self
 pub impl ToJson for ServerCapabilities
+
+type SessionState
 
 pub(all) struct Tool {
   name : String

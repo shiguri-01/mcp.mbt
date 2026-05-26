@@ -162,6 +162,25 @@ code should start with `tool`, `resource`, or `prompt`.
 Application code should normally talk through a transport such as
 `shiguri-01/mcp/stdio` instead of spelling MCP method names as strings.
 
+## Lifecycle
+
+The server follows the MCP lifecycle described in the official
+[`2025-11-25` lifecycle specification](https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle):
+
+1. the client sends `initialize` with `protocolVersion`, `capabilities`, and
+   `clientInfo`
+2. the server responds with the negotiated protocol version, server
+   capabilities, and `serverInfo`
+3. the client sends `notifications/initialized`
+4. normal requests such as `tools/list`, `resources/read`, and `prompts/get`
+   are accepted
+
+Before `initialize`, only `ping` and `initialize` are accepted. After
+`initialize` and before `notifications/initialized`, only `ping` and
+`notifications/initialized` are accepted. The server stores the negotiated
+protocol version, client capabilities, and client implementation metadata for
+the active session.
+
 ## Examples
 
 Run these from the repository root:

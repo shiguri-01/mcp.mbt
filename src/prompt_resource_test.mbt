@@ -9,11 +9,26 @@ impl @mcp.PromptArguments for PromptInput with fn prompt_arguments() {
 }
 
 ///|
+async fn initialize_prompt_resource_test_server(server : @mcp.Server) -> Unit {
+  let client = @mcp.Client()
+  ignore(
+    server.handle_jsonrpc(
+      client.initialize_request(
+        client_name="test-client",
+        client_version="0.1.0",
+      ),
+    ),
+  )
+  ignore(server.handle_jsonrpc(client.initialized_notification()))
+}
+
+///|
 async test "prompt decodes string arguments" {
   let server = @mcp.Server(name="test-server", version="0.1.0")
   try! server.prompt(name="summarize_typed", fn(input : PromptInput) {
     @mcp.GetPromptResult::user("Summarize \{input.topic}.")
   })
+  initialize_prompt_resource_test_server(server)
   let prompt = server.handle_jsonrpc(
     Json::object({
       "jsonrpc": Json::string("2.0"),
@@ -62,6 +77,7 @@ async test "resources and string prompts are dispatchable" {
       }
     },
   )
+  initialize_prompt_resource_test_server(server)
   let resources = server.handle_jsonrpc(
     Json::object({
       "jsonrpc": Json::string("2.0"),
