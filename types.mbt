@@ -61,19 +61,6 @@ pub impl ToJson for Tool with fn to_json(self : Tool) -> Json {
 }
 
 ///|
-pub fn Tool::Tool(
-  name~ : String,
-  title? : String,
-  description? : String,
-  input_schema? : Json = empty_object_schema(),
-  output_schema? : Json,
-  annotations? : ToolAnnotations,
-  meta? : Json,
-) -> Tool {
-  { name, title, description, input_schema, output_schema, annotations, meta }
-}
-
-///|
 pub fn Tool::text(
   name~ : String,
   title? : String,
@@ -101,18 +88,6 @@ pub(all) struct Resource {
   mime_type : String?
   meta : Json?
 } derive(Debug, Eq)
-
-///|
-pub fn Resource::Resource(
-  uri~ : String,
-  name~ : String,
-  title? : String,
-  description? : String,
-  mime_type? : String,
-  meta? : Json,
-) -> Resource {
-  { uri, name, title, description, mime_type, meta }
-}
 
 ///|
 pub impl ToJson for Resource with fn to_json(self : Resource) -> Json {
@@ -197,16 +172,6 @@ pub(all) struct PromptArgument {
 } derive(Debug, Eq)
 
 ///|
-pub fn PromptArgument::PromptArgument(
-  name~ : String,
-  title? : String,
-  description? : String,
-  required? : Bool = false,
-) -> PromptArgument {
-  { name, title, description, required }
-}
-
-///|
 pub impl ToJson for PromptArgument with fn to_json(self : PromptArgument) -> Json {
   let fields : Map[String, Json] = { "name": Json::string(self.name) }
   put_optional_string(fields, "title", self.title)
@@ -225,17 +190,6 @@ pub(all) struct Prompt {
   arguments : Array[PromptArgument]
   meta : Json?
 } derive(Debug, Eq)
-
-///|
-pub fn Prompt::Prompt(
-  name~ : String,
-  title? : String,
-  description? : String,
-  arguments? : Array[PromptArgument] = [],
-  meta? : Json,
-) -> Prompt {
-  { name, title, description, arguments, meta }
-}
 
 ///|
 pub impl ToJson for Prompt with fn to_json(self : Prompt) -> Json {

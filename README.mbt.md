@@ -89,7 +89,14 @@ try! server.resource_text(
 
 try! server.prompt_text(
   name="summarize",
-  arguments=[@mcp.PromptArgument::PromptArgument(name="topic", required=true)],
+  arguments=[
+    @mcp.PromptArgument::{
+      name: "topic",
+      title: None,
+      description: None,
+      required: true,
+    },
+  ],
   fn(args) raise @mcp.McpError {
     match args.get("topic") {
       Some(topic) => "Summarize \{topic} in three bullets."

@@ -8,11 +8,15 @@ fn main {
     required=["name"],
   )
   try! server.add_text_tool(
-    @mcp.Tool::Tool(
-      name="greet",
-      description="Build a greeting from raw JSON arguments",
-      input_schema~,
-    ),
+    @mcp.Tool::{
+      name: "greet",
+      title: None,
+      description: Some("Build a greeting from raw JSON arguments"),
+      input_schema,
+      output_schema: None,
+      annotations: None,
+      meta: None,
+    },
     fn(arguments) -> String raise @mcp.McpError {
       match arguments {
         Some(Object({ "name": String(name), .. })) => "Hello, \{name}!"

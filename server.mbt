@@ -96,14 +96,15 @@ pub fn[A : FromJson, B : ToJson] Server::tool_json(
   handler : (A) -> B raise McpError,
 ) -> Unit raise McpError {
   self.add_tool(
-    Tool::Tool(
-      name~,
-      title?,
-      description?,
-      input_schema~,
-      output_schema?,
-      annotations?,
-    ),
+    Tool::{
+      name,
+      title,
+      description,
+      input_schema,
+      output_schema,
+      annotations,
+      meta: None,
+    },
     handler,
   )
 }
@@ -239,7 +240,7 @@ pub fn Server::prompt_text(
   handler : (Map[String, String]) -> String raise McpError,
 ) -> Unit raise McpError {
   self.add_prompt(
-    Prompt::Prompt(name~, title?, description?, arguments~),
+    Prompt::{ name, title, description, arguments, meta: None },
     handler,
   )
 }

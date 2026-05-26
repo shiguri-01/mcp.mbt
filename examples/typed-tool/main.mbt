@@ -20,11 +20,15 @@ fn main {
     required=["left", "right"],
   )
   try! server.add_tool(
-    @mcp.Tool::Tool(
-      name="add",
-      description="Add two integers with FromJson/ToJson",
-      input_schema~,
-    ),
+    @mcp.Tool::{
+      name: "add",
+      title: None,
+      description: Some("Add two integers with FromJson/ToJson"),
+      input_schema,
+      output_schema: None,
+      annotations: None,
+      meta: None,
+    },
     fn(input : AddInput) -> AddOutput { { sum: input.left + input.right } },
   )
   let result = try! server.handle(

@@ -123,7 +123,6 @@ pub(all) struct Prompt {
   arguments : Array[PromptArgument]
   meta : Json?
 } derive(Eq, @debug.Debug)
-pub fn Prompt::Prompt(name~ : String, title? : String, description? : String, arguments? : Array[PromptArgument], meta? : Json) -> Self
 pub impl ToJson for Prompt
 
 pub(all) struct PromptArgument {
@@ -132,7 +131,6 @@ pub(all) struct PromptArgument {
   description : String?
   required : Bool
 } derive(Eq, @debug.Debug)
-pub fn PromptArgument::PromptArgument(name~ : String, title? : String, description? : String, required? : Bool) -> Self
 pub impl ToJson for PromptArgument
 
 pub(all) struct PromptMessage {
@@ -170,7 +168,6 @@ pub(all) struct Resource {
   mime_type : String?
   meta : Json?
 } derive(Eq, @debug.Debug)
-pub fn Resource::Resource(uri~ : String, name~ : String, title? : String, description? : String, mime_type? : String, meta? : Json) -> Self
 pub fn Resource::text(uri~ : String, name~ : String, title? : String, description? : String, mime_type? : String) -> Self
 pub impl ToJson for Resource
 
@@ -227,7 +224,6 @@ pub(all) struct Tool {
   annotations : ToolAnnotations?
   meta : Json?
 } derive(Eq, @debug.Debug)
-pub fn Tool::Tool(name~ : String, title? : String, description? : String, input_schema? : Json, output_schema? : Json, annotations? : ToolAnnotations, meta? : Json) -> Self
 pub fn Tool::text(name~ : String, title? : String, description? : String, input_schema? : Json, annotations? : ToolAnnotations) -> Self
 pub impl ToJson for Tool
 

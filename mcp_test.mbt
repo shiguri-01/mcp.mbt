@@ -34,11 +34,15 @@ test "raw tool can be listed and called" {
     required=["name"],
   )
   try! server.add_text_tool(
-    @mcp.Tool::Tool(
-      name="greet",
-      description="Return a greeting",
-      input_schema=schema,
-    ),
+    @mcp.Tool::{
+      name: "greet",
+      title: None,
+      description: Some("Return a greeting"),
+      input_schema: schema,
+      output_schema: None,
+      annotations: None,
+      meta: None,
+    },
     fn(arguments) raise @mcp.McpError {
       let fields = match arguments {
         Some(Object(fields)) => fields
@@ -92,7 +96,15 @@ struct EchoOutput {
 test "typed tool decodes input and encodes structured content" {
   let server = @mcp.Server::new(name="test-server", version="0.1.0")
   try! server.add_tool(
-    @mcp.Tool::Tool(name="echo", input_schema=@mcp.empty_object_schema()),
+    @mcp.Tool::{
+      name: "echo",
+      title: None,
+      description: None,
+      input_schema: @mcp.empty_object_schema(),
+      output_schema: None,
+      annotations: None,
+      meta: None,
+    },
     fn(input : EchoInput) -> EchoOutput { { echoed: input.text } },
   )
   let response = try! server.handle(
@@ -115,22 +127,31 @@ test "typed tool decodes input and encodes structured content" {
 test "resources and prompts are dispatchable" {
   let server = @mcp.Server::new(name="test-server", version="0.1.0")
   try! server.add_text_resource(
-    @mcp.Resource::Resource(
-      uri="memory://status",
-      name="status",
-      description="Current status",
-      mime_type="text/plain",
-    ),
+    @mcp.Resource::{
+      uri: "memory://status",
+      name: "status",
+      title: None,
+      description: Some("Current status"),
+      mime_type: Some("text/plain"),
+      meta: None,
+    },
     fn(_) { "ready" },
   )
   try! server.add_prompt(
-    @mcp.Prompt::Prompt(
-      name="summarize",
-      description="Build a summarize prompt",
-      arguments=[
-        @mcp.PromptArgument::PromptArgument(name="topic", required=true),
+    @mcp.Prompt::{
+      name: "summarize",
+      title: None,
+      description: Some("Build a summarize prompt"),
+      arguments: [
+        @mcp.PromptArgument::{
+          name: "topic",
+          title: None,
+          description: None,
+          required: true,
+        },
       ],
-    ),
+      meta: None,
+    },
     fn(arguments) raise @mcp.McpError {
       match arguments.get("topic") {
         Some(topic) => "Summarize \{topic}."
