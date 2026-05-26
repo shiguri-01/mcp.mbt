@@ -1,5 +1,6 @@
 import {
   "moonbitlang/async",
+  "shiguri/mcp",
   "shiguri/mcp/stdio" @mcp_stdio,
 }
 

@@ -46,6 +46,41 @@ pub fn Resource::text(
 }
 
 ///|
+pub(all) struct ResourceTemplate {
+  uri_template : String
+  name : String
+  title : String?
+  description : String?
+  mime_type : String?
+  meta : Json?
+} derive(Debug, Eq)
+
+///|
+pub fn ResourceTemplate::ResourceTemplate(
+  uri_template~ : String,
+  name~ : String,
+  title? : String,
+  description? : String,
+  mime_type? : String,
+  meta? : Json,
+) -> ResourceTemplate {
+  { uri_template, name, title, description, mime_type, meta }
+}
+
+///|
+pub impl ToJson for ResourceTemplate with fn to_json(self : ResourceTemplate) -> Json {
+  let fields : Map[String, Json] = {
+    "uriTemplate": Json::string(self.uri_template),
+    "name": Json::string(self.name),
+  }
+  put_optional_string(fields, "title", self.title)
+  put_optional_string(fields, "description", self.description)
+  put_optional_string(fields, "mimeType", self.mime_type)
+  put_optional_json(fields, "_meta", self.meta)
+  Json::object(fields)
+}
+
+///|
 pub(all) enum ResourceContent {
   ResourceText(uri~ : String, text~ : String, mime_type~ : String?)
   ResourceBlob(uri~ : String, blob~ : String, mime_type~ : String?)

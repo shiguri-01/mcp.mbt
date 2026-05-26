@@ -8,9 +8,17 @@ type ResourceHandler = (String) -> ReadResourceResult raise McpError
 type PromptHandler = (Map[String, String]) -> Json raise McpError
 
 ///|
+type CompletionHandler = (CompletionRequest) -> CompleteResult raise McpError
+
+///|
 struct RegisteredTool {
   tool : Tool
   handler : ToolHandler
+}
+
+///|
+struct RegisteredResourceTemplate {
+  template : ResourceTemplate
 }
 
 ///|
@@ -32,8 +40,11 @@ pub struct Server {
   priv instructions : String?
   priv tools : Map[String, RegisteredTool]
   priv resources : Map[String, RegisteredResource]
+  priv resource_templates : Map[String, RegisteredResourceTemplate]
   priv prompts : Map[String, RegisteredPrompt]
+  priv completions : Map[String, CompletionHandler]
   priv mut initialized : Bool
+  priv mut logging_level : LoggingLevel
 }
 
 ///|
@@ -50,8 +61,11 @@ pub fn Server::Server(
     instructions,
     tools: {},
     resources: {},
+    resource_templates: {},
     prompts: {},
+    completions: {},
     initialized: false,
+    logging_level: Info,
   }
 }
 
@@ -93,6 +107,19 @@ fn Server::register_resource(
     raise InvalidParams("resource already registered: \{resource.uri}")
   }
   self.resources[resource.uri] = { resource, handler }
+}
+
+///|
+fn Server::register_resource_template(
+  self : Server,
+  template : ResourceTemplate,
+) -> Unit raise McpError {
+  if self.resource_templates.contains(template.uri_template) {
+    raise InvalidParams(
+      "resource template already registered: \{template.uri_template}",
+    )
+  }
+  self.resource_templates[template.uri_template] = { template, }
 }
 
 ///|
@@ -179,6 +206,31 @@ pub fn Server::resource(
 }
 
 ///|
+/// Register a resource template descriptor for `resources/templates/list`.
+pub fn Server::resource_template(
+  self : Server,
+  uri_template~ : String,
+  name? : String,
+  title? : String,
+  description? : String,
+  mime_type? : String,
+) -> Unit raise McpError {
+  let template_name = match name {
+    Some(name) => name
+    None => uri_template
+  }
+  self.register_resource_template(
+    ResourceTemplate(
+      uri_template~,
+      name=template_name,
+      title?,
+      description?,
+      mime_type?,
+    ),
+  )
+}
+
+///|
 /// Register a prompt whose arguments are exposed as strings.
 pub fn Server::string_prompt(
   self : Server,
@@ -223,6 +275,20 @@ pub fn[A : FromJson + PromptArguments] Server::prompt(
 }
 
 ///|
+/// Register a completion handler for one prompt or resource-template reference.
+pub fn Server::completion(
+  self : Server,
+  reference~ : CompletionReference,
+  handler : CompletionHandler,
+) -> Unit raise McpError {
+  let key = completion_key(reference)
+  if self.completions.contains(key) {
+    raise InvalidParams("completion already registered: \{key}")
+  }
+  self.completions[key] = handler
+}
+
+///|
 /// Handle MCP `initialize` params and return the server capabilities.
 pub fn Server::initialize(self : Server, _params : Json?) -> InitializeResult {
   self.initialized = true
@@ -246,23 +312,63 @@ pub fn Server::is_initialized(self : Server) -> Bool {
 }
 
 ///|
-fn Server::list_tools(self : Server) -> Json {
-  Json::object({
-    "tools": self.tools
-    .values()
-    .map(fn(registered) { registered.tool.to_json() })
-    .to_json(),
-  })
+pub fn Server::logging_level(self : Server) -> LoggingLevel {
+  self.logging_level
 }
 
 ///|
-fn Server::list_resources(self : Server) -> Json {
-  Json::object({
-    "resources": self.resources
-    .values()
-    .map(fn(registered) { registered.resource.to_json() })
+fn Server::list_tools(self : Server, params : Json?) -> Json raise McpError {
+  let cursor = get_cursor(params, "tools/list params")
+  let page = paginate(
+    Array::from_iter(
+      self.tools.values().map(fn(registered) { registered.tool }),
+    ),
+    cursor?,
+  )
+  let fields : Map[String, Json] = {
+    "tools": page.items.map(fn(tool) { tool.to_json() }).to_json(),
+  }
+  put_next_cursor(fields, page.next_cursor)
+  Json::object(fields)
+}
+
+///|
+fn Server::list_resources(self : Server, params : Json?) -> Json raise McpError {
+  let cursor = get_cursor(params, "resources/list params")
+  let page = paginate(
+    Array::from_iter(
+      self.resources.values().map(fn(registered) { registered.resource }),
+    ),
+    cursor?,
+  )
+  let fields : Map[String, Json] = {
+    "resources": page.items.map(fn(resource) { resource.to_json() }).to_json(),
+  }
+  put_next_cursor(fields, page.next_cursor)
+  Json::object(fields)
+}
+
+///|
+fn Server::list_resource_templates(
+  self : Server,
+  params : Json?,
+) -> Json raise McpError {
+  let cursor = get_cursor(params, "resources/templates/list params")
+  let page = paginate(
+    Array::from_iter(
+      self.resource_templates
+      .values()
+      .map(fn(registered) { registered.template }),
+    ),
+    cursor?,
+  )
+  let fields : Map[String, Json] = {
+    "resourceTemplates": page.items
+    .map(fn(template) { template.to_json() })
     .to_json(),
-  })
+  }
+  put_next_cursor(fields, page.next_cursor)
+  Json::object(fields)
 }
 
 ///|
@@ -283,13 +389,19 @@ fn Server::read_resource(
 }
 
 ///|
-fn Server::list_prompts(self : Server) -> Json {
-  Json::object({
-    "prompts": self.prompts
-    .values()
-    .map(fn(registered) { registered.prompt.to_json() })
-    .to_json(),
-  })
+fn Server::list_prompts(self : Server, params : Json?) -> Json raise McpError {
+  let cursor = get_cursor(params, "prompts/list params")
+  let page = paginate(
+    Array::from_iter(
+      self.prompts.values().map(fn(registered) { registered.prompt }),
+    ),
+    cursor?,
+  )
+  let fields : Map[String, Json] = {
+    "prompts": page.items.map(fn(prompt) { prompt.to_json() }).to_json(),
+  }
+  put_next_cursor(fields, page.next_cursor)
+  Json::object(fields)
 }
 
 ///|
@@ -354,6 +466,45 @@ fn Server::call_tool(
 }
 
 ///|
+fn completion_key(reference : CompletionReference) -> String {
+  match reference {
+    PromptRef(name~) => "prompt:\{name}"
+    ResourceRef(uri~) => "resource:\{uri}"
+  }
+}
+
+///|
+fn Server::complete(
+  self : Server,
+  params : Json?,
+) -> CompleteResult raise McpError {
+  let request = parse_completion_request(params)
+  let key = completion_key(request.reference)
+  match self.completions.get(key) {
+    Some(handler) => handler(request)
+    None => raise InvalidParams("no completion handler registered for \{key}")
+  }
+}
+
+///|
+fn Server::set_logging_level(
+  self : Server,
+  params : Json?,
+) -> Unit raise McpError {
+  let value = match params {
+    Some(value) => value
+    None => raise InvalidParams("logging/setLevel params are required")
+  }
+  let fields = expect_object(value, "logging/setLevel params")
+  self.logging_level = parse_logging_level(
+    match fields.get("level") {
+      Some(value) => value
+      None => raise InvalidParams("logging/setLevel params.level is required")
+    },
+  )
+}
+
+///|
 /// Dispatch an MCP method and return the JSON result, if the method has one.
 fn Server::dispatch(
   self : Server,
@@ -366,12 +517,20 @@ fn Server::dispatch(
       self.notify_initialized()
       None
     }
-    "tools/list" => Some(self.list_tools())
+    "notifications/cancelled" => None
+    "ping" => Some(empty_result())
+    "logging/setLevel" => {
+      self.set_logging_level(params)
+      Some(empty_result())
+    }
+    "tools/list" => Some(self.list_tools(params))
     "tools/call" => Some(self.call_tool(params).to_json())
-    "resources/list" => Some(self.list_resources())
+    "resources/list" => Some(self.list_resources(params))
+    "resources/templates/list" => Some(self.list_resource_templates(params))
     "resources/read" => Some(self.read_resource(params).to_json())
-    "prompts/list" => Some(self.list_prompts())
+    "prompts/list" => Some(self.list_prompts(params))
     "prompts/get" => Some(self.get_prompt(params))
+    "completion/complete" => Some(self.complete(params).to_json())
     _ => raise MethodNotFound(method_name)
   }
 }

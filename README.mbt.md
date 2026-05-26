@@ -1,8 +1,8 @@
 # shiguri/mcp
 
-MoonBit implementation of the core Model Context Protocol server surface.
+MoonBit implementation of the Model Context Protocol server and client surface.
 
-This package currently focuses on the small, useful server MVP:
+The core package is transport-neutral and targets MCP `2025-11-25`:
 
 - MCP `initialize`
 - `notifications/initialized`
@@ -10,8 +10,15 @@ This package currently focuses on the small, useful server MVP:
 - `tools/call`
 - `resources/list`
 - `resources/read`
+- `resources/templates/list`
 - `prompts/list`
 - `prompts/get`
+- `completion/complete`
+- `logging/setLevel`
+- `ping`
+- cancellation, progress, list-changed, resource-updated, and logging
+  notification builders
+- cursor pagination for list endpoints
 - `FromJson` / `ToJson` tool and prompt handlers
 - raw JSON escape hatches
 - JSON-RPC 2.0 request/response envelope helpers
@@ -63,13 +70,14 @@ without changing the core server API.
 ## Packages
 
 - `shiguri/mcp` is the transport-neutral core package. It contains MCP data
-  types, JSON-RPC helpers, and the in-memory server/client dispatch API.
+  types, request builders, and the in-memory server dispatch API.
 - `shiguri/mcp/schema` contains the JSON Schema trait and small builders used by
   typed tool inputs.
 - `shiguri/mcp/stdio` is the native stdio transport package. It depends on
   `moonbitlang/async`, process pipes, and the native backend.
-- `examples/stdio-server` and `examples/stdio-client` are the runnable examples.
-  They exercise a real MCP stdio session instead of printing mock output.
+- `shiguri/mcp/examples/stdio-server` and
+  `shiguri/mcp/examples/stdio-client` are runnable examples. They exercise a
+  real MCP stdio session instead of printing mock output.
 
 ## Server API
 
@@ -80,8 +88,10 @@ Use the API that matches the shape you want to return:
 | Tool decodes typed input and returns `CallToolResult` | `server.tool(...)` |
 | Tool reads raw `Json?` and returns `CallToolResult` | `server.json_tool(...)` |
 | Resource returns full `ReadResourceResult` | `server.resource(...)` |
+| Resource template is discoverable | `server.resource_template(...)` |
 | Prompt decodes typed arguments and returns `GetPromptResult` | `server.prompt(...)` |
 | Prompt reads raw string arguments and returns `GetPromptResult` | `server.string_prompt(...)` |
+| Completion returns argument suggestions | `server.completion(...)` |
 
 ```mbt nocheck
 struct HelloInput {
@@ -111,6 +121,13 @@ try! server.resource(
   },
 )
 
+try! server.resource_template(
+  uri_template="memory://notes/{name}",
+  name="note",
+  description="Named note resource",
+  mime_type="text/plain",
+)
+
 struct SummarizeInput {
   topic : String
 } derive(FromJson)
@@ -125,13 +142,23 @@ try! server.prompt(
     @mcp.GetPromptResult::user("Summarize \{input.topic} in three bullets.")
   },
 )
+
+try! server.completion(reference=@mcp.PromptRef(name="summarize"), fn(
+  request,
+) raise @mcp.McpError {
+  if request.argument_name == "topic" && request.argument_value == "M" {
+    @mcp.CompleteResult(values=["MCP", "MoonBit"], total=2)
+  } else {
+    @mcp.CompleteResult(values=[])
+  }
+})
 ```
 
 The `json_tool` and `string_prompt` methods are escape hatches. Normal server
 code should start with `tool`, `resource`, or `prompt`.
 
-`handle` and `handle_jsonrpc` are lower-level dispatch hooks for transports and
-tests. Application code should normally talk through a transport such as
+`handle_jsonrpc` is a lower-level dispatch hook for transports and tests.
+Application code should normally talk through a transport such as
 `shiguri/mcp/stdio` instead of spelling MCP method names as strings.
 
 ## Examples
@@ -139,17 +166,17 @@ tests. Application code should normally talk through a transport such as
 Run these from the repository root:
 
 ```bash
-moon run --target native examples/stdio-server
-moon run --target native examples/stdio-client
+moon run --target native src/examples/stdio-server
+moon run --target native src/examples/stdio-client
 ```
 
-- `examples/stdio-server` is a real stdio MCP server package for native target.
-- `examples/stdio-client` spawns that server over stdio and calls tools,
+- `src/examples/stdio-server` is a real stdio MCP server package for native target.
+- `src/examples/stdio-client` spawns that server over stdio and calls tools,
   resources, and prompts through the client transport.
 
 `shiguri/mcp/stdio` depends on `moonbitlang/async` and is native-only. On
 Windows, `moonbitlang/async` currently requires an MSVC native toolchain; MinGW
 GCC is not enough.
 
-The current transport support is stdio for native target. Streamable HTTP is not
-implemented yet.
+The current transport support is stdio for native target. Streamable HTTP is the
+next transport package to add on top of the same core request/dispatch surface.

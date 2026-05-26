@@ -81,8 +81,14 @@ pub fn Client::initialized_notification(_self : Client) -> Json {
 }
 
 ///|
-pub fn Client::list_tools_request(self : Client) -> Json {
-  jsonrpc_request(self.next_request_id(), "tools/list")
+pub fn Client::list_tools_request(self : Client, cursor? : String) -> Json {
+  let params : Map[String, Json] = {}
+  put_optional_string(params, "cursor", cursor)
+  jsonrpc_request(
+    self.next_request_id(),
+    "tools/list",
+    params=Json::object(params),
+  )
 }
 
 ///|
@@ -99,8 +105,28 @@ pub fn Client::call_tool_request(
 }
 
 ///|
-pub fn Client::list_resources_request(self : Client) -> Json {
-  jsonrpc_request(self.next_request_id(), "resources/list")
+pub fn Client::list_resources_request(self : Client, cursor? : String) -> Json {
+  let params : Map[String, Json] = {}
+  put_optional_string(params, "cursor", cursor)
+  jsonrpc_request(
+    self.next_request_id(),
+    "resources/list",
+    params=Json::object(params),
+  )
+}
+
+///|
+pub fn Client::list_resource_templates_request(
+  self : Client,
+  cursor? : String,
+) -> Json {
+  let params : Map[String, Json] = {}
+  put_optional_string(params, "cursor", cursor)
+  jsonrpc_request(
+    self.next_request_id(),
+    "resources/templates/list",
+    params=Json::object(params),
+  )
 }
 
 ///|
@@ -113,8 +139,14 @@ pub fn Client::read_resource_request(self : Client, uri~ : String) -> Json {
 }
 
 ///|
-pub fn Client::list_prompts_request(self : Client) -> Json {
-  jsonrpc_request(self.next_request_id(), "prompts/list")
+pub fn Client::list_prompts_request(self : Client, cursor? : String) -> Json {
+  let params : Map[String, Json] = {}
+  put_optional_string(params, "cursor", cursor)
+  jsonrpc_request(
+    self.next_request_id(),
+    "prompts/list",
+    params=Json::object(params),
+  )
 }
 
 ///|
@@ -128,4 +160,55 @@ pub fn Client::get_prompt_request(
     "prompts/get",
     params=Json::object({ "name": Json::string(name), "arguments": arguments }),
   )
+}
+
+///|
+pub fn Client::complete_request(
+  self : Client,
+  reference~ : CompletionReference,
+  argument_name~ : String,
+  argument_value~ : String,
+  context_arguments? : Map[String, String],
+) -> Json {
+  let params : Map[String, Json] = {
+    "ref": reference.to_json(),
+    "argument": Json::object({
+      "name": Json::string(argument_name),
+      "value": Json::string(argument_value),
+    }),
+  }
+  match context_arguments {
+    Some(arguments) => {
+      let argument_fields : Map[String, Json] = {}
+      for key, value in arguments {
+        argument_fields[key] = Json::string(value)
+      }
+      params["context"] = Json::object({
+        "arguments": Json::object(argument_fields),
+      })
+    }
+    None => ()
+  }
+  jsonrpc_request(
+    self.next_request_id(),
+    "completion/complete",
+    params=Json::object(params),
+  )
+}
+
+///|
+pub fn Client::set_logging_level_request(
+  self : Client,
+  level~ : LoggingLevel,
+) -> Json {
+  jsonrpc_request(
+    self.next_request_id(),
+    "logging/setLevel",
+    params=Json::object({ "level": level.to_json() }),
+  )
+}
+
+///|
+pub fn Client::ping_request(self : Client) -> Json {
+  jsonrpc_request(self.next_request_id(), "ping")
 }

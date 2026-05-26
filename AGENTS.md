@@ -12,9 +12,9 @@ You can browse and install extra skills here:
   blackbox test files (ending in `_test.mbt`) and whitebox test files (ending in
   `_wbtest.mbt`).
 
-- In the toplevel directory, there is a `moon.mod.json` file listing module
-  metadata. This project uses `"source": "src"`, so package directories live
-  under `src/`.
+- In the toplevel directory, there is a `moon.mod` file listing module
+  metadata. This project uses `options(source: "src")`, so package directories
+  live under `src/`.
 
 ## Coding convention
 

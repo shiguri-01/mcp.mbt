@@ -146,8 +146,11 @@ pub async fn Client::initialize(
 }
 
 ///|
-pub async fn Client::list_tools(self : Client) -> Json raise @mcp.McpError {
-  self.request(self.core.list_tools_request())
+pub async fn Client::list_tools(
+  self : Client,
+  cursor? : String,
+) -> Json raise @mcp.McpError {
+  self.request(self.core.list_tools_request(cursor?))
 }
 
 ///|
@@ -170,8 +173,19 @@ pub async fn[T : FromJson] Client::call_tool_as(
 }
 
 ///|
-pub async fn Client::list_resources(self : Client) -> Json raise @mcp.McpError {
-  self.request(self.core.list_resources_request())
+pub async fn Client::list_resources(
+  self : Client,
+  cursor? : String,
+) -> Json raise @mcp.McpError {
+  self.request(self.core.list_resources_request(cursor?))
+}
+
+///|
+pub async fn Client::list_resource_templates(
+  self : Client,
+  cursor? : String,
+) -> Json raise @mcp.McpError {
+  self.request(self.core.list_resource_templates_request(cursor?))
 }
 
 ///|
@@ -183,8 +197,11 @@ pub async fn Client::read_resource(
 }
 
 ///|
-pub async fn Client::list_prompts(self : Client) -> Json raise @mcp.McpError {
-  self.request(self.core.list_prompts_request())
+pub async fn Client::list_prompts(
+  self : Client,
+  cursor? : String,
+) -> Json raise @mcp.McpError {
+  self.request(self.core.list_prompts_request(cursor?))
 }
 
 ///|
@@ -194,4 +211,35 @@ pub async fn Client::get_prompt(
   arguments? : Json = Json::object({}),
 ) -> Json raise @mcp.McpError {
   self.request(self.core.get_prompt_request(name~, arguments~))
+}
+
+///|
+pub async fn Client::complete(
+  self : Client,
+  reference~ : @mcp.CompletionReference,
+  argument_name~ : String,
+  argument_value~ : String,
+  context_arguments? : Map[String, String],
+) -> Json raise @mcp.McpError {
+  self.request(
+    self.core.complete_request(
+      reference~,
+      argument_name~,
+      argument_value~,
+      context_arguments?,
+    ),
+  )
+}
+
+///|
+pub async fn Client::set_logging_level(
+  self : Client,
+  level~ : @mcp.LoggingLevel,
+) -> Json raise @mcp.McpError {
+  self.request(self.core.set_logging_level_request(level~))
+}
+
+///|
+pub async fn Client::ping(self : Client) -> Json raise @mcp.McpError {
+  self.request(self.core.ping_request())
 }
