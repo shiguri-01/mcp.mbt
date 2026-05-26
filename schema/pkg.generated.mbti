@@ -6,33 +6,33 @@ import {
 }
 
 // Values
-pub fn array(items~ : Json, description? : String) -> Json
-
 pub fn array_field(name~ : String, items~ : Json, description? : String, required? : Bool) -> Property
 
-pub fn boolean(description? : String) -> Json
+pub fn array_schema(items~ : Json, description? : String) -> Json
 
 pub fn boolean_field(name~ : String, description? : String, required? : Bool) -> Property
 
-pub fn field(name~ : String, schema~ : Json, required? : Bool) -> Property
+pub fn boolean_schema(description? : String) -> Json
 
-pub fn integer(description? : String) -> Json
+pub fn field(name~ : String, schema~ : Json, required? : Bool) -> Property
 
 pub fn integer_field(name~ : String, description? : String, required? : Bool) -> Property
 
-pub fn number(description? : String) -> Json
+pub fn integer_schema(description? : String) -> Json
 
 pub fn number_field(name~ : String, description? : String, required? : Bool) -> Property
 
+pub fn number_schema(description? : String) -> Json
+
 pub fn schema(Array[Property], additional_properties? : Bool) -> Json
-
-pub fn string(description? : String) -> Json
-
-pub fn string_enum(Array[String], description? : String) -> Json
 
 pub fn string_enum_field(name~ : String, values~ : Array[String], description? : String, required? : Bool) -> Property
 
+pub fn string_enum_schema(Array[String], description? : String) -> Json
+
 pub fn string_field(name~ : String, description? : String, required? : Bool) -> Property
+
+pub fn string_schema(description? : String) -> Json
 
 // Errors
 

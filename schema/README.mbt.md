@@ -24,3 +24,7 @@ impl @schema.JsonSchema for HelloInput with fn json_schema() {
 
 The builders intentionally return `Json`, so advanced schemas can still be
 written directly with `Json::object(...)` and wrapped with `field(...)`.
+
+`string_schema()` builds a reusable JSON Schema fragment. `string_field()` builds
+an object field descriptor and is equivalent to
+`field(name~, schema=string_schema(...), required~)`.

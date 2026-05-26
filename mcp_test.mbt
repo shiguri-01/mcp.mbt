@@ -258,7 +258,7 @@ test "ergonomic helpers build useful schemas and decode structured content" {
     ),
     @schema.array_field(
       name="flags",
-      items=@schema.string(),
+      items=@schema.string_schema(),
       description="Feature flags",
     ),
   ])

@@ -45,40 +45,40 @@ pub fn field(
 }
 
 ///|
-/// Build a JSON Schema string type.
-pub fn string(description? : String) -> Json {
+/// Build a JSON Schema string type fragment.
+pub fn string_schema(description? : String) -> Json {
   let fields : Map[String, Json] = { "type": Json::string("string") }
   put_optional_string(fields, "description", description)
   Json::object(fields)
 }
 
 ///|
-/// Build a JSON Schema integer type.
-pub fn integer(description? : String) -> Json {
+/// Build a JSON Schema integer type fragment.
+pub fn integer_schema(description? : String) -> Json {
   let fields : Map[String, Json] = { "type": Json::string("integer") }
   put_optional_string(fields, "description", description)
   Json::object(fields)
 }
 
 ///|
-/// Build a JSON Schema number type.
-pub fn number(description? : String) -> Json {
+/// Build a JSON Schema number type fragment.
+pub fn number_schema(description? : String) -> Json {
   let fields : Map[String, Json] = { "type": Json::string("number") }
   put_optional_string(fields, "description", description)
   Json::object(fields)
 }
 
 ///|
-/// Build a JSON Schema boolean type.
-pub fn boolean(description? : String) -> Json {
+/// Build a JSON Schema boolean type fragment.
+pub fn boolean_schema(description? : String) -> Json {
   let fields : Map[String, Json] = { "type": Json::string("boolean") }
   put_optional_string(fields, "description", description)
   Json::object(fields)
 }
 
 ///|
-/// Build a JSON Schema array type.
-pub fn array(items~ : Json, description? : String) -> Json {
+/// Build a JSON Schema array type fragment.
+pub fn array_schema(items~ : Json, description? : String) -> Json {
   let fields : Map[String, Json] = {
     "type": Json::string("array"),
     "items": items,
@@ -88,8 +88,11 @@ pub fn array(items~ : Json, description? : String) -> Json {
 }
 
 ///|
-/// Build a JSON Schema string enum.
-pub fn string_enum(values : Array[String], description? : String) -> Json {
+/// Build a JSON Schema string enum type fragment.
+pub fn string_enum_schema(
+  values : Array[String],
+  description? : String,
+) -> Json {
   let fields : Map[String, Json] = {
     "type": Json::string("string"),
     "enum": values.to_json(),
@@ -105,7 +108,7 @@ pub fn string_field(
   description? : String,
   required? : Bool = false,
 ) -> Property {
-  field(name~, schema=string(description?), required~)
+  field(name~, schema=string_schema(description?), required~)
 }
 
 ///|
@@ -115,7 +118,7 @@ pub fn integer_field(
   description? : String,
   required? : Bool = false,
 ) -> Property {
-  field(name~, schema=integer(description?), required~)
+  field(name~, schema=integer_schema(description?), required~)
 }
 
 ///|
@@ -125,7 +128,7 @@ pub fn number_field(
   description? : String,
   required? : Bool = false,
 ) -> Property {
-  field(name~, schema=number(description?), required~)
+  field(name~, schema=number_schema(description?), required~)
 }
 
 ///|
@@ -135,7 +138,7 @@ pub fn boolean_field(
   description? : String,
   required? : Bool = false,
 ) -> Property {
-  field(name~, schema=boolean(description?), required~)
+  field(name~, schema=boolean_schema(description?), required~)
 }
 
 ///|
@@ -146,7 +149,7 @@ pub fn array_field(
   description? : String,
   required? : Bool = false,
 ) -> Property {
-  field(name~, schema=array(items~, description?), required~)
+  field(name~, schema=array_schema(items~, description?), required~)
 }
 
 ///|
@@ -157,7 +160,7 @@ pub fn string_enum_field(
   description? : String,
   required? : Bool = false,
 ) -> Property {
-  field(name~, schema=string_enum(values, description?), required~)
+  field(name~, schema=string_enum_schema(values, description?), required~)
 }
 
 ///|
