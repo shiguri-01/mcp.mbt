@@ -347,10 +347,18 @@ fn parse_icon(value : Json, context : String) -> Icon raise McpError {
     Some(value) => parse_string_array(value, "\{context}.sizes")
     None => []
   }
+  let theme = match fields.get("theme") {
+    Some(String("light")) => Some(IconTheme::Light)
+    Some(String("dark")) => Some(IconTheme::Dark)
+    Some(Null) | None => None
+    Some(_) =>
+      raise InvalidParams("\{context}.theme must be \"light\" or \"dark\"")
+  }
   Icon(
     src=get_string(fields, "src", context),
     mime_type?=get_optional_string(fields, "mimeType", context),
     sizes~,
+    theme?,
   )
 }
 
