@@ -35,43 +35,56 @@ fn put_optional_json(
 }
 
 ///|
-pub fn empty_object_schema() -> Json {
-  Json::object({
-    "type": Json::string("object"),
-    "properties": Json::object({}),
-  })
+fn empty_object_schema() -> Json {
+  object([])
 }
 
 ///|
-pub fn string_property_schema(description? : String) -> Json {
+pub struct Property {
+  priv name : String
+  priv schema : Json
+  priv required : Bool
+} derive(Debug, Eq)
+
+///|
+pub fn prop(
+  name~ : String,
+  schema~ : Json,
+  required? : Bool = false,
+) -> Property {
+  { name, schema, required }
+}
+
+///|
+pub fn string(description? : String) -> Json {
   let fields : Map[String, Json] = { "type": Json::string("string") }
   put_optional_string(fields, "description", description)
   Json::object(fields)
 }
 
 ///|
-pub fn integer_property_schema(description? : String) -> Json {
+pub fn integer(description? : String) -> Json {
   let fields : Map[String, Json] = { "type": Json::string("integer") }
   put_optional_string(fields, "description", description)
   Json::object(fields)
 }
 
 ///|
-pub fn number_property_schema(description? : String) -> Json {
+pub fn number(description? : String) -> Json {
   let fields : Map[String, Json] = { "type": Json::string("number") }
   put_optional_string(fields, "description", description)
   Json::object(fields)
 }
 
 ///|
-pub fn boolean_property_schema(description? : String) -> Json {
+pub fn boolean(description? : String) -> Json {
   let fields : Map[String, Json] = { "type": Json::string("boolean") }
   put_optional_string(fields, "description", description)
   Json::object(fields)
 }
 
 ///|
-pub fn array_schema(items~ : Json, description? : String) -> Json {
+pub fn array(items~ : Json, description? : String) -> Json {
   let fields : Map[String, Json] = {
     "type": Json::string("array"),
     "items": items,
@@ -81,10 +94,7 @@ pub fn array_schema(items~ : Json, description? : String) -> Json {
 }
 
 ///|
-pub fn string_enum_schema(
-  values : Array[String],
-  description? : String,
-) -> Json {
+pub fn string_enum(values : Array[String], description? : String) -> Json {
   let fields : Map[String, Json] = {
     "type": Json::string("string"),
     "enum": values.to_json(),
@@ -94,14 +104,77 @@ pub fn string_enum_schema(
 }
 
 ///|
-pub fn object_schema(
-  properties~ : Map[String, Json],
-  required? : Array[String] = [],
+pub fn string_prop(
+  name~ : String,
+  description? : String,
+  required? : Bool = false,
+) -> Property {
+  prop(name~, schema=string(description?), required~)
+}
+
+///|
+pub fn integer_prop(
+  name~ : String,
+  description? : String,
+  required? : Bool = false,
+) -> Property {
+  prop(name~, schema=integer(description?), required~)
+}
+
+///|
+pub fn number_prop(
+  name~ : String,
+  description? : String,
+  required? : Bool = false,
+) -> Property {
+  prop(name~, schema=number(description?), required~)
+}
+
+///|
+pub fn boolean_prop(
+  name~ : String,
+  description? : String,
+  required? : Bool = false,
+) -> Property {
+  prop(name~, schema=boolean(description?), required~)
+}
+
+///|
+pub fn array_prop(
+  name~ : String,
+  items~ : Json,
+  description? : String,
+  required? : Bool = false,
+) -> Property {
+  prop(name~, schema=array(items~, description?), required~)
+}
+
+///|
+pub fn string_enum_prop(
+  name~ : String,
+  values~ : Array[String],
+  description? : String,
+  required? : Bool = false,
+) -> Property {
+  prop(name~, schema=string_enum(values, description?), required~)
+}
+
+///|
+pub fn object(
+  properties : Array[Property],
   additional_properties? : Bool = false,
 ) -> Json {
+  let property_fields : Map[String, Json] = {}
+  let required : Array[String] = []
+  for property in properties {
+    property_fields[property.name] = property.schema
+    if property.required {
+      required.push(property.name)
+    }
+  }
   Json::object({
     "type": Json::string("object"),
-    "properties": Json::object(properties),
+    "properties": Json::object(property_fields),
     "required": required.to_json(),
     "additionalProperties": Json::boolean(additional_properties),
   })

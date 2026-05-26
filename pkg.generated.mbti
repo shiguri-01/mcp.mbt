@@ -7,15 +7,19 @@ import {
 }
 
 // Values
-pub fn array_schema(items~ : Json, description? : String) -> Json
+pub fn array(items~ : Json, description? : String) -> Json
 
-pub fn boolean_property_schema(description? : String) -> Json
+pub fn array_prop(name~ : String, items~ : Json, description? : String, required? : Bool) -> Property
+
+pub fn boolean(description? : String) -> Json
+
+pub fn boolean_prop(name~ : String, description? : String, required? : Bool) -> Property
 
 pub fn[T : @json.FromJson] decode_structured_content(Json) -> T raise McpError
 
-pub fn empty_object_schema() -> Json
+pub fn integer(description? : String) -> Json
 
-pub fn integer_property_schema(description? : String) -> Json
+pub fn integer_prop(name~ : String, description? : String, required? : Bool) -> Property
 
 pub fn jsonrpc_error(RequestId?, McpError) -> Json
 
@@ -27,15 +31,23 @@ pub fn jsonrpc_success(RequestId, Json) -> Json
 
 pub let latest_protocol_version : String
 
-pub fn number_property_schema(description? : String) -> Json
+pub fn number(description? : String) -> Json
 
-pub fn object_schema(properties~ : Map[String, Json], required? : Array[String], additional_properties? : Bool) -> Json
+pub fn number_prop(name~ : String, description? : String, required? : Bool) -> Property
+
+pub fn object(Array[Property], additional_properties? : Bool) -> Json
 
 pub fn parse_jsonrpc_result(Json) -> Json raise McpError
 
-pub fn string_enum_schema(Array[String], description? : String) -> Json
+pub fn prop(name~ : String, schema~ : Json, required? : Bool) -> Property
 
-pub fn string_property_schema(description? : String) -> Json
+pub fn string(description? : String) -> Json
+
+pub fn string_enum(Array[String], description? : String) -> Json
+
+pub fn string_enum_prop(name~ : String, values~ : Array[String], description? : String, required? : Bool) -> Property
+
+pub fn string_prop(name~ : String, description? : String, required? : Bool) -> Property
 
 pub fn structured_content(Json) -> Json raise McpError
 
@@ -140,6 +152,10 @@ pub(all) struct PromptMessage {
 pub fn PromptMessage::assistant(String) -> Self
 pub fn PromptMessage::user(String) -> Self
 pub impl ToJson for PromptMessage
+
+pub struct Property {
+  // private fields
+} derive(Eq, @debug.Debug)
 
 pub(all) struct ReadResourceResult {
   contents : Array[ResourceContent]

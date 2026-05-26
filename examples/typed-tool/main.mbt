@@ -12,13 +12,10 @@ struct AddOutput {
 ///|
 fn main {
   let server = @mcp.Server(name="typed-tool-example", version="0.1.0")
-  let input_schema = @mcp.object_schema(
-    properties={
-      "left": Json::object({ "type": Json::string("integer") }),
-      "right": Json::object({ "type": Json::string("integer") }),
-    },
-    required=["left", "right"],
-  )
+  let input_schema = @mcp.object([
+    @mcp.integer_prop(name="left", required=true),
+    @mcp.integer_prop(name="right", required=true),
+  ])
   try! server.add_tool(
     name="add",
     description="Add two integers with FromJson/ToJson",

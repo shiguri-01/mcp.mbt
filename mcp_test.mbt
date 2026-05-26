@@ -27,12 +27,9 @@ test "initialize returns server metadata and capabilities" {
 ///|
 test "raw tool can be listed and called" {
   let server = @mcp.Server(name="test-server", version="0.1.0")
-  let schema = @mcp.object_schema(
-    properties={
-      "name": @mcp.string_property_schema(description="Name to greet"),
-    },
-    required=["name"],
-  )
+  let schema = @mcp.object([
+    @mcp.string_prop(name="name", description="Name to greet", required=true),
+  ])
   try! server.add_text_tool(
     name="greet",
     description="Return a greeting",
@@ -89,11 +86,11 @@ struct EchoOutput {
 ///|
 test "typed tool decodes input and encodes structured content" {
   let server = @mcp.Server(name="test-server", version="0.1.0")
-  try! server.add_tool(name="echo", input_schema=@mcp.empty_object_schema(), fn(
-    input : EchoInput,
-  ) -> EchoOutput {
-    { echoed: input.text }
-  })
+  try! server.add_tool(
+    name="echo",
+    input_schema=@mcp.object([@mcp.string_prop(name="text", required=true)]),
+    fn(input : EchoInput) -> EchoOutput { { echoed: input.text } },
+  )
   let response = try! server.handle(
     "tools/call",
     Some(
@@ -191,17 +188,23 @@ test "client builds protocol requests" {
 
 ///|
 test "ergonomic helpers build useful schemas and decode structured content" {
-  let schema = @mcp.object_schema(
-    properties={
-      "count": @mcp.integer_property_schema(description="Number of items"),
-      "mode": @mcp.string_enum_schema(["fast", "safe"], description="Run mode"),
-      "flags": @mcp.array_schema(
-        items=@mcp.string_property_schema(),
-        description="Feature flags",
-      ),
-    },
-    required=["count"],
-  )
+  let schema = @mcp.object([
+    @mcp.integer_prop(
+      name="count",
+      description="Number of items",
+      required=true,
+    ),
+    @mcp.string_enum_prop(
+      name="mode",
+      values=["fast", "safe"],
+      description="Run mode",
+    ),
+    @mcp.array_prop(
+      name="flags",
+      items=@mcp.string(),
+      description="Feature flags",
+    ),
+  ])
   guard schema is Object({ "properties": Object(properties), .. }) else {
     fail("expected object schema")
   }

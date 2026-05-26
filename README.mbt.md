@@ -27,12 +27,11 @@ handlers.
 ///|
 test {
   let server = @mcp.Server(name="example", version="0.1.0")
-  try! server.add_text_tool(
-    name="hello",
-    description="Return a greeting",
-    input_schema=@mcp.empty_object_schema(),
-    fn(_) { "Hello from MoonBit MCP" },
-  )
+  try! server.add_text_tool(name="hello", description="Return a greeting", fn(
+    _,
+  ) {
+    "Hello from MoonBit MCP"
+  })
   let result = try! server.handle("tools/list", None)
   guard result is Some(Object(fields)) else {
     fail("expected tools/list result")
@@ -66,12 +65,9 @@ Use high-level helpers for normal server code:
 try! server.add_text_tool(
   name="hello",
   description="Return a greeting",
-  input_schema=@mcp.object_schema(
-    properties={
-      "name": @mcp.string_property_schema(description="Name to greet"),
-    },
-    required=["name"],
-  ),
+  input_schema=@mcp.object([
+    @mcp.string_prop(name="name", description="Name to greet", required=true),
+  ]),
   fn(args) raise @mcp.McpError {
     match args {
       Some(Object({ "name": String(name), .. })) => "Hello, \{name}!"

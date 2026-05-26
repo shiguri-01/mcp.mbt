@@ -8,12 +8,9 @@ async fn main {
   try! server.add_text_tool(
     name="hello",
     description="Return a greeting",
-    input_schema=@mcp.object_schema(
-      properties={
-        "name": @mcp.string_property_schema(description="Name to greet"),
-      },
-      required=["name"],
-    ),
+    input_schema=@mcp.object([
+      @mcp.string_prop(name="name", description="Name to greet", required=true),
+    ]),
     fn(arguments) -> String raise @mcp.McpError {
       match arguments {
         Some(Object({ "name": String(name), .. })) => "Hello, \{name}!"

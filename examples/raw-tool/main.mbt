@@ -1,12 +1,9 @@
 ///|
 fn main {
   let server = @mcp.Server(name="raw-tool-example", version="0.1.0")
-  let input_schema = @mcp.object_schema(
-    properties={
-      "name": @mcp.string_property_schema(description="Name to greet"),
-    },
-    required=["name"],
-  )
+  let input_schema = @mcp.object([
+    @mcp.string_prop(name="name", description="Name to greet", required=true),
+  ])
   try! server.add_text_tool(
     name="greet",
     description="Build a greeting from raw JSON arguments",

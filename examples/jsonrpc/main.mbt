@@ -13,12 +13,9 @@ fn main {
     version="0.1.0",
     instructions="Example server that handles JSON-RPC MCP messages.",
   )
-  try! server.add_text_tool(
-    name="ping",
-    description="Return pong",
-    input_schema=@mcp.empty_object_schema(),
-    fn(_) { "pong" },
-  )
+  try! server.add_text_tool(name="ping", description="Return pong", fn(_) {
+    "pong"
+  })
   print_response(
     server.handle_jsonrpc(
       Json::object({
