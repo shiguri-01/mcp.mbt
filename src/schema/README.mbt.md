@@ -1,4 +1,4 @@
-# shiguri/mcp/schema
+# shiguri-01/mcp/schema
 
 Small JSON Schema builders for MCP tool input types.
 

@@ -1,4 +1,4 @@
-name = "shiguri/mcp"
+name = "shiguri-01/mcp"
 
 version = "0.1.0"
 

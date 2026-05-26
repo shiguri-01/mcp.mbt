@@ -1,9 +1,9 @@
 import {
   "moonbitlang/async",
   "moonbitlang/core/json",
-  "shiguri/mcp",
-  "shiguri/mcp/schema",
-  "shiguri/mcp/stdio" @mcp_stdio,
+  "shiguri-01/mcp",
+  "shiguri-01/mcp/schema",
+  "shiguri-01/mcp/stdio" @mcp_stdio,
 }
 
 supported_targets = "+native"

@@ -1,12 +1,12 @@
-# shiguri/mcp/stdio
+# shiguri-01/mcp/stdio
 
-Native stdio transport for `shiguri/mcp`.
+Native stdio transport for `shiguri-01/mcp`.
 
 Use this package when the process should speak MCP over stdin/stdout. Server
 programs call `serve(server)`. Client-side integration tests and local tools can
 use `Client::spawn(...)` to launch a stdio server and issue JSON-RPC requests.
 
-This package is intentionally separate from `shiguri/mcp` because it depends on
+This package is intentionally separate from `shiguri-01/mcp` because it depends on
 `moonbitlang/async`, process pipes, and the native backend.
 
 ```mbt nocheck

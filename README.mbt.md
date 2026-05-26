@@ -1,4 +1,4 @@
-# shiguri/mcp
+# shiguri-01/mcp
 
 MoonBit implementation of the Model Context Protocol server and client surface.
 
@@ -69,15 +69,15 @@ without changing the core server API.
 
 ## Packages
 
-- `shiguri/mcp` is the transport-neutral core package. It contains MCP data
+- `shiguri-01/mcp` is the transport-neutral core package. It contains MCP data
   types, request builders, and the in-memory server dispatch API. JSON-RPC 2.0
   envelope handling is delegated to `shiguri-01/jsonrpc`.
-- `shiguri/mcp/schema` contains the JSON Schema trait and small builders used by
+- `shiguri-01/mcp/schema` contains the JSON Schema trait and small builders used by
   typed tool inputs.
-- `shiguri/mcp/stdio` is the native stdio transport package. It depends on
+- `shiguri-01/mcp/stdio` is the native stdio transport package. It depends on
   `moonbitlang/async`, process pipes, and the native backend.
-- `shiguri/mcp/examples/stdio-server` and
-  `shiguri/mcp/examples/stdio-client` are runnable examples. They exercise a
+- `shiguri-01/mcp/examples/stdio-server` and
+  `shiguri-01/mcp/examples/stdio-client` are runnable examples. They exercise a
   real MCP stdio session instead of printing mock output.
 
 ## Server API
@@ -160,7 +160,7 @@ code should start with `tool`, `resource`, or `prompt`.
 
 `handle_jsonrpc` is a lower-level dispatch hook for transports and tests.
 Application code should normally talk through a transport such as
-`shiguri/mcp/stdio` instead of spelling MCP method names as strings.
+`shiguri-01/mcp/stdio` instead of spelling MCP method names as strings.
 
 ## Examples
 
@@ -175,7 +175,7 @@ moon run --target native src/examples/stdio-client
 - `src/examples/stdio-client` spawns that server over stdio and calls tools,
   resources, and prompts through the client transport.
 
-`shiguri/mcp/stdio` depends on `moonbitlang/async` and is native-only. On
+`shiguri-01/mcp/stdio` depends on `moonbitlang/async` and is native-only. On
 Windows, `moonbitlang/async` currently requires an MSVC native toolchain; MinGW
 GCC is not enough.
 
