@@ -64,16 +64,18 @@ moon run examples/raw-tool
 moon run examples/typed-tool
 moon run examples/jsonrpc
 moon run --target native examples/stdio-server
+moon run --target native examples/stdio-client
 ```
 
 - `examples/raw-tool` uses `Json` pattern matching directly.
 - `examples/typed-tool` uses `FromJson` and `ToJson`.
 - `examples/jsonrpc` sends MCP JSON-RPC messages through `handle_jsonrpc`.
 - `examples/stdio-server` is a real stdio MCP server package for native target.
+- `examples/stdio-client` spawns the stdio server and calls tools, resources, and prompts.
 
 `shiguri/mcp/stdio` depends on `moonbitlang/async` and is native-only. On
 Windows, `moonbitlang/async` currently requires an MSVC native toolchain; MinGW
 GCC is not enough.
 
-The current transport support is server-side stdio. A reusable MCP client and
-Streamable HTTP transport are not implemented yet.
+The current transport support is stdio for native target. Streamable HTTP is not
+implemented yet.

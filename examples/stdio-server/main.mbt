@@ -23,5 +23,27 @@ async fn main {
       }
     },
   )
+  try! server.add_text_resource(
+    @mcp.Resource::new(
+      uri="memory://status",
+      name="status",
+      description="Server status",
+      mime_type="text/plain",
+    ),
+    fn(_) { "ready" },
+  )
+  try! server.add_prompt(
+    @mcp.Prompt::new(
+      name="summarize",
+      description="Create a short summarization prompt",
+      arguments=[@mcp.PromptArgument::new(name="topic", required=true)],
+    ),
+    fn(arguments) raise @mcp.McpError {
+      match arguments.get("topic") {
+        Some(topic) => "Summarize \{topic} in three concise bullets."
+        None => raise @mcp.InvalidParams("topic is required")
+      }
+    },
+  )
   @mcp_stdio.serve(server)
 }

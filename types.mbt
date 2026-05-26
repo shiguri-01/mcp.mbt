@@ -74,6 +74,152 @@ pub fn Tool::new(
 }
 
 ///|
+pub(all) struct Resource {
+  uri : String
+  name : String
+  title : String?
+  description : String?
+  mime_type : String?
+  meta : Json?
+} derive(Debug, Eq)
+
+///|
+pub fn Resource::new(
+  uri~ : String,
+  name~ : String,
+  title? : String,
+  description? : String,
+  mime_type? : String,
+  meta? : Json,
+) -> Resource {
+  { uri, name, title, description, mime_type, meta }
+}
+
+///|
+pub fn Resource::to_json(self : Resource) -> Json {
+  let fields : Map[String, Json] = {
+    "uri": Json::string(self.uri),
+    "name": Json::string(self.name),
+  }
+  put_optional_string(fields, "title", self.title)
+  put_optional_string(fields, "description", self.description)
+  put_optional_string(fields, "mimeType", self.mime_type)
+  put_optional_json(fields, "_meta", self.meta)
+  Json::object(fields)
+}
+
+///|
+pub(all) enum ResourceContent {
+  ResourceText(uri~ : String, text~ : String, mime_type~ : String?)
+  ResourceBlob(uri~ : String, blob~ : String, mime_type~ : String?)
+} derive(Debug, Eq)
+
+///|
+pub fn ResourceContent::to_json(self : ResourceContent) -> Json {
+  let fields : Map[String, Json] = {}
+  match self {
+    ResourceText(uri~, text~, mime_type~) => {
+      fields["uri"] = Json::string(uri)
+      fields["text"] = Json::string(text)
+      put_optional_string(fields, "mimeType", mime_type)
+    }
+    ResourceBlob(uri~, blob~, mime_type~) => {
+      fields["uri"] = Json::string(uri)
+      fields["blob"] = Json::string(blob)
+      put_optional_string(fields, "mimeType", mime_type)
+    }
+  }
+  Json::object(fields)
+}
+
+///|
+pub(all) struct ReadResourceResult {
+  contents : Array[ResourceContent]
+  meta : Json?
+} derive(Debug, Eq)
+
+///|
+pub fn ReadResourceResult::to_json(self : ReadResourceResult) -> Json {
+  let fields : Map[String, Json] = {
+    "contents": self.contents.map(fn(content) { content.to_json() }).to_json(),
+  }
+  put_optional_json(fields, "_meta", self.meta)
+  Json::object(fields)
+}
+
+///|
+pub fn ReadResourceResult::text(
+  uri~ : String,
+  text~ : String,
+  mime_type? : String,
+) -> ReadResourceResult {
+  { contents: [ResourceText(uri~, text~, mime_type~)], meta: None }
+}
+
+///|
+pub(all) struct PromptArgument {
+  name : String
+  title : String?
+  description : String?
+  required : Bool
+} derive(Debug, Eq)
+
+///|
+pub fn PromptArgument::new(
+  name~ : String,
+  title? : String,
+  description? : String,
+  required? : Bool = false,
+) -> PromptArgument {
+  { name, title, description, required }
+}
+
+///|
+pub fn PromptArgument::to_json(self : PromptArgument) -> Json {
+  let fields : Map[String, Json] = { "name": Json::string(self.name) }
+  put_optional_string(fields, "title", self.title)
+  put_optional_string(fields, "description", self.description)
+  if self.required {
+    fields["required"] = Json::boolean(true)
+  }
+  Json::object(fields)
+}
+
+///|
+pub(all) struct Prompt {
+  name : String
+  title : String?
+  description : String?
+  arguments : Array[PromptArgument]
+  meta : Json?
+} derive(Debug, Eq)
+
+///|
+pub fn Prompt::new(
+  name~ : String,
+  title? : String,
+  description? : String,
+  arguments? : Array[PromptArgument] = [],
+  meta? : Json,
+) -> Prompt {
+  { name, title, description, arguments, meta }
+}
+
+///|
+pub fn Prompt::to_json(self : Prompt) -> Json {
+  let fields : Map[String, Json] = { "name": Json::string(self.name) }
+  put_optional_string(fields, "title", self.title)
+  put_optional_string(fields, "description", self.description)
+  if !self.arguments.is_empty() {
+    fields["arguments"] = self.arguments
+      .map(fn(arg) { arg.to_json() })
+      .to_json()
+  }
+  put_optional_json(fields, "_meta", self.meta)
+  Json::object(fields)
+}
+
+///|
 pub(all) enum ContentBlock {
   Text(String)
   Image(data~ : String, mime_type~ : String)
@@ -155,6 +301,21 @@ pub fn ServerCapabilities::tools_only(
     resources: None,
     prompts: None,
     experimental: None,
+  }
+}
+
+///|
+pub fn ServerCapabilities::full(
+  list_changed? : Bool = false,
+  experimental? : Json,
+) -> ServerCapabilities {
+  {
+    tools_list_changed: list_changed,
+    resources: Some(
+      Json::object({ "listChanged": Json::boolean(list_changed) }),
+    ),
+    prompts: Some(Json::object({ "listChanged": Json::boolean(list_changed) })),
+    experimental,
   }
 }
 

@@ -1,5 +1,7 @@
 import {
+  "moonbitlang/async",
   "moonbitlang/async/io",
+  "moonbitlang/async/process",
   "moonbitlang/async/stdio" @async_stdio,
   "moonbitlang/core/json",
   "shiguri/mcp",

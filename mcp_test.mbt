@@ -110,3 +110,77 @@ test "typed tool decodes input and encodes structured content" {
     Json::object({ "echoed": Json::string("ok") }),
   )
 }
+
+///|
+test "resources and prompts are dispatchable" {
+  let server = @mcp.Server::new(name="test-server", version="0.1.0")
+  try! server.add_text_resource(
+    @mcp.Resource::new(
+      uri="memory://status",
+      name="status",
+      description="Current status",
+      mime_type="text/plain",
+    ),
+    fn(_) { "ready" },
+  )
+  try! server.add_prompt(
+    @mcp.Prompt::new(name="summarize", description="Build a summarize prompt", arguments=[
+      @mcp.PromptArgument::new(name="topic", required=true),
+    ]),
+    fn(arguments) raise @mcp.McpError {
+      match arguments.get("topic") {
+        Some(topic) => "Summarize \{topic}."
+        None => raise @mcp.InvalidParams("topic is required")
+      }
+    },
+  )
+  let resources = try! server.handle("resources/list", None)
+  guard resources
+    is Some(Object({ "resources": Array([Object(resource)]), .. })) else {
+    fail("expected one resource")
+  }
+  assert_true(resource["uri"] == Json::string("memory://status"))
+  let read = try! server.handle(
+    "resources/read",
+    Some(Json::object({ "uri": Json::string("memory://status") })),
+  )
+  guard read is Some(Object({ "contents": Array([Object(content)]), .. })) else {
+    fail("expected resource content")
+  }
+  assert_true(content["text"] == Json::string("ready"))
+  let prompt = try! server.handle(
+    "prompts/get",
+    Some(
+      Json::object({
+        "name": Json::string("summarize"),
+        "arguments": Json::object({ "topic": Json::string("MCP") }),
+      }),
+    ),
+  )
+  guard prompt is Some(Object({ "messages": Array([Object(message)]), .. })) else {
+    fail("expected prompt message")
+  }
+  guard message["content"] is Object(prompt_content) else {
+    fail("expected prompt text content")
+  }
+  assert_true(prompt_content["text"] == Json::string("Summarize MCP."))
+}
+
+///|
+test "client builds protocol requests" {
+  let client = @mcp.Client::new()
+  let initialize = client.initialize_request(
+    client_name="test-client",
+    client_version="0.1.0",
+  )
+  guard initialize is Object(init) else { fail("expected initialize request") }
+  assert_true(init["method"] == Json::string("initialize"))
+  let call = client.call_tool_request(
+    name="echo",
+    arguments=Json::object({ "text": Json::string("hi") }),
+  )
+  guard call is Object(call_fields) else { fail("expected call request") }
+  assert_true(call_fields["method"] == Json::string("tools/call"))
+  guard call_fields["params"] is Object(params) else { fail("expected params") }
+  assert_true(params["name"] == Json::string("echo"))
+}

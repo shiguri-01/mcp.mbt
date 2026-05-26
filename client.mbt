@@ -1,0 +1,137 @@
+///|
+pub struct Client {
+  priv mut next_id : Int
+}
+
+///|
+pub fn Client::new() -> Client {
+  { next_id: 1 }
+}
+
+///|
+pub fn Client::next_request_id(self : Client) -> RequestId {
+  let id = self.next_id
+  self.next_id = self.next_id + 1
+  NumberId(id)
+}
+
+///|
+pub fn jsonrpc_request(
+  id : RequestId,
+  method_name : String,
+  params? : Json,
+) -> Json {
+  let fields : Map[String, Json] = {
+    "jsonrpc": Json::string("2.0"),
+    "id": id.to_json(),
+    "method": Json::string(method_name),
+  }
+  put_optional_json(fields, "params", params)
+  Json::object(fields)
+}
+
+///|
+pub fn jsonrpc_notification(method_name : String, params? : Json) -> Json {
+  let fields : Map[String, Json] = {
+    "jsonrpc": Json::string("2.0"),
+    "method": Json::string(method_name),
+  }
+  put_optional_json(fields, "params", params)
+  Json::object(fields)
+}
+
+///|
+pub fn parse_jsonrpc_result(response : Json) -> Json raise McpError {
+  let fields = expect_object(response, "JSON-RPC response")
+  match fields.get("error") {
+    Some(Object(error)) => {
+      let message = match error.get("message") {
+        Some(String(message)) => message
+        _ => "JSON-RPC error"
+      }
+      raise InternalError(message)
+    }
+    Some(_) => raise InvalidRequest("JSON-RPC error must be an object")
+    None => ()
+  }
+  match fields.get("result") {
+    Some(result) => result
+    None => raise InvalidRequest("JSON-RPC response result is required")
+  }
+}
+
+///|
+pub fn Client::initialize_request(
+  self : Client,
+  client_name~ : String,
+  client_version~ : String,
+  capabilities? : Json = Json::object({}),
+) -> Json {
+  jsonrpc_request(
+    self.next_request_id(),
+    "initialize",
+    params=Json::object({
+      "protocolVersion": Json::string(latest_protocol_version),
+      "capabilities": capabilities,
+      "clientInfo": Json::object({
+        "name": Json::string(client_name),
+        "version": Json::string(client_version),
+      }),
+    }),
+  )
+}
+
+///|
+pub fn Client::initialized_notification(_self : Client) -> Json {
+  jsonrpc_notification("notifications/initialized")
+}
+
+///|
+pub fn Client::list_tools_request(self : Client) -> Json {
+  jsonrpc_request(self.next_request_id(), "tools/list")
+}
+
+///|
+pub fn Client::call_tool_request(
+  self : Client,
+  name~ : String,
+  arguments? : Json = Json::object({}),
+) -> Json {
+  jsonrpc_request(
+    self.next_request_id(),
+    "tools/call",
+    params=Json::object({ "name": Json::string(name), "arguments": arguments }),
+  )
+}
+
+///|
+pub fn Client::list_resources_request(self : Client) -> Json {
+  jsonrpc_request(self.next_request_id(), "resources/list")
+}
+
+///|
+pub fn Client::read_resource_request(self : Client, uri~ : String) -> Json {
+  jsonrpc_request(
+    self.next_request_id(),
+    "resources/read",
+    params=Json::object({ "uri": Json::string(uri) }),
+  )
+}
+
+///|
+pub fn Client::list_prompts_request(self : Client) -> Json {
+  jsonrpc_request(self.next_request_id(), "prompts/list")
+}
+
+///|
+pub fn Client::get_prompt_request(
+  self : Client,
+  name~ : String,
+  arguments? : Json = Json::object({}),
+) -> Json {
+  jsonrpc_request(
+    self.next_request_id(),
+    "prompts/get",
+    params=Json::object({ "name": Json::string(name), "arguments": arguments }),
+  )
+}
