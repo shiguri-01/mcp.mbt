@@ -22,3 +22,7 @@ license = "Apache-2.0"
 keywords = [ "mcp", "json-rpc", "model-context-protocol" ]
 
 description = "Model Context Protocol library for MoonBit"
+
+import {
+  "moonbitlang/async@0.19.1",
+}
