@@ -31,7 +31,7 @@ struct HelloInput {
 
 ///|
 impl @schema.JsonSchema for HelloInput with fn json_schema() {
-  @schema.schema([@schema.string_field(name="name", required=true)])
+  @schema.schema([@schema.string(name="name", required=true)])
 }
 
 ///|
@@ -90,7 +90,7 @@ struct HelloInput {
 
 impl @schema.JsonSchema for HelloInput with fn json_schema() {
   @schema.schema([
-    @schema.string_field(name="name", description="Name to greet", required=true),
+    @schema.string(name="name", description="Name to greet", required=true),
   ])
 }
 

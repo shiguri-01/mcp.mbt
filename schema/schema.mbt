@@ -103,7 +103,7 @@ pub fn string_enum_schema(
 
 ///|
 /// Build a string field for a JSON Schema object.
-pub fn string_field(
+pub fn string(
   name~ : String,
   description? : String,
   required? : Bool = false,
@@ -113,7 +113,7 @@ pub fn string_field(
 
 ///|
 /// Build an integer field for a JSON Schema object.
-pub fn integer_field(
+pub fn integer(
   name~ : String,
   description? : String,
   required? : Bool = false,
@@ -123,7 +123,7 @@ pub fn integer_field(
 
 ///|
 /// Build a number field for a JSON Schema object.
-pub fn number_field(
+pub fn number(
   name~ : String,
   description? : String,
   required? : Bool = false,
@@ -133,7 +133,7 @@ pub fn number_field(
 
 ///|
 /// Build a boolean field for a JSON Schema object.
-pub fn boolean_field(
+pub fn boolean(
   name~ : String,
   description? : String,
   required? : Bool = false,
@@ -143,7 +143,7 @@ pub fn boolean_field(
 
 ///|
 /// Build an array field for a JSON Schema object.
-pub fn array_field(
+pub fn array(
   name~ : String,
   items~ : Json,
   description? : String,
@@ -154,7 +154,7 @@ pub fn array_field(
 
 ///|
 /// Build a string enum field for a JSON Schema object.
-pub fn string_enum_field(
+pub fn string_enum(
   name~ : String,
   values~ : Array[String],
   description? : String,

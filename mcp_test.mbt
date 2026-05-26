@@ -28,11 +28,7 @@ test "initialize returns server metadata and capabilities" {
 test "raw tool can be listed and called" {
   let server = @mcp.Server(name="test-server", version="0.1.0")
   let schema = @schema.schema([
-    @schema.string_field(
-      name="name",
-      description="Name to greet",
-      required=true,
-    ),
+    @schema.string(name="name", description="Name to greet", required=true),
   ])
   try! server.json_tool(
     name="greet",
@@ -84,7 +80,7 @@ struct EchoInput {
 
 ///|
 impl @schema.JsonSchema for EchoInput with fn json_schema() {
-  @schema.schema([@schema.string_field(name="text", required=true)])
+  @schema.schema([@schema.string(name="text", required=true)])
 }
 
 ///|
@@ -246,17 +242,13 @@ test "client builds protocol requests" {
 ///|
 test "ergonomic helpers build useful schemas and decode structured content" {
   let schema = @schema.schema([
-    @schema.integer_field(
-      name="count",
-      description="Number of items",
-      required=true,
-    ),
-    @schema.string_enum_field(
+    @schema.integer(name="count", description="Number of items", required=true),
+    @schema.string_enum(
       name="mode",
       values=["fast", "safe"],
       description="Run mode",
     ),
-    @schema.array_field(
+    @schema.array(
       name="flags",
       items=@schema.string_schema(),
       description="Feature flags",
