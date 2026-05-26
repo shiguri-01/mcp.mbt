@@ -1,6 +1,6 @@
 ///|
 async fn main {
-  let server = @mcp.Server::Server(
+  let server = @mcp.Server(
     name="stdio-example",
     version="0.1.0",
     instructions="A minimal MoonBit MCP server over stdio.",

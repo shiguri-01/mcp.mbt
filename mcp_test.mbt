@@ -1,6 +1,6 @@
 ///|
 test "initialize returns server metadata and capabilities" {
-  let server = @mcp.Server::Server(name="test-server", version="0.1.0")
+  let server = @mcp.Server(name="test-server", version="0.1.0")
   let response = server.handle_jsonrpc(
     Json::object({
       "jsonrpc": Json::string("2.0"),
@@ -26,7 +26,7 @@ test "initialize returns server metadata and capabilities" {
 
 ///|
 test "raw tool can be listed and called" {
-  let server = @mcp.Server::Server(name="test-server", version="0.1.0")
+  let server = @mcp.Server(name="test-server", version="0.1.0")
   let schema = @mcp.object_schema(
     properties={
       "name": @mcp.string_property_schema(description="Name to greet"),
@@ -94,7 +94,7 @@ struct EchoOutput {
 
 ///|
 test "typed tool decodes input and encodes structured content" {
-  let server = @mcp.Server::Server(name="test-server", version="0.1.0")
+  let server = @mcp.Server(name="test-server", version="0.1.0")
   try! server.add_tool(
     @mcp.Tool::{
       name: "echo",
@@ -125,7 +125,7 @@ test "typed tool decodes input and encodes structured content" {
 
 ///|
 test "resources and prompts are dispatchable" {
-  let server = @mcp.Server::Server(name="test-server", version="0.1.0")
+  let server = @mcp.Server(name="test-server", version="0.1.0")
   try! server.add_text_resource(
     @mcp.Resource::{
       uri: "memory://status",
@@ -193,7 +193,7 @@ test "resources and prompts are dispatchable" {
 
 ///|
 test "client builds protocol requests" {
-  let client = @mcp.Client::Client()
+  let client = @mcp.Client()
   let initialize = client.initialize_request(
     client_name="test-client",
     client_version="0.1.0",

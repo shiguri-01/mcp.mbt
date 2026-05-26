@@ -1,6 +1,6 @@
 ///|
 fn main {
-  let server = @mcp.Server::Server(name="raw-tool-example", version="0.1.0")
+  let server = @mcp.Server(name="raw-tool-example", version="0.1.0")
   let input_schema = @mcp.object_schema(
     properties={
       "name": @mcp.string_property_schema(description="Name to greet"),

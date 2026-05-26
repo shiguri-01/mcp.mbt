@@ -34,12 +34,7 @@ pub async fn[X] Client::spawn(
         stdout=server_stdout,
       )
   }
-  {
-    core: @mcp.Client::Client(),
-    process,
-    reader: client_reader,
-    writer: client_writer,
-  }
+  { core: @mcp.Client(), process, reader: client_reader, writer: client_writer }
 }
 
 ///|
