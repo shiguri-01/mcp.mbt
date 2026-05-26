@@ -11,11 +11,20 @@ This package is intentionally separate from `shiguri/mcp` because it depends on
 
 ```mbt nocheck
 ///|
+struct HelloInput {
+  name : String
+} derive(FromJson)
+
+///|
 async fn main {
   let server = @mcp.Server(name="example", version="0.1.0")
-  try! server.tool(name="hello", fn(_) {
-    @mcp.CallToolResult::text("Hello from MoonBit MCP")
-  })
+  try! server.tool(
+    name="hello",
+    input_schema=@mcp.object([@mcp.string_prop(name="name", required=true)]),
+    fn(input : HelloInput) {
+      @mcp.CallToolResult::text("Hello, \{input.name}!")
+    },
+  )
   @mcp_stdio.serve(server)
 }
 ```

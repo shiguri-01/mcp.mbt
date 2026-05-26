@@ -12,8 +12,8 @@ This package currently focuses on the small, useful server MVP:
 - `resources/read`
 - `prompts/list`
 - `prompts/get`
-- raw JSON tool handlers
-- typed `FromJson` / `ToJson` tool handlers
+- `FromJson` / `ToJson` tool and prompt handlers
+- raw JSON escape hatches
 - JSON-RPC 2.0 request/response envelope helpers
 - native stdio server and client helpers
 
@@ -25,11 +25,21 @@ handlers.
 
 ```mbt check
 ///|
+struct HelloInput {
+  name : String
+} derive(FromJson)
+
+///|
 test {
   let server = @mcp.Server(name="example", version="0.1.0")
-  try! server.tool(name="hello", description="Return a greeting", fn(_) {
-    @mcp.CallToolResult::text("Hello from MoonBit MCP")
-  })
+  try! server.tool(
+    name="hello",
+    description="Return a greeting",
+    input_schema=@mcp.object([@mcp.string_prop(name="name", required=true)]),
+    fn(input : HelloInput) {
+      @mcp.CallToolResult::text("Hello, \{input.name}!")
+    },
+  )
   let result = try! server.handle("tools/list", None)
   guard result is Some(Object(fields)) else {
     fail("expected tools/list result")
@@ -71,13 +81,13 @@ Use the API that matches the shape you want to return:
 
 | Use case | API |
 | --- | --- |
-| Tool reads raw `Json?` and returns `CallToolResult` | `server.tool(...)` |
-| Tool decodes typed input and returns `CallToolResult` | `server.typed_tool(...)` |
+| Tool decodes typed input and returns `CallToolResult` | `server.tool(...)` |
+| Tool reads raw `Json?` and returns `CallToolResult` | `server.json_tool(...)` |
 | Tool needs full MCP `Tool` and `CallToolResult` control | `server.raw_tool(...)` |
 | Resource returns full `ReadResourceResult` | `server.resource(...)` |
 | Resource needs a prebuilt `Resource` descriptor | `server.raw_resource(...)` |
-| Prompt reads raw string arguments and returns `GetPromptResult` | `server.prompt(...)` |
-| Prompt decodes typed arguments and returns `GetPromptResult` | `server.typed_prompt(...)` |
+| Prompt decodes typed arguments and returns `GetPromptResult` | `server.prompt(...)` |
+| Prompt reads raw string arguments and returns `GetPromptResult` | `server.string_prompt(...)` |
 | Prompt needs raw JSON result control | `server.raw_prompt(...)` |
 
 ```mbt nocheck
@@ -85,7 +95,7 @@ struct HelloInput {
   name : String
 } derive(FromJson)
 
-try! server.typed_tool(
+try! server.tool(
   name="hello",
   description="Return a greeting",
   input_schema=@mcp.object([
@@ -109,7 +119,7 @@ struct SummarizeInput {
   topic : String
 } derive(FromJson)
 
-try! server.typed_prompt(
+try! server.prompt(
   name="summarize",
   arguments=[
     @mcp.PromptArgument(name="topic", required=true),
@@ -120,8 +130,8 @@ try! server.typed_prompt(
 )
 ```
 
-The `raw_*` methods are the low-level escape hatches. Normal server code should
-start with `typed_tool`, `resource`, or `typed_prompt`.
+The `json_tool`, `string_prompt`, and `raw_*` methods are escape hatches. Normal
+server code should start with `tool`, `resource`, or `prompt`.
 
 ## Examples
 

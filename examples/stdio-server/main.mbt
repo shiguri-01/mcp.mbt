@@ -15,7 +15,7 @@ async fn main {
     version="0.1.0",
     instructions="A minimal MoonBit MCP server over stdio.",
   )
-  try! server.typed_tool(
+  try! server.tool(
     name="hello",
     description="Return a greeting",
     input_schema=@mcp.object([
@@ -34,7 +34,7 @@ async fn main {
       @mcp.ReadResourceResult::text(uri~, text="ready", mime_type="text/plain")
     },
   )
-  try! server.typed_prompt(
+  try! server.prompt(
     name="summarize",
     description="Create a short summarization prompt",
     arguments=[@mcp.PromptArgument(name="topic", required=true)],

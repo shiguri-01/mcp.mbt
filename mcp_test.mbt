@@ -30,7 +30,7 @@ test "raw tool can be listed and called" {
   let schema = @mcp.object([
     @mcp.string_prop(name="name", description="Name to greet", required=true),
   ])
-  try! server.tool(
+  try! server.json_tool(
     name="greet",
     description="Return a greeting",
     input_schema=schema,
@@ -84,9 +84,9 @@ struct EchoOutput {
 } derive(FromJson, ToJson)
 
 ///|
-test "typed tool decodes input and encodes structured content" {
+test "tool decodes input and encodes structured content" {
   let server = @mcp.Server(name="test-server", version="0.1.0")
-  try! server.typed_tool(
+  try! server.tool(
     name="echo",
     input_schema=@mcp.object([@mcp.string_prop(name="text", required=true)]),
     fn(input : EchoInput) {
@@ -110,9 +110,9 @@ test "typed tool decodes input and encodes structured content" {
 }
 
 ///|
-test "typed text tool decodes input and returns text content" {
+test "tool decodes input and returns text content" {
   let server = @mcp.Server(name="test-server", version="0.1.0")
-  try! server.typed_tool(
+  try! server.tool(
     name="echo_text",
     input_schema=@mcp.object([@mcp.string_prop(name="text", required=true)]),
     fn(input : EchoInput) { @mcp.CallToolResult::text(input.text) },
@@ -138,9 +138,9 @@ struct PromptInput {
 } derive(FromJson)
 
 ///|
-test "typed text prompt decodes string arguments" {
+test "prompt decodes string arguments" {
   let server = @mcp.Server(name="test-server", version="0.1.0")
-  try! server.typed_prompt(
+  try! server.prompt(
     name="summarize_typed",
     arguments=[@mcp.PromptArgument(name="topic", required=true)],
     fn(input : PromptInput) {
@@ -177,7 +177,7 @@ test "resources and prompts are dispatchable" {
       @mcp.ReadResourceResult::text(uri~, text="ready", mime_type="text/plain")
     },
   )
-  try! server.prompt(
+  try! server.string_prompt(
     name="summarize",
     description="Build a summarize prompt",
     arguments=[@mcp.PromptArgument(name="topic", required=true)],

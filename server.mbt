@@ -73,7 +73,7 @@ pub fn Server::raw_tool(
 ///
 /// Use this when MoonBit pattern matching on `Json` is clearer than defining a
 /// typed input struct.
-pub fn Server::tool(
+pub fn Server::json_tool(
   self : Server,
   name~ : String,
   title? : String,
@@ -98,7 +98,7 @@ pub fn Server::tool(
 
 ///|
 /// Register a tool that decodes arguments through `FromJson`.
-pub fn[A : FromJson] Server::typed_tool(
+pub fn[A : FromJson] Server::tool(
   self : Server,
   name~ : String,
   title? : String,
@@ -108,7 +108,7 @@ pub fn[A : FromJson] Server::typed_tool(
   annotations? : ToolAnnotations,
   handler : (A) -> CallToolResult raise McpError,
 ) -> Unit raise McpError {
-  self.tool(
+  self.json_tool(
     name~,
     title?,
     description?,
@@ -177,7 +177,7 @@ pub fn Server::raw_prompt(
 
 ///|
 /// Register a prompt whose arguments are exposed as strings.
-pub fn Server::prompt(
+pub fn Server::string_prompt(
   self : Server,
   name~ : String,
   title? : String,
@@ -194,7 +194,7 @@ pub fn Server::prompt(
 
 ///|
 /// Register a prompt that decodes string arguments through `FromJson`.
-pub fn[A : FromJson] Server::typed_prompt(
+pub fn[A : FromJson] Server::prompt(
   self : Server,
   name~ : String,
   title? : String,
@@ -202,7 +202,7 @@ pub fn[A : FromJson] Server::typed_prompt(
   arguments? : Array[PromptArgument] = [],
   handler : (A) -> GetPromptResult raise McpError,
 ) -> Unit raise McpError {
-  self.prompt(name~, title?, description?, arguments~, fn(
+  self.string_prompt(name~, title?, description?, arguments~, fn(
     arguments,
   ) raise McpError {
     let input : A = @json.from_json(prompt_arguments_json(arguments)) catch {
