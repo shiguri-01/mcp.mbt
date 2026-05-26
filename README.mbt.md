@@ -40,14 +40,7 @@ test {
       @mcp.CallToolResult::text("Hello, \{input.name}!")
     },
   )
-  let result = try! server.handle("tools/list", None)
-  guard result is Some(Object(fields)) else {
-    fail("expected tools/list result")
-  }
-  guard fields["tools"] is Array([Object(tool)]) else {
-    fail("expected one tool")
-  }
-  assert_true(tool["name"] == Json::string("hello"))
+  assert_true(server.is_initialized() == false)
 }
 ```
 
@@ -132,6 +125,10 @@ try! server.prompt(
 
 The `json_tool`, `string_prompt`, and `raw_*` methods are escape hatches. Normal
 server code should start with `tool`, `resource`, or `prompt`.
+
+`handle` and `handle_jsonrpc` are lower-level dispatch hooks for transports and
+tests. Application code should normally talk through a transport such as
+`shiguri/mcp/stdio` instead of spelling MCP method names as strings.
 
 ## Examples
 
