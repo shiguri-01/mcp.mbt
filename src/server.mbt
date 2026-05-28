@@ -227,6 +227,10 @@ pub fn Server::resource(
   title? : String,
   description? : String,
   mime_type? : String,
+  icons? : Array[Icon] = [],
+  annotations? : Annotations,
+  size? : Int64,
+  meta? : Json,
   handler : ResourceHandler,
 ) -> Unit raise McpError {
   let resource_name = match name {
@@ -234,7 +238,17 @@ pub fn Server::resource(
     None => uri
   }
   self.register_resource(
-    Resource(uri~, name=resource_name, title?, description?, mime_type?),
+    Resource(
+      uri~,
+      name=resource_name,
+      title?,
+      description?,
+      mime_type?,
+      icons~,
+      annotations?,
+      size?,
+      meta?,
+    ),
     handler,
   )
 }
@@ -248,6 +262,9 @@ pub fn Server::resource_template(
   title? : String,
   description? : String,
   mime_type? : String,
+  icons? : Array[Icon] = [],
+  annotations? : Annotations,
+  meta? : Json,
 ) -> Unit raise McpError {
   let template_name = match name {
     Some(name) => name
@@ -260,6 +277,9 @@ pub fn Server::resource_template(
       title?,
       description?,
       mime_type?,
+      icons~,
+      annotations?,
+      meta?,
     ),
   )
 }
@@ -349,10 +369,18 @@ fn parse_icon(value : Json, context : String) -> Icon raise McpError {
     Some(value) => parse_string_array(value, "\{context}.sizes")
     None => []
   }
+  let theme = match fields.get("theme") {
+    Some(String("light")) => Some(IconTheme::Light)
+    Some(String("dark")) => Some(IconTheme::Dark)
+    Some(Null) | None => None
+    Some(_) =>
+      raise InvalidParams("\{context}.theme must be \"light\" or \"dark\"")
+  }
   Icon(
     src=get_string(fields, "src", context),
     mime_type?=get_optional_string(fields, "mimeType", context),
     sizes~,
+    theme?,
   )
 }
 

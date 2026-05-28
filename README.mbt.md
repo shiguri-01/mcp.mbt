@@ -22,15 +22,15 @@ The core package is transport-neutral and targets MCP `2025-11-25`:
   notification builders
 - cursor pagination for list endpoints
 - `FromJson` / `ToJson` tool and prompt handlers
-- raw JSON escape hatches
+- raw JSON escape hatches for low-level server handlers and extension fields
 - JSON-RPC 2.0 request/response envelope helpers
 - native stdio server and client helpers
 
-The public API intentionally keeps a raw `Json` escape hatch. MCP has open
-extension points such as `_meta`, JSON Schema, experimental capabilities, and
-structured content, so the low-level API accepts JSON directly. The high-level
-tool API uses MoonBit's `FromJson` and `ToJson` traits for normal typed
-handlers.
+The public API intentionally keeps raw `Json` at MCP extension points such as
+`_meta`, JSON Schema, experimental capabilities, and low-level server handlers.
+Content blocks and known capabilities are modeled as typed MoonBit values. The
+high-level tool API uses MoonBit's `FromJson` and `ToJson` traits for normal
+typed handlers.
 
 MCP capabilities are typed. Known `2025-11-25` client and server capabilities
 have dedicated MoonBit structs, while unknown extension capabilities are kept in
@@ -163,6 +163,40 @@ try! server.completion(reference=@mcp.PromptRef(name="summarize"), fn(
 
 The `json_tool` and `string_prompt` methods are escape hatches. Normal server
 code should start with `tool`, `resource`, or `prompt`.
+
+## Content Blocks
+
+Content blocks follow the MCP
+[`2025-11-25` content schema](https://modelcontextprotocol.io/specification/2025-11-25/schema#content).
+Use typed constructors for normal content:
+
+```mbt nocheck
+let annotations = @mcp.Annotations(
+  audience=[@mcp.Role::User],
+  priority=0.8,
+)
+
+let text = @mcp.ContentBlock::text("Ready", annotations~)
+let embedded = @mcp.ContentBlock::embedded_resource(
+  resource=@mcp.ResourceContent::text(
+    uri="memory://status",
+    text="ready",
+    mime_type="text/plain",
+  ),
+)
+let link = @mcp.ContentBlock::resource_link(
+  @mcp.ResourceLink(
+    uri="file:///tmp/report.md",
+    name="report",
+    title="Report",
+    mime_type="text/markdown",
+    size=2048L,
+  ),
+)
+```
+
+Future content block shapes should be added as typed variants instead of
+passing arbitrary JSON through the content API.
 
 Configure advertised server capabilities with typed values:
 

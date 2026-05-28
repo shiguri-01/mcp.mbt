@@ -1,9 +1,29 @@
 ///|
+pub(all) enum IconTheme {
+  Light
+  Dark
+} derive(Debug, Eq)
+
+///|
+pub fn IconTheme::to_string(self : IconTheme) -> String {
+  match self {
+    Light => "light"
+    Dark => "dark"
+  }
+}
+
+///|
+pub impl ToJson for IconTheme with fn to_json(self : IconTheme) -> Json {
+  Json::string(self.to_string())
+}
+
+///|
 /// Icon metadata for an MCP implementation.
 pub(all) struct Icon {
   src : String
   mime_type : String?
   sizes : Array[String]
+  theme : IconTheme?
 } derive(Debug, Eq)
 
 ///|
@@ -11,8 +31,9 @@ pub fn Icon::Icon(
   src~ : String,
   mime_type? : String,
   sizes? : Array[String] = [],
+  theme? : IconTheme,
 ) -> Icon {
-  { src, mime_type, sizes }
+  { src, mime_type, sizes, theme }
 }
 
 ///|
@@ -21,6 +42,9 @@ pub impl ToJson for Icon with fn to_json(self : Icon) -> Json {
   put_optional_string(fields, "mimeType", self.mime_type)
   if !self.sizes.is_empty() {
     fields["sizes"] = self.sizes.to_json()
+  }
+  if self.theme is Some(theme) {
+    fields["theme"] = theme.to_json()
   }
   Json::object(fields)
 }
