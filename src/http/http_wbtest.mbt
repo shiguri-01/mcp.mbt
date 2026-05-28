@@ -32,6 +32,25 @@ test "validate POST Accept header" {
   assert_true(
     validate_post_request(accepted, initialize_message(), options, None) == None,
   )
+  let bogus_substrings = post_request(headers={
+    "Accept": "application/jsonp, text/event-streamx",
+  })
+  assert_true(
+    validate_post_request(bogus_substrings, initialize_message(), options, None) ==
+    Some("Accept header must include application/json and text/event-stream"),
+  )
+  let accepted_with_parameters = post_request(headers={
+    "Accept": "application/json; charset=utf-8, text/event-stream; q=0.9",
+  })
+  assert_true(
+    validate_post_request(
+      accepted_with_parameters,
+      initialize_message(),
+      options,
+      None,
+    ) ==
+    None,
+  )
 }
 
 ///|
@@ -99,6 +118,24 @@ test "headers are case-insensitive and session IDs must be visible ASCII" {
 }
 
 ///|
+test "JSON-RPC message classification requires valid message shapes" {
+  assert_true(is_jsonrpc_request(@mcp.Client().ping_request()))
+  assert_true(is_jsonrpc_notification(@mcp.Client().initialized_notification()))
+  let response = Json::object({
+    "jsonrpc": Json::string("2.0"),
+    "id": Json::number(1.0, repr="1"),
+    "result": Json::object({}),
+  })
+  assert_true(is_jsonrpc_response(response))
+  assert_true(!is_jsonrpc_response(Json::object({})))
+  assert_true(
+    !is_jsonrpc_notification(
+      Json::object({ "method": Json::string("notifications/initialized") }),
+    ),
+  )
+}
+
+///|
 test "session store insert lookup and remove" {
   let store = SessionStore()
   let server = @mcp.Server(name="session-test", version="0.1.0")
@@ -145,6 +182,20 @@ test "method not found JSON-RPC responses map to HTTP 404" {
   )
   assert_eq(status, 404)
   assert_eq(reason, "Not Found")
+}
+
+///|
+test "HTTP JSON-RPC errors preserve MCP error category" {
+  let error = http_error_to_mcp(
+    { code: 400, reason: "Bad Request", headers: {}, cookies: [] },
+    jsonrpc_error(Json::null(), -32602, "bad params").stringify(),
+  )
+  assert_true(error is @mcp.InvalidParams("bad params"))
+  let not_found = http_error_to_mcp(
+    { code: 404, reason: "Not Found", headers: {}, cookies: [] },
+    jsonrpc_error(Json::null(), -32601, "missing").stringify(),
+  )
+  assert_true(not_found is @mcp.MethodNotFound("missing"))
 }
 
 ///|

@@ -55,7 +55,14 @@ fn http_error_to_mcp(
   }
   match parsed {
     Object({ "error": Object({ "message": String(message), .. }), .. }) =>
-      @mcp.InvalidRequest(message)
+      match jsonrpc_error_code(parsed) {
+        Some(-32700.0) => @mcp.ParseError(message)
+        Some(-32600.0) => @mcp.InvalidRequest(message)
+        Some(-32601.0) => @mcp.MethodNotFound(message)
+        Some(-32602.0) => @mcp.InvalidParams(message)
+        Some(-32603.0) => @mcp.InternalError(message)
+        _ => @mcp.InternalError(message)
+      }
     _ => @mcp.InvalidRequest("HTTP \{response.code} \{response.reason}")
   }
 }

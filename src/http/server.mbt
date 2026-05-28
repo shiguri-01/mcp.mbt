@@ -54,11 +54,10 @@ async fn send_http_error(
 
 ///|
 fn response_status(response : Json) -> (Int, String) {
-  match response {
-    Object(
-      { "error": Object({ "code": Number(_, repr=Some("-32601")), .. }), .. }
-    ) => (404, "Not Found")
-    _ => (200, "OK")
+  if jsonrpc_error_code(response) is Some(-32601.0) {
+    (404, "Not Found")
+  } else {
+    (200, "OK")
   }
 }
 
@@ -191,7 +190,7 @@ async fn handle_post(
     send_empty(conn, 401, "Unauthorized")
     return
   }
-  if is_jsonrpc_notification(message) || request_method_name(message) is None {
+  if is_jsonrpc_notification(message) || is_jsonrpc_response(message) {
     ignore(server.handle_jsonrpc(message))
     send_empty(conn, 202, "Accepted")
     return

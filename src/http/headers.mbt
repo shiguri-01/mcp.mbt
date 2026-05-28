@@ -15,7 +15,18 @@ fn header(headers : Map[String, String], name : String) -> String? {
 
 ///|
 fn has_media_type(value : String, media_type : String) -> Bool {
-  value.to_lower().contains(media_type)
+  let expected = media_type.to_lower()
+  for part in value.split(",") {
+    let media = part.trim().to_lower()
+    let token = match media.find(";") {
+      Some(parameter_start) => media[:parameter_start].trim()
+      None => media
+    }
+    if token == expected[:] {
+      return true
+    }
+  }
+  false
 }
 
 ///|
@@ -57,12 +68,39 @@ fn request_id(message : Json) -> Json? {
 
 ///|
 fn is_jsonrpc_request(message : Json) -> Bool {
-  request_method_name(message) is Some(_) && request_id(message) is Some(_)
+  match message {
+    Object({ "jsonrpc": String("2.0"), "method": String(_), "id": _, .. }) =>
+      true
+    _ => false
+  }
 }
 
 ///|
 fn is_jsonrpc_notification(message : Json) -> Bool {
-  request_method_name(message) is Some(_) && request_id(message) is None
+  match message {
+    Object({ "jsonrpc": String("2.0"), "method": String(_), "id"? : None, .. }) =>
+      true
+    _ => false
+  }
+}
+
+///|
+fn is_jsonrpc_response(message : Json) -> Bool {
+  match message {
+    Object({ "jsonrpc": String("2.0"), "id": _, "result": _, .. }) => true
+    Object({ "jsonrpc": String("2.0"), "id": _, "error": Object(_), .. }) =>
+      true
+    _ => false
+  }
+}
+
+///|
+fn jsonrpc_error_code(message : Json) -> Double? {
+  match message {
+    Object({ "error": Object({ "code": Number(code, ..), .. }), .. }) =>
+      Some(code)
+    _ => None
+  }
 }
 
 ///|
