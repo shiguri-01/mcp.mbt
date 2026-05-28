@@ -78,12 +78,12 @@ test "Origin header requires configured allow list" {
 
 ///|
 test "common request validation applies auth to non-POST methods" {
-  let delete = { meth: Delete, path: "/mcp", headers: {} }
+  let delete : @async_http.Request = { meth: Delete, path: "/mcp", headers: {} }
   let rejected = ServerOptions(authenticate=fn(context) {
     context.http_method != Delete
   })
   assert_true(common_request_error(delete, rejected) == Some("Unauthorized"))
-  let get = { meth: Get, path: "/mcp", headers: {} }
+  let get : @async_http.Request = { meth: Get, path: "/mcp", headers: {} }
   assert_true(common_request_error(get, ServerOptions()) == None)
 }
 

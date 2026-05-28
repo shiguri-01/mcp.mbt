@@ -118,6 +118,7 @@ fn validate_post_request(
   options : ServerOptions,
   server : @mcp.Server?,
 ) -> String? {
+  ignore(options)
   let accepts_required_types = match header(request.headers, "Accept") {
     Some(accept) =>
       has_media_type(accept, "application/json") &&

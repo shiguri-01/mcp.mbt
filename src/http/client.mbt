@@ -102,8 +102,8 @@ fn parse_event_stream_messages(
       continue
     }
     if line.has_prefix("data:"[:]) {
-      let value = try! line[5:]
-      let value = if value.has_prefix(" "[:]) { try! value[1:] } else { value }
+      let value = line[5:]
+      let value = if value.has_prefix(" "[:]) { value[1:] } else { value }
       data_lines.push(value.to_owned())
     }
   }
@@ -131,12 +131,12 @@ fn parse_http_messages(
   match header(response.headers, "Content-Type") {
     Some(content_type) if has_media_type(content_type, "text/event-stream") =>
       parse_event_stream_messages(body)
-    _ =>
-      [
-        @json.parse(body) catch {
-          error => raise @mcp.ParseError(error.to_string())
-        },
-      ]
+    _ => {
+      let message : Json = @json.parse(body) catch {
+        error => raise @mcp.ParseError(error.to_string())
+      }
+      [message]
+    }
   }
 }
 
