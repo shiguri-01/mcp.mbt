@@ -18,11 +18,13 @@ state is per session.
 
 ```mbt check
 ///|
-test {
-  let client = @http.Client("http://127.0.0.1:8080/mcp")
-  assert_true(client.session_id() is None)
-  let options = @http.ServerOptions(endpoint_path="/mcp")
-  assert_eq(options.endpoint_path, "/mcp")
+pub fn make_client() -> @http.Client {
+  @http.Client("http://127.0.0.1:8080/mcp")
+}
+
+///|
+pub fn make_options() -> @http.ServerOptions {
+  @http.ServerOptions(endpoint_path="/mcp")
 }
 ```
 

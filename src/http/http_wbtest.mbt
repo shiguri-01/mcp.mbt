@@ -72,6 +72,33 @@ test "standard headers must match JSON-RPC body" {
 }
 
 ///|
+test "standard headers reject unsupported protocol version" {
+  let request = post_request(headers={
+    "Accept": "application/json, text/event-stream",
+    "MCP-Protocol-Version": "2024-11-05",
+  })
+  assert_true(
+    validate_post_request(
+      request,
+      @mcp.Client().ping_request(),
+      ServerOptions(),
+      None,
+    ) ==
+    Some("Unsupported MCP protocol version: 2024-11-05"),
+  )
+}
+
+///|
+test "headers are case-insensitive and session IDs must be visible ASCII" {
+  let request = post_request(headers={ "mcp-session-id": "session-123" })
+  assert_true(header(request.headers, "MCP-Session-Id") is Some("session-123"))
+  assert_true(request_context(request).session_id is Some("session-123"))
+  assert_true(visible_ascii("session-123"))
+  assert_true(!visible_ascii("has space"))
+  assert_true(!visible_ascii("日本語"))
+}
+
+///|
 test "session store insert lookup and remove" {
   let store = SessionStore()
   let server = @mcp.Server(name="session-test", version="0.1.0")
@@ -94,6 +121,30 @@ test "client derives request headers" {
   assert_true(headers["Accept"].contains("text/event-stream"))
   assert_eq(headers["Mcp-Method"], "tools/call")
   assert_eq(headers["Mcp-Name"], "echo")
+}
+
+///|
+test "client derives request names for prompt and resource requests" {
+  let client = Client("http://127.0.0.1:8080/mcp")
+  let prompt_headers = client.headers(
+    client.core.get_prompt_request(name="summarize"),
+  )
+  assert_eq(prompt_headers["Mcp-Method"], "prompts/get")
+  assert_eq(prompt_headers["Mcp-Name"], "summarize")
+  let resource_headers = client.headers(
+    client.core.read_resource_request(uri="memory://status"),
+  )
+  assert_eq(resource_headers["Mcp-Method"], "resources/read")
+  assert_eq(resource_headers["Mcp-Name"], "memory://status")
+}
+
+///|
+test "method not found JSON-RPC responses map to HTTP 404" {
+  let (status, reason) = response_status(
+    jsonrpc_error(Json::null(), -32601, "Method not found"),
+  )
+  assert_eq(status, 404)
+  assert_eq(reason, "Not Found")
 }
 
 ///|
