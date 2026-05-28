@@ -118,6 +118,13 @@ test "resource subscription dispatch respects capability and resource existence"
   guard unsupported_result is Err(MethodNotFound("resources/subscribe")) else {
     fail("expected unsupported subscribe method")
   }
+  let unsupported_unsubscribe : Result[Json?, Error] = try? unsupported.dispatch(
+    "resources/unsubscribe",
+    Some(Json::object({ "uri": Json::string("memory://status") })),
+  )
+  guard unsupported_unsubscribe is Err(MethodNotFound("resources/unsubscribe")) else {
+    fail("expected unsupported unsubscribe method")
+  }
   let server = Server(
     name="test-server",
     version="0.1.0",
@@ -131,5 +138,19 @@ test "resource subscription dispatch respects capability and resource existence"
   )
   guard missing is Err(ResourceNotFound("memory://missing")) else {
     fail("expected missing resource error")
+  }
+  let unsubscribe_missing = try! server.dispatch(
+    "resources/unsubscribe",
+    Some(Json::object({ "uri": Json::string("memory://missing") })),
+  )
+  guard unsubscribe_missing is Some(Object(_)) else {
+    fail("expected idempotent unsubscribe result")
+  }
+  let unsubscribe_without_uri : Result[Json?, Error] = try? server.dispatch(
+    "resources/unsubscribe",
+    Some(Json::object({})),
+  )
+  guard unsubscribe_without_uri is Err(InvalidParams(_)) else {
+    fail("expected missing uri error")
   }
 }

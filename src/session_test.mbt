@@ -139,6 +139,13 @@ async test "resource subscriptions gate updated notifications" {
   assert_true(
     server.resource_updated_notification(uri="memory://status") == None,
   )
+  let missing_unsubscribe = server.handle_jsonrpc(
+    client.unsubscribe_resource_request(uri="memory://missing"),
+  )
+  guard missing_unsubscribe is Some(Object({ "result": Object(_), .. })) else {
+    fail("expected idempotent missing unsubscribe result")
+  }
+  assert_true(!server.is_resource_subscribed(uri="memory://missing"))
 }
 
 ///|
