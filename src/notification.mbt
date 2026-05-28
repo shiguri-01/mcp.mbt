@@ -36,6 +36,7 @@ pub fn resources_list_changed_notification() -> Json {
 }
 
 ///|
+/// Build a `notifications/resources/updated` notification for one URI.
 pub fn resource_updated_notification(uri~ : String) -> Json {
   jsonrpc_notification(
     "notifications/resources/updated",

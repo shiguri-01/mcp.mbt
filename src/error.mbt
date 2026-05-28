@@ -4,6 +4,7 @@ pub(all) suberror McpError {
   InvalidRequest(String)
   MethodNotFound(String)
   InvalidParams(String)
+  ResourceNotFound(String)
   InternalError(String)
 } derive(Debug, Eq)
 
@@ -14,6 +15,7 @@ pub fn McpError::code(self : McpError) -> Int {
     InvalidRequest(_) => -32600
     MethodNotFound(_) => -32601
     InvalidParams(_) => -32602
+    ResourceNotFound(_) => -32002
     InternalError(_) => -32603
   }
 }
@@ -25,6 +27,7 @@ pub fn McpError::message(self : McpError) -> String {
     InvalidRequest(message) => message
     MethodNotFound(method_name) => "Method not found: \{method_name}"
     InvalidParams(message) => message
+    ResourceNotFound(uri) => "Resource not found: \{uri}"
     InternalError(message) => message
   }
 }

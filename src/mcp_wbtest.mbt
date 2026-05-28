@@ -15,6 +15,12 @@ fn test_initialize_params() -> Json {
       "name": Json::string("test-client"),
       "version": Json::string("0.1.0"),
       "title": Json::string("Test Client"),
+      "icons": Json::array([
+        Json::object({
+          "src": Json::string("data:image/png;base64,AA=="),
+          "theme": Json::string("dark"),
+        }),
+      ]),
     }),
   })
 }
@@ -31,6 +37,9 @@ test "initialize stores negotiated session metadata and waits for initialized" {
   guard server.client_info() is Some(info) else { fail("expected client info") }
   assert_true(info.name == "test-client")
   assert_true(info.title == Some("Test Client"))
+  guard info.icons is [{ theme: Some(IconTheme::Dark), .. }] else {
+    fail("expected dark icon theme")
+  }
   guard server.client_capabilities() is Some(capabilities) else {
     fail("expected client capabilities")
   }
@@ -104,4 +113,78 @@ test "server capabilities encode known capabilities and extensions" {
   assert_true(tasks.contains("list"))
   assert_true(tasks.contains("cancel"))
   assert_true(fields.contains("x-server"))
+}
+
+///|
+test "initialize rejects invalid icon theme" {
+  let server = Server(name="test-server", version="0.1.0")
+  let params = Json::object({
+    "protocolVersion": Json::string(latest_protocol_version),
+    "capabilities": Json::object({}),
+    "clientInfo": Json::object({
+      "name": Json::string("test-client"),
+      "version": Json::string("0.1.0"),
+      "icons": Json::array([
+        Json::object({
+          "src": Json::string("data:image/png;base64,AA=="),
+          "theme": Json::string("sepia"),
+        }),
+      ]),
+    }),
+  })
+  let result : Result[InitializeResult, Error] = try? server.initialize(
+    Some(params),
+  )
+  guard result is Err(InvalidParams(_)) else {
+    fail("expected invalid icon theme error")
+  }
+}
+
+///|
+test "resource subscription dispatch respects capability and resource existence" {
+  let unsupported = Server(name="test-server", version="0.1.0")
+  ignore(try! unsupported.initialize(Some(test_initialize_params())))
+  try! unsupported.notify_initialized()
+  let unsupported_result : Result[Json?, Error] = try? unsupported.dispatch(
+    "resources/subscribe",
+    Some(Json::object({ "uri": Json::string("memory://status") })),
+  )
+  guard unsupported_result is Err(MethodNotFound("resources/subscribe")) else {
+    fail("expected unsupported subscribe method")
+  }
+  let unsupported_unsubscribe : Result[Json?, Error] = try? unsupported.dispatch(
+    "resources/unsubscribe",
+    Some(Json::object({ "uri": Json::string("memory://status") })),
+  )
+  guard unsupported_unsubscribe is Err(MethodNotFound("resources/unsubscribe")) else {
+    fail("expected unsupported unsubscribe method")
+  }
+  let server = Server(
+    name="test-server",
+    version="0.1.0",
+    capabilities=ServerCapabilities::full(resource_subscribe=true),
+  )
+  ignore(try! server.initialize(Some(test_initialize_params())))
+  try! server.notify_initialized()
+  let missing : Result[Json?, Error] = try? server.dispatch(
+    "resources/subscribe",
+    Some(Json::object({ "uri": Json::string("memory://missing") })),
+  )
+  guard missing is Err(ResourceNotFound("memory://missing")) else {
+    fail("expected missing resource error")
+  }
+  let unsubscribe_missing = try! server.dispatch(
+    "resources/unsubscribe",
+    Some(Json::object({ "uri": Json::string("memory://missing") })),
+  )
+  guard unsubscribe_missing is Some(Object(_)) else {
+    fail("expected idempotent unsubscribe result")
+  }
+  let unsubscribe_without_uri : Result[Json?, Error] = try? server.dispatch(
+    "resources/unsubscribe",
+    Some(Json::object({})),
+  )
+  guard unsubscribe_without_uri is Err(InvalidParams(_)) else {
+    fail("expected missing uri error")
+  }
 }

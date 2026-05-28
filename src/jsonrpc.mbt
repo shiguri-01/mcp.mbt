@@ -60,6 +60,12 @@ fn Server::jsonrpc_endpoint(self : Server) -> @jsonrpc.Endpoint {
   .handle("resources/read", fn(params) -> Json raise @jsonrpc.RpcError {
     dispatch_jsonrpc_result(self, "resources/read", params)
   })
+  .handle("resources/subscribe", fn(params) -> Json raise @jsonrpc.RpcError {
+    dispatch_jsonrpc_result(self, "resources/subscribe", params)
+  })
+  .handle("resources/unsubscribe", fn(params) -> Json raise @jsonrpc.RpcError {
+    dispatch_jsonrpc_result(self, "resources/unsubscribe", params)
+  })
   .handle("prompts/list", fn(params) -> Json raise @jsonrpc.RpcError {
     dispatch_jsonrpc_result(self, "prompts/list", params)
   })
