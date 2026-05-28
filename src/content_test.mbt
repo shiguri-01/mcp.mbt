@@ -48,14 +48,16 @@ test "content blocks encode annotations meta and resources" {
         @mcp.Icon(src="data:image/png;base64,AA==", theme=@mcp.IconTheme::Dark),
       ],
       annotations~,
-      size=2048,
+      size=5000000000L,
       meta=Json::object({ "kind": Json::string("artifact") }),
     ),
   ).to_json()
   guard link is Object(link_fields) else { fail("expected resource link") }
   assert_true(link_fields["type"] == Json::string("resource_link"))
   assert_true(link_fields["uri"] == Json::string("file:///tmp/report.md"))
-  assert_true(link_fields["size"] == Json::number(2048.0, repr="2048"))
+  assert_true(
+    link_fields["size"] == Json::number(5000000000.0, repr="5000000000"),
+  )
   guard link_fields["icons"] is Array([Object(icon)]) else {
     fail("expected icon")
   }
@@ -77,14 +79,16 @@ test "resource descriptors encode annotations icons and size" {
     mime_type="text/markdown",
     icons=[icon],
     annotations~,
-    size=4096,
+    size=5000000000L,
     meta=Json::object({ "owner": Json::string("test") }),
   ).to_json()
   guard resource is Object(resource_fields) else {
     fail("expected resource descriptor")
   }
   assert_true(resource_fields["uri"] == Json::string("memory://report"))
-  assert_true(resource_fields["size"] == Json::number(4096.0, repr="4096"))
+  assert_true(
+    resource_fields["size"] == Json::number(5000000000.0, repr="5000000000"),
+  )
   guard resource_fields["icons"] is Array([Object(resource_icon)]) else {
     fail("expected resource icon")
   }

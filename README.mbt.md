@@ -193,8 +193,8 @@ let link = @mcp.ContentBlock::resource_link(
 )
 ```
 
-`ContentBlock::raw` remains available for future or vendor-specific content
-blocks. Prefer typed constructors when the shape is covered by this package.
+Future content block shapes should be added as typed variants instead of
+passing arbitrary JSON through the content API.
 
 Configure advertised server capabilities with typed values:
 

@@ -136,12 +136,10 @@ pub(all) enum ContentBlock {
   AudioContent(data~ : String, mime_type~ : String, annotations~ : Annotations?, meta~ : Json?)
   EmbeddedResource(resource~ : ResourceContent, annotations~ : Annotations?, meta~ : Json?)
   ResourceLink(ResourceLink)
-  Raw(Json)
 } derive(Eq, @debug.Debug)
 pub fn ContentBlock::audio(data~ : String, mime_type~ : String, annotations? : Annotations, meta? : Json) -> Self
 pub fn ContentBlock::embedded_resource(resource~ : ResourceContent, annotations? : Annotations, meta? : Json) -> Self
 pub fn ContentBlock::image(data~ : String, mime_type~ : String, annotations? : Annotations, meta? : Json) -> Self
-pub fn ContentBlock::raw(Json) -> Self
 pub fn ContentBlock::resource_link(ResourceLink) -> Self
 pub fn ContentBlock::text(String, annotations? : Annotations, meta? : Json) -> Self
 pub impl ToJson for ContentBlock
@@ -275,11 +273,11 @@ pub(all) struct Resource {
   mime_type : String?
   icons : Array[Icon]
   annotations : Annotations?
-  size : Int?
+  size : Int64?
   meta : Json?
 } derive(Eq, @debug.Debug)
-pub fn Resource::Resource(uri~ : String, name~ : String, title? : String, description? : String, mime_type? : String, icons? : Array[Icon], annotations? : Annotations, size? : Int, meta? : Json) -> Self
-pub fn Resource::text(uri~ : String, name~ : String, title? : String, description? : String, mime_type? : String, annotations? : Annotations, size? : Int) -> Self
+pub fn Resource::Resource(uri~ : String, name~ : String, title? : String, description? : String, mime_type? : String, icons? : Array[Icon], annotations? : Annotations, size? : Int64, meta? : Json) -> Self
+pub fn Resource::text(uri~ : String, name~ : String, title? : String, description? : String, mime_type? : String, annotations? : Annotations, size? : Int64) -> Self
 pub impl ToJson for Resource
 
 pub(all) enum ResourceContent {
@@ -298,10 +296,10 @@ pub(all) struct ResourceLink {
   mime_type : String?
   icons : Array[Icon]
   annotations : Annotations?
-  size : Int?
+  size : Int64?
   meta : Json?
 } derive(Eq, @debug.Debug)
-pub fn ResourceLink::ResourceLink(uri~ : String, name~ : String, title? : String, description? : String, mime_type? : String, icons? : Array[Icon], annotations? : Annotations, size? : Int, meta? : Json) -> Self
+pub fn ResourceLink::ResourceLink(uri~ : String, name~ : String, title? : String, description? : String, mime_type? : String, icons? : Array[Icon], annotations? : Annotations, size? : Int64, meta? : Json) -> Self
 pub impl ToJson for ResourceLink
 
 pub(all) struct ResourceTemplate {

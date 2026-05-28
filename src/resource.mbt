@@ -7,7 +7,7 @@ pub(all) struct Resource {
   mime_type : String?
   icons : Array[Icon]
   annotations : Annotations?
-  size : Int?
+  size : Int64?
   meta : Json?
 } derive(Debug, Eq)
 
@@ -20,7 +20,7 @@ pub fn Resource::Resource(
   mime_type? : String,
   icons? : Array[Icon] = [],
   annotations? : Annotations,
-  size? : Int,
+  size? : Int64,
   meta? : Json,
 ) -> Resource {
   { uri, name, title, description, mime_type, icons, annotations, size, meta }
@@ -41,7 +41,7 @@ pub impl ToJson for Resource with fn to_json(self : Resource) -> Json {
   if self.annotations is Some(annotations) {
     fields["annotations"] = annotations.to_json()
   }
-  put_optional_int(fields, "size", self.size)
+  put_optional_int64(fields, "size", self.size)
   put_optional_json(fields, "_meta", self.meta)
   Json::object(fields)
 }
@@ -55,7 +55,7 @@ pub fn Resource::text(
   description? : String,
   mime_type? : String = "text/plain",
   annotations? : Annotations,
-  size? : Int,
+  size? : Int64,
 ) -> Resource {
   {
     uri,

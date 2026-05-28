@@ -57,7 +57,7 @@ pub(all) struct ResourceLink {
   mime_type : String?
   icons : Array[Icon]
   annotations : Annotations?
-  size : Int?
+  size : Int64?
   meta : Json?
 } derive(Debug, Eq)
 
@@ -70,7 +70,7 @@ pub fn ResourceLink::ResourceLink(
   mime_type? : String,
   icons? : Array[Icon] = [],
   annotations? : Annotations,
-  size? : Int,
+  size? : Int64,
   meta? : Json,
 ) -> ResourceLink {
   { uri, name, title, description, mime_type, icons, annotations, size, meta }
@@ -92,7 +92,7 @@ pub impl ToJson for ResourceLink with fn to_json(self : ResourceLink) -> Json {
   if self.annotations is Some(annotations) {
     fields["annotations"] = annotations.to_json()
   }
-  put_optional_int(fields, "size", self.size)
+  put_optional_int64(fields, "size", self.size)
   put_optional_json(fields, "_meta", self.meta)
   Json::object(fields)
 }
@@ -118,7 +118,6 @@ pub(all) enum ContentBlock {
     meta~ : Json?
   )
   ResourceLink(ResourceLink)
-  Raw(Json)
 } derive(Debug, Eq)
 
 ///|
@@ -171,7 +170,6 @@ pub impl ToJson for ContentBlock with fn to_json(self : ContentBlock) -> Json {
       Json::object(fields)
     }
     ResourceLink(resource_link) => resource_link.to_json()
-    Raw(raw) => raw
   }
 }
 
@@ -218,11 +216,6 @@ pub fn ContentBlock::resource_link(
   resource_link : ResourceLink,
 ) -> ContentBlock {
   ResourceLink(resource_link)
-}
-
-///|
-pub fn ContentBlock::raw(raw : Json) -> ContentBlock {
-  Raw(raw)
 }
 
 ///|
