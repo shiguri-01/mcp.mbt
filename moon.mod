@@ -8,9 +8,9 @@ repository = "https://github.com/shiguri-01/mcp.mbt"
 
 license = "Apache-2.0"
 
-keywords = [ "mcp", "json-rpc", "model-context-protocol" ]
+keywords = [ "mcp", "model-context-protocol", "agent", "llm" ]
 
-description = "Model Context Protocol library for MoonBit"
+description = "A library for building Model Context Protocol servers and clients."
 
 import {
   "moonbitlang/async@0.19.1",
