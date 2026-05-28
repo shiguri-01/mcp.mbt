@@ -1,4 +1,9 @@
 ///|
+/// Streamable HTTP client for a single MCP endpoint.
+///
+/// The client stores the `MCP-Session-Id` returned by `initialize` and sends it
+/// on subsequent requests. Call `close_session` when the remote session is no
+/// longer needed.
 pub struct Client {
   priv core : @mcp.Client
   priv endpoint : String
@@ -7,11 +12,14 @@ pub struct Client {
 }
 
 ///|
+/// Create a client for an MCP Streamable HTTP endpoint such as
+/// `http://127.0.0.1:8080/mcp`.
 pub fn Client::Client(endpoint : String) -> Client {
   { core: @mcp.Client(), endpoint, session_id: None, protocol_version: None }
 }
 
 ///|
+/// Return the active `MCP-Session-Id`, if the server has assigned one.
 pub fn Client::session_id(self : Client) -> String? {
   self.session_id
 }
@@ -68,6 +76,7 @@ fn split_endpoint(endpoint : String) -> (String, String) raise @mcp.McpError {
 }
 
 ///|
+/// Send a JSON-RPC request over Streamable HTTP and return the JSON-RPC result.
 pub async fn Client::request(
   self : Client,
   request : Json,
@@ -101,6 +110,7 @@ pub async fn Client::request(
 }
 
 ///|
+/// Send a JSON-RPC notification over Streamable HTTP.
 pub async fn Client::notify(
   self : Client,
   notification : Json,
@@ -121,6 +131,7 @@ pub async fn Client::notify(
 }
 
 ///|
+/// Perform MCP `initialize` and `notifications/initialized`.
 pub async fn Client::initialize(
   self : Client,
   client_name~ : String,
@@ -136,6 +147,7 @@ pub async fn Client::initialize(
 }
 
 ///|
+/// Terminate the current HTTP session with `DELETE`.
 pub async fn Client::close_session(self : Client) -> Unit raise @mcp.McpError {
   let session_id = match self.session_id {
     Some(session_id) => session_id
@@ -160,6 +172,7 @@ pub async fn Client::close_session(self : Client) -> Unit raise @mcp.McpError {
 }
 
 ///|
+/// Request `tools/list`.
 pub async fn Client::list_tools(
   self : Client,
   cursor? : String,
@@ -168,6 +181,7 @@ pub async fn Client::list_tools(
 }
 
 ///|
+/// Request `tools/call`.
 pub async fn Client::call_tool(
   self : Client,
   name~ : String,

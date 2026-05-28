@@ -230,9 +230,13 @@ moon run --target native src/examples/stdio-client
 - `src/examples/stdio-client` spawns that server over stdio and calls tools,
   resources, and prompts through the client transport.
 
-`shiguri-01/mcp/stdio` depends on `moonbitlang/async` and is native-only. On
-Windows, `moonbitlang/async` currently requires an MSVC native toolchain; MinGW
-GCC is not enough.
+`shiguri-01/mcp/stdio` and `shiguri-01/mcp/http` depend on
+`moonbitlang/async` and are native-only. On Windows, `moonbitlang/async`
+currently requires an MSVC native toolchain; MinGW GCC is not enough.
 
-The current transport support is stdio for native target. Streamable HTTP is the
-next transport package to add on top of the same core request/dispatch surface.
+For Streamable HTTP examples, start the server and then run the client:
+
+```bash
+moon run --target native src/examples/http-server
+moon run --target native src/examples/http-client
+```

@@ -12,10 +12,23 @@ and protocol/header validation. Standalone GET SSE streams intentionally return
 `405 Method Not Allowed`; the specification permits this for servers that do not
 offer an SSE stream at the MCP endpoint.
 
-```mbt nocheck
+`serve` receives a factory instead of a shared server instance. Each HTTP
+session owns its own transport-neutral `@mcp.Server`, because MCP lifecycle
+state is per session.
+
+```mbt check
 ///|
-async fn main {
-  let http_server = @async_http.Server(@socket.Addr::parse("127.0.0.1:8080"))
-  @http.serve(http_server, fn() { @mcp.Server(name="example", version="0.1.0") })
+test {
+  let client = @http.Client("http://127.0.0.1:8080/mcp")
+  assert_true(client.session_id() is None)
+  let options = @http.ServerOptions(endpoint_path="/mcp")
+  assert_eq(options.endpoint_path, "/mcp")
 }
+```
+
+Run the included example server and client from the repository root:
+
+```bash
+moon run --target native src/examples/http-server
+moon run --target native src/examples/http-client
 ```

@@ -1,4 +1,5 @@
 ///|
+/// Request metadata passed to `ServerOptions.authenticate`.
 pub(all) struct RequestContext {
   http_method : @async_http.RequestMethod
   path : String
@@ -7,11 +8,17 @@ pub(all) struct RequestContext {
 }
 
 ///|
+/// Configuration for the Streamable HTTP server endpoint.
 pub(all) struct ServerOptions {
+  /// Endpoint path that accepts MCP HTTP requests. Defaults to `/mcp`.
   endpoint_path : String
+  /// Allowed `Origin` values. An empty set rejects any request with `Origin`.
   allowed_origins : Set[String]
+  /// Require `MCP-Session-Id` after initialization. Defaults to `true`.
   require_session : Bool
+  /// Creates visible-ASCII session IDs for successful `initialize` requests.
   session_id_generator : () -> String
+  /// Optional request authentication hook. Return `false` to send `401`.
   authenticate : (RequestContext) -> Bool
 }
 
@@ -21,6 +28,7 @@ fn default_session_id_generator() -> String {
 }
 
 ///|
+/// Create Streamable HTTP server options.
 pub fn ServerOptions::ServerOptions(
   endpoint_path? : String = "/mcp",
   allowed_origins? : Set[String] = Set([]),
