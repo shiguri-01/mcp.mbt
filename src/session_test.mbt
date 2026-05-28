@@ -139,6 +139,23 @@ async test "resource subscriptions gate updated notifications" {
   assert_true(
     server.resource_updated_notification(uri="memory://status") == None,
   )
+  let subscribe_parent = server.handle_jsonrpc(
+    client.subscribe_resource_request(uri="memory://status"),
+  )
+  guard subscribe_parent is Some(Object({ "result": Object(_), .. })) else {
+    fail("expected parent subscribe result")
+  }
+  guard server.resource_updated_notification(uri="memory://status/detail")
+    is Some(
+      Object(
+        {
+          "params": Object({ "uri": String("memory://status/detail"), .. }),
+          ..
+        }
+      )
+    ) else {
+    fail("expected subresource update notification")
+  }
   let missing_unsubscribe = server.handle_jsonrpc(
     client.unsubscribe_resource_request(uri="memory://missing"),
   )

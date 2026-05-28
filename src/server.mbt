@@ -615,12 +615,35 @@ pub fn Server::is_resource_subscribed(self : Server, uri~ : String) -> Bool {
 }
 
 ///|
-/// Build a resource update notification only when the URI is subscribed.
+fn uri_matches_subscription(uri : String, subscription : String) -> Bool {
+  if uri == subscription {
+    true
+  } else if subscription.length() > 0 &&
+    subscription[subscription.length() - 1] == '/' {
+    uri.has_prefix(subscription[:])
+  } else {
+    uri.has_prefix("\{subscription}/"[:])
+  }
+}
+
+///|
+fn Server::is_resource_update_subscribed(self : Server, uri~ : String) -> Bool {
+  for subscription, _ in self.resource_subscriptions {
+    if uri_matches_subscription(uri, subscription) {
+      return true
+    }
+  }
+  false
+}
+
+///|
+/// Build a resource update notification only when the URI or a parent resource
+/// URI is subscribed.
 pub fn Server::resource_updated_notification(
   self : Server,
   uri~ : String,
 ) -> Json? {
-  if self.is_resource_subscribed(uri~) {
+  if self.is_resource_update_subscribed(uri~) {
     Some(resource_updated_notification(uri~))
   } else {
     None

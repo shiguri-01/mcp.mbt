@@ -57,3 +57,22 @@ test "client builds protocol requests" {
     unsubscribe_fields["method"] == Json::string("resources/unsubscribe"),
   )
 }
+
+///|
+async test "client maps resource not found JSON-RPC errors" {
+  let client = @mcp.Client()
+  let request = client.read_resource_request(uri="memory://missing")
+  guard request is Object({ "id": id, .. }) else { fail("expected request id") }
+  let response = Json::object({
+    "jsonrpc": Json::string("2.0"),
+    "id": id,
+    "error": Json::object({
+      "code": Json::number(-32002.0, repr="-32002"),
+      "message": Json::string("Resource not found: memory://missing"),
+    }),
+  })
+  let result : Result[Json?, Error] = try? client.receive_jsonrpc(response)
+  guard result is Err(@mcp.ResourceNotFound("memory://missing")) else {
+    fail("expected resource not found")
+  }
+}
