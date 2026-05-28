@@ -20,15 +20,15 @@ The core package is transport-neutral and targets MCP `2025-11-25`:
   notification builders
 - cursor pagination for list endpoints
 - `FromJson` / `ToJson` tool and prompt handlers
-- raw JSON escape hatches
+- raw JSON escape hatches for low-level server handlers and extension fields
 - JSON-RPC 2.0 request/response envelope helpers
 - native stdio server and client helpers
 
-The public API intentionally keeps a raw `Json` escape hatch. MCP has open
-extension points such as `_meta`, JSON Schema, experimental capabilities, and
-structured content, so the low-level API accepts JSON directly. The high-level
-tool API uses MoonBit's `FromJson` and `ToJson` traits for normal typed
-handlers.
+The public API intentionally keeps raw `Json` at MCP extension points such as
+`_meta`, JSON Schema, experimental capabilities, and low-level server handlers.
+Content blocks and known capabilities are modeled as typed MoonBit values. The
+high-level tool API uses MoonBit's `FromJson` and `ToJson` traits for normal
+typed handlers.
 
 MCP capabilities are typed. Known `2025-11-25` client and server capabilities
 have dedicated MoonBit structs, while unknown extension capabilities are kept in
@@ -188,7 +188,7 @@ let link = @mcp.ContentBlock::resource_link(
     name="report",
     title="Report",
     mime_type="text/markdown",
-    size=2048,
+    size=2048L,
   ),
 )
 ```

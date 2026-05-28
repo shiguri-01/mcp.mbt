@@ -49,6 +49,10 @@ pub impl ToJson for Annotations with fn to_json(self : Annotations) -> Json {
 }
 
 ///|
+/// A link to a readable resource returned as content.
+///
+/// `size`, when known, is the raw resource byte length before base64 encoding
+/// or tokenization.
 pub(all) struct ResourceLink {
   uri : String
   name : String
@@ -98,6 +102,10 @@ pub impl ToJson for ResourceLink with fn to_json(self : ResourceLink) -> Json {
 }
 
 ///|
+/// Content payload accepted by MCP prompts and tool results.
+///
+/// This enum intentionally tracks the official content union instead of
+/// accepting arbitrary JSON. Add new protocol variants here as typed cases.
 pub(all) enum ContentBlock {
   TextContent(text~ : String, annotations~ : Annotations?, meta~ : Json?)
   ImageContent(
@@ -174,6 +182,7 @@ pub impl ToJson for ContentBlock with fn to_json(self : ContentBlock) -> Json {
 }
 
 ///|
+/// Construct a text content block.
 pub fn ContentBlock::text(
   text : String,
   annotations? : Annotations,
@@ -183,6 +192,7 @@ pub fn ContentBlock::text(
 }
 
 ///|
+/// Construct an image content block from base64-encoded data.
 pub fn ContentBlock::image(
   data~ : String,
   mime_type~ : String,
@@ -193,6 +203,7 @@ pub fn ContentBlock::image(
 }
 
 ///|
+/// Construct an audio content block from base64-encoded data.
 pub fn ContentBlock::audio(
   data~ : String,
   mime_type~ : String,
@@ -203,6 +214,7 @@ pub fn ContentBlock::audio(
 }
 
 ///|
+/// Construct a content block that embeds resource contents inline.
 pub fn ContentBlock::embedded_resource(
   resource~ : ResourceContent,
   annotations? : Annotations,
@@ -212,6 +224,7 @@ pub fn ContentBlock::embedded_resource(
 }
 
 ///|
+/// Construct a content block that links to a readable resource.
 pub fn ContentBlock::resource_link(
   resource_link : ResourceLink,
 ) -> ContentBlock {

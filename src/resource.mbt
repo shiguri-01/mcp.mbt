@@ -1,4 +1,8 @@
 ///|
+/// A resource descriptor advertised by `resources/list`.
+///
+/// `size`, when known, is the raw resource byte length before base64 encoding
+/// or tokenization.
 pub(all) struct Resource {
   uri : String
   name : String
@@ -12,6 +16,7 @@ pub(all) struct Resource {
 } derive(Debug, Eq)
 
 ///|
+/// Construct a resource descriptor.
 pub fn Resource::Resource(
   uri~ : String,
   name~ : String,
@@ -125,6 +130,7 @@ pub impl ToJson for ResourceTemplate with fn to_json(self : ResourceTemplate) ->
 }
 
 ///|
+/// Resource contents returned by `resources/read`.
 pub(all) enum ResourceContent {
   ResourceText(
     uri~ : String,
@@ -161,6 +167,7 @@ pub impl ToJson for ResourceContent with fn to_json(self : ResourceContent) -> J
 }
 
 ///|
+/// Construct text resource contents.
 pub fn ResourceContent::text(
   uri~ : String,
   text~ : String,
@@ -171,6 +178,7 @@ pub fn ResourceContent::text(
 }
 
 ///|
+/// Construct blob resource contents from base64-encoded data.
 pub fn ResourceContent::blob(
   uri~ : String,
   blob~ : String,
