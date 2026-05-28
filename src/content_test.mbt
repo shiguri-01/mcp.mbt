@@ -61,3 +61,67 @@ test "content blocks encode annotations meta and resources" {
   }
   assert_true(icon["theme"] == Json::string("dark"))
 }
+
+///|
+test "resource descriptors encode annotations icons and size" {
+  let annotations = @mcp.Annotations(audience=[@mcp.Role::Assistant])
+  let icon = @mcp.Icon(
+    src="data:image/svg+xml;base64,AA==",
+    theme=@mcp.IconTheme::Light,
+  )
+  let resource = @mcp.Resource(
+    uri="memory://report",
+    name="report",
+    title="Report",
+    description="Generated report",
+    mime_type="text/markdown",
+    icons=[icon],
+    annotations~,
+    size=4096,
+    meta=Json::object({ "owner": Json::string("test") }),
+  ).to_json()
+  guard resource is Object(resource_fields) else {
+    fail("expected resource descriptor")
+  }
+  assert_true(resource_fields["uri"] == Json::string("memory://report"))
+  assert_true(resource_fields["size"] == Json::number(4096.0, repr="4096"))
+  guard resource_fields["icons"] is Array([Object(resource_icon)]) else {
+    fail("expected resource icon")
+  }
+  assert_true(resource_icon["theme"] == Json::string("light"))
+  guard resource_fields["annotations"] is Object(resource_annotations) else {
+    fail("expected resource annotations")
+  }
+  assert_true(resource_annotations.contains("audience"))
+  assert_true(
+    resource_fields["_meta"] == Json::object({ "owner": Json::string("test") }),
+  )
+
+  let template = @mcp.ResourceTemplate(
+    uri_template="memory://reports/{id}",
+    name="report-template",
+    title="Report template",
+    description="Reports by id",
+    mime_type="text/markdown",
+    icons=[icon],
+    annotations~,
+    meta=Json::object({ "templated": Json::boolean(true) }),
+  ).to_json()
+  guard template is Object(template_fields) else {
+    fail("expected resource template")
+  }
+  assert_true(
+    template_fields["uriTemplate"] == Json::string("memory://reports/{id}"),
+  )
+  guard template_fields["icons"] is Array([Object(template_icon)]) else {
+    fail("expected template icon")
+  }
+  assert_true(template_icon["theme"] == Json::string("light"))
+  guard template_fields["annotations"] is Object(_) else {
+    fail("expected template annotations")
+  }
+  assert_true(
+    template_fields["_meta"] ==
+    Json::object({ "templated": Json::boolean(true) }),
+  )
+}
