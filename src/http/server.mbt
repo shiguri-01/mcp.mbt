@@ -70,6 +70,20 @@ fn origin_allowed(headers : Map[String, String], allowed : Set[String]) -> Bool 
 }
 
 ///|
+fn common_request_error(
+  request : @async_http.Request,
+  options : ServerOptions,
+) -> String? {
+  if !origin_allowed(request.headers, options.allowed_origins) {
+    return Some("Origin is not allowed")
+  }
+  if !(options.authenticate)(request_context(request)) {
+    return Some("Unauthorized")
+  }
+  None
+}
+
+///|
 fn response_protocol_version(
   server : @mcp.Server,
   fallback : String?,
@@ -123,9 +137,6 @@ fn validate_post_request(
   if validate_standard_headers(request, message, protocol_version?)
     is Some(error) {
     return Some(error)
-  }
-  if !origin_allowed(request.headers, options.allowed_origins) {
-    return Some("Origin is not allowed")
   }
   None
 }
@@ -184,10 +195,6 @@ async fn handle_post(
     let status = if error == "Origin is not allowed" { 403 } else { 400 }
     let reason = if status == 403 { "Forbidden" } else { "Bad Request" }
     send_http_error(conn, status, reason, error)
-    return
-  }
-  if !(options.authenticate)(request_context(request)) {
-    send_empty(conn, 401, "Unauthorized")
     return
   }
   if is_jsonrpc_notification(message) || is_jsonrpc_response(message) {
@@ -249,6 +256,14 @@ async fn handle_request(
 ) -> Unit {
   guard request.path == options.endpoint_path else {
     send_empty(conn, 404, "Not Found")
+    return
+  }
+  if common_request_error(request, options) is Some(error) {
+    if error == "Origin is not allowed" {
+      send_http_error(conn, 403, "Forbidden", error)
+    } else {
+      send_empty(conn, 401, "Unauthorized")
+    }
     return
   }
   match request.meth {

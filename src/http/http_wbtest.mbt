@@ -60,7 +60,7 @@ test "Origin header requires configured allow list" {
     "Origin": "https://evil.example",
   })
   assert_true(
-    validate_post_request(rejected, initialize_message(), ServerOptions(), None) ==
+    common_request_error(rejected, ServerOptions()) ==
     Some("Origin is not allowed"),
   )
   let allowed = post_request(headers={
@@ -68,14 +68,23 @@ test "Origin header requires configured allow list" {
     "Origin": "https://client.example",
   })
   assert_true(
-    validate_post_request(
+    common_request_error(
       allowed,
-      initialize_message(),
       ServerOptions(allowed_origins=Set::from_array(["https://client.example"])),
-      None,
     ) ==
     None,
   )
+}
+
+///|
+test "common request validation applies auth to non-POST methods" {
+  let delete = { meth: Delete, path: "/mcp", headers: {} }
+  let rejected = ServerOptions(authenticate=fn(context) {
+    context.http_method != Delete
+  })
+  assert_true(common_request_error(delete, rejected) == Some("Unauthorized"))
+  let get = { meth: Get, path: "/mcp", headers: {} }
+  assert_true(common_request_error(get, ServerOptions()) == None)
 }
 
 ///|
@@ -196,6 +205,22 @@ test "HTTP JSON-RPC errors preserve MCP error category" {
     jsonrpc_error(Json::null(), -32601, "missing").stringify(),
   )
   assert_true(not_found is @mcp.MethodNotFound("missing"))
+}
+
+///|
+test "client parses JSON-RPC response from event stream body" {
+  let message = parse_http_message(
+    {
+      code: 200,
+      reason: "OK",
+      headers: { "Content-Type": "text/event-stream; charset=utf-8" },
+      cookies: [],
+    },
+    "event: message\ndata: {\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{}}\n\n",
+  )
+  guard message is Object({ "result": Object(_), .. }) else {
+    fail("expected JSON-RPC message")
+  }
 }
 
 ///|

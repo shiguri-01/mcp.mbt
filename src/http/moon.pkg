@@ -4,6 +4,7 @@ import {
   "moonbitlang/async/io",
   "moonbitlang/core/encoding/utf8",
   "moonbitlang/core/json",
+  "moonbitlang/core/random",
   "shiguri-01/mcp",
 }
 

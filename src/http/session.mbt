@@ -24,7 +24,8 @@ pub(all) struct ServerOptions {
 
 ///|
 fn default_session_id_generator() -> String {
-  "mcp-\{@async.now()}"
+  let rand = @random.Rand::new()
+  "mcp-\{@async.now()}-\{rand.uint64()}"
 }
 
 ///|
