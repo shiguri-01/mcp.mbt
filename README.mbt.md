@@ -25,6 +25,7 @@ The core package is transport-neutral and targets MCP `2025-11-25`:
 - raw JSON escape hatches for low-level server handlers and extension fields
 - JSON-RPC 2.0 request/response envelope helpers
 - native stdio server and client helpers
+- native Streamable HTTP server and client helpers
 
 The public API intentionally keeps raw `Json` at MCP extension points such as
 `_meta`, JSON Schema, experimental capabilities, and low-level server handlers.
@@ -82,9 +83,19 @@ without changing the core server API.
   typed tool inputs.
 - `shiguri-01/mcp/stdio` is the native stdio transport package. It depends on
   `moonbitlang/async`, process pipes, and the native backend.
+- `shiguri-01/mcp/http` is the native Streamable HTTP transport package. It
+  implements POST-based JSON-RPC exchange, `MCP-Session-Id` session management,
+  `DELETE` session termination, Origin checks, and HTTP header validation per
+  the 2025-11-25 transport specification:
+  <https://modelcontextprotocol.io/specification/2025-11-25/basic/transports>.
+  Standalone GET SSE streams currently return `405 Method Not Allowed`.
 - `shiguri-01/mcp/examples/stdio-server` and
   `shiguri-01/mcp/examples/stdio-client` are runnable examples. They exercise a
   real MCP stdio session instead of printing mock output.
+- `shiguri-01/mcp/examples/http-server` and
+  `shiguri-01/mcp/examples/http-client` are runnable Streamable HTTP examples.
+  Start the server first, then run the client against
+  `http://127.0.0.1:8080/mcp`.
 
 ## Server API
 
@@ -261,9 +272,13 @@ moon run --target native src/examples/stdio-client
 - `src/examples/stdio-client` spawns that server over stdio and calls tools,
   resources, and prompts through the client transport.
 
-`shiguri-01/mcp/stdio` depends on `moonbitlang/async` and is native-only. On
-Windows, `moonbitlang/async` currently requires an MSVC native toolchain; MinGW
-GCC is not enough.
+`shiguri-01/mcp/stdio` and `shiguri-01/mcp/http` depend on
+`moonbitlang/async` and are native-only. On Windows, `moonbitlang/async`
+currently requires an MSVC native toolchain; MinGW GCC is not enough.
 
-The current transport support is stdio for native target. Streamable HTTP is the
-next transport package to add on top of the same core request/dispatch surface.
+For Streamable HTTP examples, start the server and then run the client:
+
+```bash
+moon run --target native src/examples/http-server
+moon run --target native src/examples/http-client
+```

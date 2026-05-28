@@ -212,17 +212,14 @@ pub fn Client::complete_request(
       "value": Json::string(argument_value),
     }),
   }
-  match context_arguments {
-    Some(arguments) => {
-      let argument_fields : Map[String, Json] = {}
-      for key, value in arguments {
-        argument_fields[key] = Json::string(value)
-      }
-      params["context"] = Json::object({
-        "arguments": Json::object(argument_fields),
-      })
+  if context_arguments is Some(arguments) {
+    let argument_fields : Map[String, Json] = {}
+    for key, value in arguments {
+      argument_fields[key] = Json::string(value)
     }
-    None => ()
+    params["context"] = Json::object({
+      "arguments": Json::object(argument_fields),
+    })
   }
   self.jsonrpc_request("completion/complete", params=Json::object(params))
 }
