@@ -10,6 +10,8 @@ The core package is transport-neutral and targets MCP `2025-11-25`:
 - `tools/call`
 - `resources/list`
 - `resources/read`
+- `resources/subscribe`
+- `resources/unsubscribe`
 - `resources/templates/list`
 - `prompts/list`
 - `prompts/get`
@@ -182,6 +184,12 @@ let server = @mcp.Server(
   ),
 )
 ```
+
+Resource subscriptions are enabled by advertising
+`ResourcesCapability(subscribe=true)`. The server tracks subscribed resource
+URIs and can gate update notifications through
+`server.resource_updated_notification(uri=...)`, which returns `Some(Json)`
+only for currently subscribed resources.
 
 `handle_jsonrpc` is a lower-level dispatch hook for transports and tests.
 Application code should normally talk through a transport such as

@@ -33,6 +33,14 @@ fn rpc_error_to_mcp_error(error : @jsonrpc.RpcError) -> McpError {
     @jsonrpc.INVALID_REQUEST_CODE => InvalidRequest(message)
     @jsonrpc.METHOD_NOT_FOUND_CODE => MethodNotFound(message)
     @jsonrpc.INVALID_PARAMS_CODE => InvalidParams(message)
+    -32002 => {
+      let prefix = "Resource not found: "
+      if message.has_prefix(prefix[:]) {
+        ResourceNotFound(message[prefix.length():].to_owned())
+      } else {
+        ResourceNotFound(message)
+      }
+    }
     @jsonrpc.INTERNAL_ERROR_CODE => InternalError(message)
     _ => InternalError(message)
   }
@@ -145,6 +153,27 @@ pub fn Client::list_resource_templates_request(
 pub fn Client::read_resource_request(self : Client, uri~ : String) -> Json {
   self.jsonrpc_request(
     "resources/read",
+    params=Json::object({ "uri": Json::string(uri) }),
+  )
+}
+
+///|
+/// Build a `resources/subscribe` request for one resource URI.
+pub fn Client::subscribe_resource_request(self : Client, uri~ : String) -> Json {
+  self.jsonrpc_request(
+    "resources/subscribe",
+    params=Json::object({ "uri": Json::string(uri) }),
+  )
+}
+
+///|
+/// Build a `resources/unsubscribe` request for one resource URI.
+pub fn Client::unsubscribe_resource_request(
+  self : Client,
+  uri~ : String,
+) -> Json {
+  self.jsonrpc_request(
+    "resources/unsubscribe",
     params=Json::object({ "uri": Json::string(uri) }),
   )
 }

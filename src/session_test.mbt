@@ -91,6 +91,81 @@ async test "resource templates are listable" {
 }
 
 ///|
+async test "resource subscriptions gate updated notifications" {
+  let server = @mcp.Server(
+    name="test-server",
+    version="0.1.0",
+    capabilities=ServerCapabilities::full(resource_subscribe=true),
+  )
+  try! server.resource(
+    uri="memory://status",
+    name="status",
+    mime_type="text/plain",
+    fn(uri) {
+      @mcp.ReadResourceResult::text(uri~, text="ready", mime_type="text/plain")
+    },
+  )
+  initialize_server(server)
+  assert_true(
+    server.resource_updated_notification(uri="memory://status") == None,
+  )
+  let client = @mcp.Client()
+  let subscribe = server.handle_jsonrpc(
+    client.subscribe_resource_request(uri="memory://status"),
+  )
+  guard subscribe is Some(Object({ "result": Object(_), .. })) else {
+    fail("expected subscribe result")
+  }
+  assert_true(server.is_resource_subscribed(uri="memory://status"))
+  guard server.resource_updated_notification(uri="memory://status")
+    is Some(
+      Object(
+        {
+          "method": String("notifications/resources/updated"),
+          "params": Object({ "uri": String("memory://status"), .. }),
+          ..
+        }
+      )
+    ) else {
+    fail("expected subscribed update notification")
+  }
+  let unsubscribe = server.handle_jsonrpc(
+    client.unsubscribe_resource_request(uri="memory://status"),
+  )
+  guard unsubscribe is Some(Object({ "result": Object(_), .. })) else {
+    fail("expected unsubscribe result")
+  }
+  assert_true(!server.is_resource_subscribed(uri="memory://status"))
+  assert_true(
+    server.resource_updated_notification(uri="memory://status") == None,
+  )
+  let subscribe_parent = server.handle_jsonrpc(
+    client.subscribe_resource_request(uri="memory://status"),
+  )
+  guard subscribe_parent is Some(Object({ "result": Object(_), .. })) else {
+    fail("expected parent subscribe result")
+  }
+  guard server.resource_updated_notification(uri="memory://status/detail")
+    is Some(
+      Object(
+        {
+          "params": Object({ "uri": String("memory://status/detail"), .. }),
+          ..
+        }
+      )
+    ) else {
+    fail("expected subresource update notification")
+  }
+  let missing_unsubscribe = server.handle_jsonrpc(
+    client.unsubscribe_resource_request(uri="memory://missing"),
+  )
+  guard missing_unsubscribe is Some(Object({ "result": Object(_), .. })) else {
+    fail("expected idempotent missing unsubscribe result")
+  }
+  assert_true(!server.is_resource_subscribed(uri="memory://missing"))
+}
+
+///|
 async test "completion handlers are dispatchable" {
   let server = @mcp.Server(name="test-server", version="0.1.0")
   try! server.completion(reference=@mcp.PromptRef(name="summarize"), fn(

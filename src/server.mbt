@@ -59,6 +59,7 @@ pub struct Server {
   priv mut client_info : Implementation?
   priv tools : Map[String, RegisteredTool]
   priv resources : Map[String, RegisteredResource]
+  priv resource_subscriptions : Map[String, Bool]
   priv resource_templates : Map[String, RegisteredResourceTemplate]
   priv prompts : Map[String, RegisteredPrompt]
   priv completions : Map[String, CompletionHandler]
@@ -94,6 +95,7 @@ pub fn Server::Server(
     client_info: None,
     tools: {},
     resources: {},
+    resource_subscriptions: {},
     resource_templates: {},
     prompts: {},
     completions: {},
@@ -550,7 +552,101 @@ fn Server::read_resource(
   let uri = get_string(fields, "uri", "resources/read params")
   match self.resources.get(uri) {
     Some(registered) => (registered.handler)(uri)
-    None => raise InvalidParams("unknown resource: \{uri}")
+    None => raise ResourceNotFound(uri)
+  }
+}
+
+///|
+fn Server::resource_subscribe_supported(self : Server) -> Bool {
+  if self.capabilities.resources is Some(resources) {
+    resources.subscribe == Some(true)
+  } else {
+    false
+  }
+}
+
+///|
+fn parse_resource_uri_params(
+  params : Json?,
+  context : String,
+) -> String raise McpError {
+  let value = match params {
+    Some(value) => value
+    None => raise InvalidParams("\{context} params are required")
+  }
+  get_string(
+    expect_object(value, "\{context} params"),
+    "uri",
+    "\{context} params",
+  )
+}
+
+///|
+fn Server::subscribe_resource(
+  self : Server,
+  params : Json?,
+) -> Unit raise McpError {
+  if !self.resource_subscribe_supported() {
+    raise MethodNotFound("resources/subscribe")
+  }
+  let uri = parse_resource_uri_params(params, "resources/subscribe")
+  if !self.resources.contains(uri) {
+    raise ResourceNotFound(uri)
+  }
+  self.resource_subscriptions[uri] = true
+}
+
+///|
+fn Server::unsubscribe_resource(
+  self : Server,
+  params : Json?,
+) -> Unit raise McpError {
+  if !self.resource_subscribe_supported() {
+    raise MethodNotFound("resources/unsubscribe")
+  }
+  let uri = parse_resource_uri_params(params, "resources/unsubscribe")
+  self.resource_subscriptions.remove(uri)
+}
+
+///|
+/// Return whether the client is currently subscribed to a resource URI.
+pub fn Server::is_resource_subscribed(self : Server, uri~ : String) -> Bool {
+  self.resource_subscriptions.contains(uri)
+}
+
+///|
+fn uri_matches_subscription(uri : String, subscription : String) -> Bool {
+  if uri == subscription {
+    true
+  } else if subscription.length() > 0 &&
+    subscription[subscription.length() - 1] == '/' {
+    uri.has_prefix(subscription[:])
+  } else {
+    uri.has_prefix("\{subscription}/"[:])
+  }
+}
+
+///|
+fn Server::is_resource_update_subscribed(self : Server, uri~ : String) -> Bool {
+  for subscription, _ in self.resource_subscriptions {
+    if uri_matches_subscription(uri, subscription) {
+      return true
+    }
+  }
+  false
+}
+
+///|
+/// Build a resource update notification only when the URI or a parent resource
+/// URI is subscribed.
+pub fn Server::resource_updated_notification(
+  self : Server,
+  uri~ : String,
+) -> Json? {
+  if self.is_resource_update_subscribed(uri~) {
+    Some(resource_updated_notification(uri~))
+  } else {
+    None
   }
 }
 
@@ -723,6 +819,14 @@ fn Server::dispatch(
     "resources/list" => Some(self.list_resources(params))
     "resources/templates/list" => Some(self.list_resource_templates(params))
     "resources/read" => Some(self.read_resource(params).to_json())
+    "resources/subscribe" => {
+      self.subscribe_resource(params)
+      Some(empty_result())
+    }
+    "resources/unsubscribe" => {
+      self.unsubscribe_resource(params)
+      Some(empty_result())
+    }
     "prompts/list" => Some(self.list_prompts(params))
     "prompts/get" => Some(self.get_prompt(params))
     "completion/complete" => Some(self.complete(params).to_json())

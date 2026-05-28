@@ -34,6 +34,7 @@ pub(all) suberror McpError {
   InvalidRequest(String)
   MethodNotFound(String)
   InvalidParams(String)
+  ResourceNotFound(String)
   InternalError(String)
 } derive(Eq, @debug.Debug)
 pub fn McpError::code(Self) -> Int
@@ -71,6 +72,8 @@ pub fn Client::ping_request(Self) -> Json
 pub fn Client::read_resource_request(Self, uri~ : String) -> Json
 pub async fn Client::receive_jsonrpc(Self, Json) -> Json? raise McpError
 pub fn Client::set_logging_level_request(Self, level~ : LoggingLevel) -> Json
+pub fn Client::subscribe_resource_request(Self, uri~ : String) -> Json
+pub fn Client::unsubscribe_resource_request(Self, uri~ : String) -> Json
 
 pub(all) struct ClientCapabilities {
   roots : RootsCapability?
@@ -302,6 +305,7 @@ pub fn Server::completion(Self, reference~ : CompletionReference, (CompletionReq
 pub async fn Server::handle_jsonrpc(Self, Json) -> Json?
 pub fn Server::initialize(Self, Json?) -> InitializeResult raise McpError
 pub fn Server::is_initialized(Self) -> Bool
+pub fn Server::is_resource_subscribed(Self, uri~ : String) -> Bool
 pub fn Server::json_tool(Self, name~ : String, title? : String, description? : String, input_schema? : Json, output_schema? : Json, annotations? : ToolAnnotations, (Json?) -> CallToolResult raise McpError) -> Unit raise McpError
 pub fn Server::logging_level(Self) -> LoggingLevel
 pub fn Server::negotiated_protocol_version(Self) -> String?
@@ -309,6 +313,7 @@ pub fn Server::notify_initialized(Self) -> Unit raise McpError
 pub fn[A : @json.FromJson + PromptArguments] Server::prompt(Self, name~ : String, title? : String, description? : String, arguments? : Array[PromptArgument], (A) -> GetPromptResult raise McpError) -> Unit raise McpError
 pub fn Server::resource(Self, uri~ : String, name? : String, title? : String, description? : String, mime_type? : String, (String) -> ReadResourceResult raise McpError) -> Unit raise McpError
 pub fn Server::resource_template(Self, uri_template~ : String, name? : String, title? : String, description? : String, mime_type? : String) -> Unit raise McpError
+pub fn Server::resource_updated_notification(Self, uri~ : String) -> Json?
 pub fn Server::string_prompt(Self, name~ : String, title? : String, description? : String, arguments? : Array[PromptArgument], (Map[String, String]) -> GetPromptResult raise McpError) -> Unit raise McpError
 pub fn[A : @json.FromJson + @schema.JsonSchema] Server::tool(Self, name~ : String, title? : String, description? : String, input_schema? : Json, output_schema? : Json, annotations? : ToolAnnotations, (A) -> CallToolResult raise McpError) -> Unit raise McpError
 
