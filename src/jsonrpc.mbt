@@ -1,6 +1,14 @@
 ///|
 fn McpError::to_rpc_error(self : McpError) -> @jsonrpc.RpcError {
-  @jsonrpc.RpcError(code=self.code(), message=self.message())
+  match self {
+    ResourceNotFound(uri) =>
+      @jsonrpc.RpcErrorWithData(
+        code=self.code(),
+        message=self.message(),
+        data=Json::object({ "uri": Json::string(uri) }),
+      )
+    _ => @jsonrpc.RpcError(code=self.code(), message=self.message())
+  }
 }
 
 ///|

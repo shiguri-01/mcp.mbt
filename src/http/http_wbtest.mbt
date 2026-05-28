@@ -205,21 +205,48 @@ test "HTTP JSON-RPC errors preserve MCP error category" {
     jsonrpc_error(Json::null(), -32601, "missing").stringify(),
   )
   assert_true(not_found is @mcp.MethodNotFound("missing"))
+  let resource_not_found = http_error_to_mcp(
+    { code: 404, reason: "Not Found", headers: {}, cookies: [] },
+    Json::object({
+      "jsonrpc": Json::string("2.0"),
+      "id": Json::null(),
+      "error": Json::object({
+        "code": Json::number(-32002.0, repr="-32002"),
+        "message": Json::string("Resource not found"),
+        "data": Json::object({ "uri": Json::string("memory://missing") }),
+      }),
+    }).stringify(),
+  )
+  assert_true(resource_not_found is @mcp.ResourceNotFound("memory://missing"))
 }
 
 ///|
-test "client parses JSON-RPC response from event stream body" {
-  let message = parse_http_message(
+test "client parses JSON-RPC responses from event stream body" {
+  let messages = parse_http_messages(
     {
       code: 200,
       reason: "OK",
       headers: { "Content-Type": "text/event-stream; charset=utf-8" },
       cookies: [],
     },
-    "event: message\ndata: {\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{}}\n\n",
+    (
+      #|event: prime
+      #|data:
+      #|
+      #|event: message
+      #|data: {"jsonrpc":"2.0","method":"notifications/progress","params":{"progressToken":1,"progress":0.5}}
+      #|
+      #|event: message
+      #|data: {"jsonrpc":"2.0","id":1,"result":{}}
+      #|
+    ),
   )
-  guard message is Object({ "result": Object(_), .. }) else {
-    fail("expected JSON-RPC message")
+  guard messages
+    is [
+      Object({ "method": String("notifications/progress"), .. }),
+      Object({ "result": Object(_), .. }),
+    ] else {
+    fail("expected notification then response")
   }
 }
 

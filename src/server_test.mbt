@@ -69,6 +69,32 @@ async test "normal requests require initialized notification" {
 }
 
 ///|
+async test "resource not found errors use MCP resource error shape" {
+  let server = @mcp.Server(name="test-server", version="0.1.0")
+  let client = @mcp.Client()
+  ignore(
+    server.handle_jsonrpc(
+      client.initialize_request(
+        client_name="test-client",
+        client_version="0.1.0",
+      ),
+    ),
+  )
+  ignore(server.handle_jsonrpc(client.initialized_notification()))
+  let response = server.handle_jsonrpc(
+    client.read_resource_request(uri="memory://missing"),
+  )
+  guard response is Some(Object({ "error": Object(error), .. })) else {
+    fail("expected resource error")
+  }
+  assert_true(error["code"] == Json::number(-32002.0, repr="-32002"))
+  assert_true(error["message"] == Json::string("Resource not found"))
+  assert_true(
+    error["data"] == Json::object({ "uri": Json::string("memory://missing") }),
+  )
+}
+
+///|
 async test "initialize negotiates unsupported protocol version to server latest" {
   let server = @mcp.Server(
     name="test-server",

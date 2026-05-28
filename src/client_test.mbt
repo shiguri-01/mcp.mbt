@@ -68,7 +68,8 @@ async test "client maps resource not found JSON-RPC errors" {
     "id": id,
     "error": Json::object({
       "code": Json::number(-32002.0, repr="-32002"),
-      "message": Json::string("Resource not found: memory://missing"),
+      "message": Json::string("Resource not found"),
+      "data": Json::object({ "uri": Json::string("memory://missing") }),
     }),
   })
   let result : Result[Json?, Error] = try? client.receive_jsonrpc(response)

@@ -60,6 +60,18 @@ fn http_error_to_mcp(
         Some(-32600.0) => @mcp.InvalidRequest(message)
         Some(-32601.0) => @mcp.MethodNotFound(message)
         Some(-32602.0) => @mcp.InvalidParams(message)
+        Some(-32002.0) =>
+          match parsed {
+            Object(
+              {
+                "error": Object(
+                  { "data": Object({ "uri": String(uri), .. }), .. }
+                ),
+                ..
+              }
+            ) => @mcp.ResourceNotFound(uri)
+            _ => @mcp.ResourceNotFound(message)
+          }
         Some(-32603.0) => @mcp.InternalError(message)
         _ => @mcp.InternalError(message)
       }
@@ -68,39 +80,63 @@ fn http_error_to_mcp(
 }
 
 ///|
-fn parse_event_stream_message(body : String) -> Json raise @mcp.McpError {
+fn parse_event_stream_messages(
+  body : String,
+) -> Array[Json] raise @mcp.McpError {
+  let messages : Array[Json] = []
   let mut data_lines : Array[String] = []
   for raw_line in body.split("\n") {
     let line = raw_line.trim_end(chars="\r")
-    if line == "" && !data_lines.is_empty() {
-      break
+    if line == "" {
+      if !data_lines.is_empty() {
+        let data = data_lines.join("\n")
+        data_lines = []
+        if data != "" {
+          messages.push(
+            @json.parse(data) catch {
+              error => raise @mcp.ParseError(error.to_string())
+            },
+          )
+        }
+      }
+      continue
     }
     if line.has_prefix("data:"[:]) {
       let value = try! line[5:]
       let value = if value.has_prefix(" "[:]) { try! value[1:] } else { value }
-      data_lines.push(value.to_string())
+      data_lines.push(value.to_owned())
     }
   }
-  if data_lines.is_empty() {
+  if !data_lines.is_empty() {
+    let data = data_lines.join("\n")
+    if data != "" {
+      messages.push(
+        @json.parse(data) catch {
+          error => raise @mcp.ParseError(error.to_string())
+        },
+      )
+    }
+  }
+  if messages.is_empty() {
     raise @mcp.InvalidRequest("HTTP event stream contained no data event")
   }
-  @json.parse(data_lines.join("\n")) catch {
-    error => raise @mcp.ParseError(error.to_string())
-  }
+  messages
 }
 
 ///|
-fn parse_http_message(
+fn parse_http_messages(
   response : @async_http.Response,
   body : String,
-) -> Json raise @mcp.McpError {
+) -> Array[Json] raise @mcp.McpError {
   match header(response.headers, "Content-Type") {
     Some(content_type) if has_media_type(content_type, "text/event-stream") =>
-      parse_event_stream_message(body)
+      parse_event_stream_messages(body)
     _ =>
-      @json.parse(body) catch {
-        error => raise @mcp.ParseError(error.to_string())
-      }
+      [
+        @json.parse(body) catch {
+          error => raise @mcp.ParseError(error.to_string())
+        },
+      ]
   }
 }
 
@@ -141,14 +177,13 @@ pub async fn Client::request(
   if response.headers.get("mcp-session-id") is Some(session_id) {
     self.session_id = Some(session_id)
   }
-  let message = parse_http_message(response, body)
-  match self.core.receive_jsonrpc(message) {
-    Some(result) => result
-    None =>
-      raise @mcp.InvalidRequest(
-        "HTTP request did not return a JSON-RPC response",
-      )
+  for message in parse_http_messages(response, body) {
+    match self.core.receive_jsonrpc(message) {
+      Some(result) => return result
+      None => ()
+    }
   }
+  raise @mcp.InvalidRequest("HTTP request did not return a JSON-RPC response")
 }
 
 ///|

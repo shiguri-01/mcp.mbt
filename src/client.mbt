@@ -28,19 +28,20 @@ fn rpc_error_to_mcp_error(error : @jsonrpc.RpcError) -> McpError {
     @jsonrpc.RpcError(code~, message~) => (code, message)
     @jsonrpc.RpcErrorWithData(code~, message~, ..) => (code, message)
   }
+  if error
+    is @jsonrpc.RpcErrorWithData(
+      code=-32002,
+      data=Object({ "uri": String(uri), .. }),
+      ..
+    ) {
+    return ResourceNotFound(uri)
+  }
   match code {
     @jsonrpc.PARSE_ERROR_CODE => ParseError(message)
     @jsonrpc.INVALID_REQUEST_CODE => InvalidRequest(message)
     @jsonrpc.METHOD_NOT_FOUND_CODE => MethodNotFound(message)
     @jsonrpc.INVALID_PARAMS_CODE => InvalidParams(message)
-    -32002 => {
-      let prefix = "Resource not found: "
-      if message.has_prefix(prefix[:]) {
-        ResourceNotFound(message[prefix.length():].to_owned())
-      } else {
-        ResourceNotFound(message)
-      }
-    }
+    -32002 => ResourceNotFound(message)
     @jsonrpc.INTERNAL_ERROR_CODE => InternalError(message)
     _ => InternalError(message)
   }

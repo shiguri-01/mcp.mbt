@@ -27,15 +27,19 @@ pub fn McpError::message(self : McpError) -> String {
     InvalidRequest(message) => message
     MethodNotFound(method_name) => "Method not found: \{method_name}"
     InvalidParams(message) => message
-    ResourceNotFound(uri) => "Resource not found: \{uri}"
+    ResourceNotFound(_) => "Resource not found"
     InternalError(message) => message
   }
 }
 
 ///|
 pub impl ToJson for McpError with fn to_json(self : McpError) -> Json {
-  Json::object({
+  let fields : Map[String, Json] = {
     "code": Json::number(self.code().to_double(), repr="\{self.code()}"),
     "message": Json::string(self.message()),
-  })
+  }
+  if self is ResourceNotFound(uri) {
+    fields["data"] = Json::object({ "uri": Json::string(uri) })
+  }
+  Json::object(fields)
 }
