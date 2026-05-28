@@ -60,17 +60,65 @@ async test "list requests support cursor pagination" {
 ///|
 async test "resource templates are listable" {
   let server = @mcp.Server(name="test-server", version="0.1.0")
+  let annotations = @mcp.Annotations(audience=[@mcp.Role::Assistant])
+  let icon = @mcp.Icon(
+    src="data:image/png;base64,AA==",
+    theme=@mcp.IconTheme::Light,
+  )
+  try! server.resource(
+    uri="memory://status",
+    name="status",
+    description="Status resource",
+    mime_type="text/plain",
+    icons=[icon],
+    annotations~,
+    size=12L,
+    meta=Json::object({ "source": Json::string("test") }),
+    fn(uri) {
+      @mcp.ReadResourceResult::text(uri~, text="ready", mime_type="text/plain")
+    },
+  )
   try! server.resource_template(
     uri_template="file:///{path}",
     name="file",
     description="A file resource",
     mime_type="text/plain",
+    icons=[icon],
+    annotations~,
+    meta=Json::object({ "template": Json::boolean(true) }),
   )
   initialize_server(server)
-  let response = server.handle_jsonrpc(
+  let resources_response = server.handle_jsonrpc(
     Json::object({
       "jsonrpc": Json::string("2.0"),
       "id": Json::number(1.0, repr="1"),
+      "method": Json::string("resources/list"),
+    }),
+  )
+  guard resources_response
+    is Some(
+      Object(
+        { "result": Object({ "resources": Array([Object(resource)]), .. }), .. }
+      )
+    ) else {
+    fail("expected resource")
+  }
+  assert_true(resource["uri"] == Json::string("memory://status"))
+  assert_true(resource["size"] == Json::number(12.0, repr="12"))
+  guard resource["icons"] is Array([Object(resource_icon)]) else {
+    fail("expected resource icon")
+  }
+  assert_true(resource_icon["theme"] == Json::string("light"))
+  guard resource["annotations"] is Object(_) else {
+    fail("expected resource annotations")
+  }
+  assert_true(
+    resource["_meta"] == Json::object({ "source": Json::string("test") }),
+  )
+  let response = server.handle_jsonrpc(
+    Json::object({
+      "jsonrpc": Json::string("2.0"),
+      "id": Json::number(2.0, repr="2"),
       "method": Json::string("resources/templates/list"),
     }),
   )
@@ -88,6 +136,16 @@ async test "resource templates are listable" {
     fail("expected resource template")
   }
   assert_true(template["uriTemplate"] == Json::string("file:///{path}"))
+  guard template["icons"] is Array([Object(template_icon)]) else {
+    fail("expected template icon")
+  }
+  assert_true(template_icon["theme"] == Json::string("light"))
+  guard template["annotations"] is Object(_) else {
+    fail("expected template annotations")
+  }
+  assert_true(
+    template["_meta"] == Json::object({ "template": Json::boolean(true) }),
+  )
 }
 
 ///|

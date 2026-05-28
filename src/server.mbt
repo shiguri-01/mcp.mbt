@@ -225,6 +225,10 @@ pub fn Server::resource(
   title? : String,
   description? : String,
   mime_type? : String,
+  icons? : Array[Icon] = [],
+  annotations? : Annotations,
+  size? : Int64,
+  meta? : Json,
   handler : ResourceHandler,
 ) -> Unit raise McpError {
   let resource_name = match name {
@@ -232,7 +236,17 @@ pub fn Server::resource(
     None => uri
   }
   self.register_resource(
-    Resource(uri~, name=resource_name, title?, description?, mime_type?),
+    Resource(
+      uri~,
+      name=resource_name,
+      title?,
+      description?,
+      mime_type?,
+      icons~,
+      annotations?,
+      size?,
+      meta?,
+    ),
     handler,
   )
 }
@@ -246,6 +260,9 @@ pub fn Server::resource_template(
   title? : String,
   description? : String,
   mime_type? : String,
+  icons? : Array[Icon] = [],
+  annotations? : Annotations,
+  meta? : Json,
 ) -> Unit raise McpError {
   let template_name = match name {
     Some(name) => name
@@ -258,6 +275,9 @@ pub fn Server::resource_template(
       title?,
       description?,
       mime_type?,
+      icons~,
+      annotations?,
+      meta?,
     ),
   )
 }
