@@ -367,12 +367,14 @@ pub impl ToJson for PromptsCapability with fn to_json(self : PromptsCapability) 
 }
 
 ///|
+/// Server resource capability flags.
 pub(all) struct ResourcesCapability {
   subscribe : Bool?
   list_changed : Bool?
 } derive(Debug, Eq)
 
 ///|
+/// Create resource capabilities for subscriptions and list change notifications.
 pub fn ResourcesCapability::ResourcesCapability(
   subscribe? : Bool,
   list_changed? : Bool,
@@ -489,6 +491,7 @@ pub fn ServerCapabilities::tools_only(
 }
 
 ///|
+/// Create a server capability set with tools, prompts, resources, and utilities.
 pub fn ServerCapabilities::full(
   list_changed? : Bool = false,
   resource_subscribe? : Bool,

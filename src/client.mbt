@@ -150,6 +150,7 @@ pub fn Client::read_resource_request(self : Client, uri~ : String) -> Json {
 }
 
 ///|
+/// Build a `resources/subscribe` request for one resource URI.
 pub fn Client::subscribe_resource_request(self : Client, uri~ : String) -> Json {
   self.jsonrpc_request(
     "resources/subscribe",
@@ -158,6 +159,7 @@ pub fn Client::subscribe_resource_request(self : Client, uri~ : String) -> Json 
 }
 
 ///|
+/// Build a `resources/unsubscribe` request for one resource URI.
 pub fn Client::unsubscribe_resource_request(
   self : Client,
   uri~ : String,

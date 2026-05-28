@@ -609,11 +609,13 @@ fn Server::unsubscribe_resource(
 }
 
 ///|
+/// Return whether the client is currently subscribed to a resource URI.
 pub fn Server::is_resource_subscribed(self : Server, uri~ : String) -> Bool {
   self.resource_subscriptions.contains(uri)
 }
 
 ///|
+/// Build a resource update notification only when the URI is subscribed.
 pub fn Server::resource_updated_notification(
   self : Server,
   uri~ : String,
