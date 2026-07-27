@@ -20,7 +20,13 @@ async fn send_json(
 ) -> Unit {
   extra_headers["Content-Type"] = "application/json"
   let text = body.stringify()
-  extra_headers["Content-Length"] = text.length().to_string()
+  // Content-Length must be the UTF-8 byte count of the body, not the UTF-16
+  // code-unit count String::length() returns — the body is written as UTF-8
+  // (see conn.write below, and the client's own @utf8.encode at client.mbt).
+  // A non-ASCII char (em-dash, CJK, emoji) makes length() under-count, and
+  // the async writer raises on the body/Content-Length mismatch → dropped
+  // connection. Count the same bytes the writer sends.
+  extra_headers["Content-Length"] = @utf8.encode(text).length().to_string()
   conn.send_response(status, reason, extra_headers~)
   conn.write(text)
   conn.end_response()
