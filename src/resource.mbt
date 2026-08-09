@@ -191,18 +191,15 @@ pub fn ResourceContent::blob(
 ///|
 pub(all) struct ReadResourceResult {
   contents : Array[ResourceContent]
-  meta : Json?
 } derive(Debug, Eq)
 
 ///|
 pub impl ToJson for ReadResourceResult with fn to_json(
   self : ReadResourceResult,
 ) -> Json {
-  let fields : Map[String, Json] = {
+  Json::object({
     "contents": self.contents.map(fn(content) { content.to_json() }).to_json(),
-  }
-  put_optional_json(fields, "_meta", self.meta)
-  Json::object(fields)
+  })
 }
 
 ///|
@@ -212,5 +209,5 @@ pub fn ReadResourceResult::text(
   text~ : String,
   mime_type? : String,
 ) -> ReadResourceResult {
-  { contents: [ResourceContent::text(uri~, text~, mime_type?)], meta: None }
+  { contents: [ResourceContent::text(uri~, text~, mime_type?)] }
 }

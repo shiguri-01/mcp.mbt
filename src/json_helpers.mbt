@@ -132,20 +132,6 @@ fn get_optional_fields(
 }
 
 ///|
-fn get_cursor(params : Json?, context : String) -> String? raise McpError {
-  match params {
-    Some(value) =>
-      get_optional_string(expect_object(value, context), "cursor", context)
-    None => None
-  }
-}
-
-///|
 fn put_next_cursor(fields : Map[String, Json], cursor : String?) -> Unit {
   put_optional_string(fields, "nextCursor", cursor)
-}
-
-///|
-fn empty_result() -> Json {
-  Json::object({})
 }

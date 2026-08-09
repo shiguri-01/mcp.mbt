@@ -34,6 +34,7 @@ pub(all) struct Prompt {
   title : String?
   description : String?
   arguments : Array[PromptArgument]
+  icons : Array[Icon]
   meta : Json?
 } derive(Debug, Eq)
 
@@ -43,9 +44,10 @@ pub fn Prompt::Prompt(
   title? : String,
   description? : String,
   arguments? : Array[PromptArgument] = [],
+  icons? : Array[Icon] = [],
   meta? : Json,
 ) -> Prompt {
-  { name, title, description, arguments, meta }
+  { name, title, description, arguments, icons, meta }
 }
 
 ///|
@@ -58,30 +60,41 @@ pub impl ToJson for Prompt with fn to_json(self : Prompt) -> Json {
       .map(fn(arg) { arg.to_json() })
       .to_json()
   }
+  if !self.icons.is_empty() {
+    fields["icons"] = self.icons.map(fn(icon) { icon.to_json() }).to_json()
+  }
   put_optional_json(fields, "_meta", self.meta)
   Json::object(fields)
 }
 
 ///|
 pub(all) struct PromptMessage {
-  role : String
+  role : Role
   content : ContentBlock
 } derive(Debug, Eq)
 
 ///|
+pub fn PromptMessage::PromptMessage(
+  role~ : Role,
+  content~ : ContentBlock,
+) -> PromptMessage {
+  { role, content }
+}
+
+///|
 pub fn PromptMessage::user(text : String) -> PromptMessage {
-  { role: "user", content: ContentBlock::text(text) }
+  { role: User, content: ContentBlock::text(text) }
 }
 
 ///|
 pub fn PromptMessage::assistant(text : String) -> PromptMessage {
-  { role: "assistant", content: ContentBlock::text(text) }
+  { role: Assistant, content: ContentBlock::text(text) }
 }
 
 ///|
 pub impl ToJson for PromptMessage with fn to_json(self : PromptMessage) -> Json {
   Json::object({
-    "role": Json::string(self.role),
+    "role": self.role.to_json(),
     "content": self.content.to_json(),
   })
 }
@@ -90,7 +103,6 @@ pub impl ToJson for PromptMessage with fn to_json(self : PromptMessage) -> Json 
 pub(all) struct GetPromptResult {
   description : String?
   messages : Array[PromptMessage]
-  meta : Json?
 } derive(Debug, Eq)
 
 ///|
@@ -99,7 +111,6 @@ pub impl ToJson for GetPromptResult with fn to_json(self : GetPromptResult) -> J
     "messages": self.messages.map(fn(message) { message.to_json() }).to_json(),
   }
   put_optional_string(fields, "description", self.description)
-  put_optional_json(fields, "_meta", self.meta)
   Json::object(fields)
 }
 
@@ -109,5 +120,5 @@ pub fn GetPromptResult::user(
   text : String,
   description? : String,
 ) -> GetPromptResult {
-  { description, messages: [PromptMessage::user(text)], meta: None }
+  { description, messages: [PromptMessage::user(text)] }
 }

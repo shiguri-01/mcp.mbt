@@ -1,10 +1,10 @@
 import {
-  "moonbitlang/async",
   "moonbitlang/async/http" @async_http,
   "moonbitlang/async/io",
+  "moonbitlang/core/encoding/base64",
   "moonbitlang/core/encoding/utf8",
   "moonbitlang/core/json",
-  "moonbitlang/core/random",
+  "moonbitlang/core/string",
   "shiguri-01/mcp",
 }
 

@@ -1,6 +1,6 @@
 name = "shiguri-01/mcp"
 
-version = "0.1.1"
+version = "0.2.0"
 
 readme = "README.mbt.md"
 
@@ -14,7 +14,6 @@ description = "A library for building Model Context Protocol servers and clients
 
 import {
   "moonbitlang/async@0.19.1",
-  "shiguri-01/jsonrpc@0.2.0",
 }
 
 source = "src"

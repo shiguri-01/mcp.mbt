@@ -1,65 +1,242 @@
 ///|
+/// Transport-neutral MCP 2026-07-28 request builder and response decoder.
+///
+/// The client keeps only defaults and a request-id counter. Every request is
+/// self-contained and receives a fresh copy of protocol metadata.
 pub struct Client {
-  priv endpoint : @jsonrpc.Endpoint
+  priv info : Implementation
+  priv capabilities : ClientCapabilities
+  priv protocol_version : String
+  priv mut next_request_id : Int
 }
 
 ///|
-pub fn Client::Client() -> Client {
-  { endpoint: try! @jsonrpc.EndpointBuilder().build() }
+pub fn Client::Client(
+  name~ : String,
+  version~ : String,
+  title? : String,
+  description? : String,
+  icons? : Array[Icon] = [],
+  website_url? : String,
+  capabilities? : ClientCapabilities = ClientCapabilities::empty(),
+  protocol_version? : String = latest_protocol_version,
+) -> Client {
+  {
+    info: Implementation(
+      name~,
+      version~,
+      title?,
+      description?,
+      icons~,
+      website_url?,
+    ),
+    capabilities,
+    protocol_version,
+    next_request_id: 1,
+  }
 }
 
 ///|
-fn Client::jsonrpc_request(
+pub fn Client::protocol_version(self : Client) -> String {
+  self.protocol_version
+}
+
+///|
+pub fn Client::capabilities(self : Client) -> ClientCapabilities {
+  self.capabilities
+}
+
+///|
+pub fn Client::info(self : Client) -> Implementation {
+  self.info
+}
+
+///|
+fn Client::fresh_id(self : Client) -> Json {
+  let id = self.next_request_id
+  self.next_request_id += 1
+  Json::number(id.to_double(), repr="\{id}")
+}
+
+///|
+/// Build a custom extension request with mandatory modern request metadata.
+pub fn Client::request(
   self : Client,
-  method_name : String,
-  params? : Json,
+  method_name~ : String,
+  params? : Map[String, Json] = Map([]),
+  options? : RequestOptions = RequestOptions(),
 ) -> Json {
-  try! self.endpoint.request(method_name, params?)
+  rpc_request(
+    self.fresh_id(),
+    method_name,
+    options.request_params(
+      params,
+      client_capabilities=self.capabilities,
+      client_info=self.info,
+      protocol_version=self.protocol_version,
+    ),
+  )
 }
 
 ///|
-fn jsonrpc_notification(method_name : String, params? : Json) -> Json {
-  try! @jsonrpc.EndpointBuilder().build().notify(method_name, params?)
+pub fn Client::discover_request(
+  self : Client,
+  options? : RequestOptions = RequestOptions(),
+) -> Json {
+  self.request(method_name="server/discover", options~)
 }
 
 ///|
-fn rpc_error_to_mcp_error(error : @jsonrpc.RpcError) -> McpError {
-  let (code, message) = match error {
-    @jsonrpc.RpcError(code~, message~) => (code, message)
-    @jsonrpc.RpcErrorWithData(code~, message~, ..) => (code, message)
-  }
-  if error
-    is @jsonrpc.RpcErrorWithData(
-      code=-32002,
-      data=Object({ "uri": String(uri), .. }),
-      ..
-    ) {
-    return ResourceNotFound(uri)
-  }
-  match code {
-    @jsonrpc.PARSE_ERROR_CODE => ParseError(message)
-    @jsonrpc.INVALID_REQUEST_CODE => InvalidRequest(message)
-    @jsonrpc.METHOD_NOT_FOUND_CODE => MethodNotFound(message)
-    @jsonrpc.INVALID_PARAMS_CODE => InvalidParams(message)
-    -32002 => ResourceNotFound(message)
-    @jsonrpc.INTERNAL_ERROR_CODE => InternalError(message)
-    _ => InternalError(message)
-  }
+pub fn Client::list_tools_request(
+  self : Client,
+  cursor? : String,
+  options? : RequestOptions = RequestOptions(),
+) -> Json {
+  let params : Map[String, Json] = Map([])
+  put_optional_string(params, "cursor", cursor)
+  self.request(method_name="tools/list", params~, options~)
 }
 
 ///|
-/// Receive one JSON-RPC response message and complete a pending client request.
-pub async fn Client::receive_jsonrpc(
+pub fn Client::call_tool_request(
+  self : Client,
+  name~ : String,
+  arguments? : Json = Json::object({}),
+  options? : RequestOptions = RequestOptions(),
+) -> Json raise McpError {
+  ignore(expect_object(arguments, "tool arguments"))
+  self.request(
+    method_name="tools/call",
+    params={ "name": Json::string(name), "arguments": arguments },
+    options~,
+  )
+}
+
+///|
+pub fn Client::list_resources_request(
+  self : Client,
+  cursor? : String,
+  options? : RequestOptions = RequestOptions(),
+) -> Json {
+  let params : Map[String, Json] = Map([])
+  put_optional_string(params, "cursor", cursor)
+  self.request(method_name="resources/list", params~, options~)
+}
+
+///|
+pub fn Client::list_resource_templates_request(
+  self : Client,
+  cursor? : String,
+  options? : RequestOptions = RequestOptions(),
+) -> Json {
+  let params : Map[String, Json] = Map([])
+  put_optional_string(params, "cursor", cursor)
+  self.request(method_name="resources/templates/list", params~, options~)
+}
+
+///|
+pub fn Client::read_resource_request(
+  self : Client,
+  uri~ : String,
+  options? : RequestOptions = RequestOptions(),
+) -> Json {
+  self.request(
+    method_name="resources/read",
+    params={ "uri": Json::string(uri) },
+    options~,
+  )
+}
+
+///|
+pub fn Client::list_prompts_request(
+  self : Client,
+  cursor? : String,
+  options? : RequestOptions = RequestOptions(),
+) -> Json {
+  let params : Map[String, Json] = Map([])
+  put_optional_string(params, "cursor", cursor)
+  self.request(method_name="prompts/list", params~, options~)
+}
+
+///|
+pub fn Client::get_prompt_request(
+  self : Client,
+  name~ : String,
+  arguments? : Json = Json::object({}),
+  options? : RequestOptions = RequestOptions(),
+) -> Json raise McpError {
+  ignore(expect_object(arguments, "prompt arguments"))
+  self.request(
+    method_name="prompts/get",
+    params={ "name": Json::string(name), "arguments": arguments },
+    options~,
+  )
+}
+
+///|
+pub fn Client::complete_request(
+  self : Client,
+  reference~ : CompletionReference,
+  argument_name~ : String,
+  argument_value~ : String,
+  context_arguments? : Map[String, String],
+  options? : RequestOptions = RequestOptions(),
+) -> Json {
+  let params : Map[String, Json] = {
+    "ref": reference.to_json(),
+    "argument": Json::object({
+      "name": Json::string(argument_name),
+      "value": Json::string(argument_value),
+    }),
+  }
+  if context_arguments is Some(arguments) {
+    let values : Map[String, Json] = Map([])
+    for key, value in arguments {
+      values[key] = Json::string(value)
+    }
+    params["context"] = Json::object({ "arguments": Json::object(values) })
+  }
+  self.request(method_name="completion/complete", params~, options~)
+}
+
+///|
+pub fn Client::listen_request(
+  self : Client,
+  notifications~ : SubscriptionFilter,
+  options? : RequestOptions = RequestOptions(),
+) -> Json {
+  self.request(
+    method_name="subscriptions/listen",
+    params={ "notifications": notifications.to_json() },
+    options~,
+  )
+}
+
+///|
+/// Decode a modern JSON-RPC response without treating unknown result types as
+/// successful core results.
+pub fn Client::decode_response(
   self : Client,
   message : Json,
-) -> Json? raise McpError {
-  let received = self.endpoint.receive_json(message) catch {
-    error => raise InternalError(error.to_string())
+) -> HandlerOutcome[Json] raise McpError {
+  ignore(self)
+  let result = rpc_response_result(message)
+  match require_result_type(result) {
+    "complete" => Complete(result)
+    "input_required" => InputRequired(parse_input_required_result(result))
+    _ => raise InvalidRequest("unreachable result type")
   }
-  match received.completed {
-    [{ result: Ok(result), .. }, ..] => Some(result)
-    [{ result: Err(error), .. }, ..] => raise rpc_error_to_mcp_error(error)
-    [] => None
+}
+
+///|
+pub fn Client::decode_discover(
+  self : Client,
+  message : Json,
+) -> DiscoverResult raise McpError {
+  match self.decode_response(message) {
+    Complete(result) => parse_discover_result(result)
+    InputRequired(_) =>
+      raise InvalidRequest("server/discover cannot return input_required")
   }
 }
 
@@ -79,164 +256,4 @@ pub fn[T : FromJson] decode_structured_content(
   @json.from_json(structured_content(result)) catch {
     error => raise InvalidParams(error.to_string())
   }
-}
-
-///|
-pub fn Client::initialize_request(
-  self : Client,
-  client_name~ : String,
-  client_version~ : String,
-  client_title? : String,
-  client_description? : String,
-  client_icons? : Array[Icon] = [],
-  client_website_url? : String,
-  capabilities? : ClientCapabilities = ClientCapabilities::empty(),
-) -> Json {
-  self.jsonrpc_request(
-    "initialize",
-    params=Json::object({
-      "protocolVersion": Json::string(latest_protocol_version),
-      "capabilities": capabilities.to_json(),
-      "clientInfo": Implementation(
-        name=client_name,
-        version=client_version,
-        title?=client_title,
-        description?=client_description,
-        icons=client_icons,
-        website_url?=client_website_url,
-      ).to_json(),
-    }),
-  )
-}
-
-///|
-pub fn Client::initialized_notification(_self : Client) -> Json {
-  jsonrpc_notification("notifications/initialized")
-}
-
-///|
-pub fn Client::list_tools_request(self : Client, cursor? : String) -> Json {
-  let params : Map[String, Json] = Map([])
-  put_optional_string(params, "cursor", cursor)
-  self.jsonrpc_request("tools/list", params=Json::object(params))
-}
-
-///|
-pub fn Client::call_tool_request(
-  self : Client,
-  name~ : String,
-  arguments? : Json = Json::object({}),
-) -> Json {
-  self.jsonrpc_request(
-    "tools/call",
-    params=Json::object({ "name": Json::string(name), "arguments": arguments }),
-  )
-}
-
-///|
-pub fn Client::list_resources_request(self : Client, cursor? : String) -> Json {
-  let params : Map[String, Json] = Map([])
-  put_optional_string(params, "cursor", cursor)
-  self.jsonrpc_request("resources/list", params=Json::object(params))
-}
-
-///|
-pub fn Client::list_resource_templates_request(
-  self : Client,
-  cursor? : String,
-) -> Json {
-  let params : Map[String, Json] = Map([])
-  put_optional_string(params, "cursor", cursor)
-  self.jsonrpc_request("resources/templates/list", params=Json::object(params))
-}
-
-///|
-pub fn Client::read_resource_request(self : Client, uri~ : String) -> Json {
-  self.jsonrpc_request(
-    "resources/read",
-    params=Json::object({ "uri": Json::string(uri) }),
-  )
-}
-
-///|
-/// Build a `resources/subscribe` request for one resource URI.
-pub fn Client::subscribe_resource_request(self : Client, uri~ : String) -> Json {
-  self.jsonrpc_request(
-    "resources/subscribe",
-    params=Json::object({ "uri": Json::string(uri) }),
-  )
-}
-
-///|
-/// Build a `resources/unsubscribe` request for one resource URI.
-pub fn Client::unsubscribe_resource_request(
-  self : Client,
-  uri~ : String,
-) -> Json {
-  self.jsonrpc_request(
-    "resources/unsubscribe",
-    params=Json::object({ "uri": Json::string(uri) }),
-  )
-}
-
-///|
-pub fn Client::list_prompts_request(self : Client, cursor? : String) -> Json {
-  let params : Map[String, Json] = Map([])
-  put_optional_string(params, "cursor", cursor)
-  self.jsonrpc_request("prompts/list", params=Json::object(params))
-}
-
-///|
-pub fn Client::get_prompt_request(
-  self : Client,
-  name~ : String,
-  arguments? : Json = Json::object({}),
-) -> Json {
-  self.jsonrpc_request(
-    "prompts/get",
-    params=Json::object({ "name": Json::string(name), "arguments": arguments }),
-  )
-}
-
-///|
-pub fn Client::complete_request(
-  self : Client,
-  reference~ : CompletionReference,
-  argument_name~ : String,
-  argument_value~ : String,
-  context_arguments? : Map[String, String],
-) -> Json {
-  let params : Map[String, Json] = {
-    "ref": reference.to_json(),
-    "argument": Json::object({
-      "name": Json::string(argument_name),
-      "value": Json::string(argument_value),
-    }),
-  }
-  if context_arguments is Some(arguments) {
-    let argument_fields : Map[String, Json] = Map([])
-    for key, value in arguments {
-      argument_fields[key] = Json::string(value)
-    }
-    params["context"] = Json::object({
-      "arguments": Json::object(argument_fields),
-    })
-  }
-  self.jsonrpc_request("completion/complete", params=Json::object(params))
-}
-
-///|
-pub fn Client::set_logging_level_request(
-  self : Client,
-  level~ : LoggingLevel,
-) -> Json {
-  self.jsonrpc_request(
-    "logging/setLevel",
-    params=Json::object({ "level": level.to_json() }),
-  )
-}
-
-///|
-pub fn Client::ping_request(self : Client) -> Json {
-  self.jsonrpc_request("ping")
 }

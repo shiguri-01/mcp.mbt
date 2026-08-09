@@ -50,7 +50,39 @@ pub impl ToJson for Icon with fn to_json(self : Icon) -> Json {
 }
 
 ///|
-/// MCP implementation metadata advertised during `initialize`.
+pub impl @json.FromJson for Icon with fn from_json(
+  value : Json,
+  path : @json.JsonPath,
+) -> Icon raise {
+  guard value is Object(fields) else {
+    raise JsonDecodeError((path, "expected an icon object"))
+  }
+  let src : String = match fields.get("src") {
+    Some(value) => @json.from_json(value, path=path.add_key("src"))
+    None => raise JsonDecodeError((path, "missing required field 'src'"))
+  }
+  let mime_type : String? = match fields.get("mimeType") {
+    Some(value) => Some(@json.from_json(value, path=path.add_key("mimeType")))
+    None => None
+  }
+  let sizes : Array[String] = match fields.get("sizes") {
+    Some(value) => @json.from_json(value, path=path.add_key("sizes"))
+    None => []
+  }
+  let theme : IconTheme? = match fields.get("theme") {
+    Some(String("light")) => Some(Light)
+    Some(String("dark")) => Some(Dark)
+    Some(_) =>
+      raise JsonDecodeError(
+        (path.add_key("theme"), "expected 'light' or 'dark'"),
+      )
+    None => None
+  }
+  Icon(src~, mime_type?, sizes~, theme?)
+}
+
+///|
+/// MCP implementation metadata repeated in each stateless request or result.
 pub(all) struct Implementation {
   name : String
   title : String?
@@ -85,4 +117,40 @@ pub impl ToJson for Implementation with fn to_json(self : Implementation) -> Jso
   }
   put_optional_string(fields, "websiteUrl", self.website_url)
   Json::object(fields)
+}
+
+///|
+pub impl @json.FromJson for Implementation with fn from_json(
+  value : Json,
+  path : @json.JsonPath,
+) -> Implementation raise {
+  guard value is Object(fields) else {
+    raise JsonDecodeError((path, "expected an implementation object"))
+  }
+  let required_string = fn(key : String) -> String raise @json.JsonDecodeError {
+    match fields.get(key) {
+      Some(value) => @json.from_json(value, path=path.add_key(key))
+      None => raise JsonDecodeError((path, "missing required field '\{key}'"))
+    }
+  }
+  let optional_string = fn(
+    key : String,
+  ) -> String? raise @json.JsonDecodeError {
+    match fields.get(key) {
+      Some(value) => Some(@json.from_json(value, path=path.add_key(key)))
+      None => None
+    }
+  }
+  let icons : Array[Icon] = match fields.get("icons") {
+    Some(value) => @json.from_json(value, path=path.add_key("icons"))
+    None => []
+  }
+  Implementation(
+    name=required_string("name"),
+    version=required_string("version"),
+    title?=optional_string("title"),
+    description?=optional_string("description"),
+    icons~,
+    website_url?=optional_string("websiteUrl"),
+  )
 }

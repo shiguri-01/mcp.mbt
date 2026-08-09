@@ -1,19 +1,35 @@
 ///|
 pub(all) enum CompletionReference {
-  PromptRef(name~ : String)
+  PromptRef(name~ : String, title~ : String?)
   ResourceRef(uri~ : String)
 } derive(Debug, Eq)
+
+///|
+pub fn CompletionReference::prompt(
+  name~ : String,
+  title? : String,
+) -> CompletionReference {
+  PromptRef(name~, title~)
+}
+
+///|
+pub fn CompletionReference::resource(uri~ : String) -> CompletionReference {
+  ResourceRef(uri~)
+}
 
 ///|
 pub impl ToJson for CompletionReference with fn to_json(
   self : CompletionReference,
 ) -> Json {
   match self {
-    PromptRef(name~) =>
-      Json::object({
+    PromptRef(name~, title~) => {
+      let fields : Map[String, Json] = {
         "type": Json::string("ref/prompt"),
         "name": Json::string(name),
-      })
+      }
+      put_optional_string(fields, "title", title)
+      Json::object(fields)
+    }
     ResourceRef(uri~) =>
       Json::object({
         "type": Json::string("ref/resource"),
@@ -31,6 +47,9 @@ fn parse_completion_reference(
     "ref/prompt" =>
       PromptRef(
         name=get_string(fields, "name", "completion/complete params.ref"),
+        title=get_optional_string(
+          fields, "title", "completion/complete params.ref",
+        ),
       )
     "ref/resource" =>
       ResourceRef(
@@ -116,7 +135,6 @@ pub(all) struct CompleteResult {
   values : Array[String]
   total : Int?
   has_more : Bool
-  meta : Json?
 } derive(Debug, Eq)
 
 ///|
@@ -124,9 +142,11 @@ pub fn CompleteResult::CompleteResult(
   values~ : Array[String],
   total? : Int,
   has_more? : Bool = false,
-  meta? : Json,
-) -> CompleteResult {
-  { values, total, has_more, meta }
+) -> CompleteResult raise McpError {
+  if values.length() > 100 {
+    raise InvalidParams("completion values must not exceed 100 items")
+  }
+  { values, total, has_more }
 }
 
 ///|
@@ -140,7 +160,5 @@ pub impl ToJson for CompleteResult with fn to_json(self : CompleteResult) -> Jso
   if self.has_more {
     completion["hasMore"] = Json::boolean(true)
   }
-  let fields : Map[String, Json] = { "completion": Json::object(completion) }
-  put_optional_json(fields, "_meta", self.meta)
-  Json::object(fields)
+  Json::object({ "completion": Json::object(completion) })
 }

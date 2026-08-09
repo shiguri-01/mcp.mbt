@@ -18,6 +18,15 @@ pub impl ToJson for Role with fn to_json(self : Role) -> Json {
 }
 
 ///|
+pub fn Role::from_json(value : Json) -> Role raise McpError {
+  match value {
+    String("user") => User
+    String("assistant") => Assistant
+    _ => raise InvalidParams("role must be \"user\" or \"assistant\"")
+  }
+}
+
+///|
 pub(all) struct Annotations {
   audience : Array[Role]
   priority : Double?
@@ -236,7 +245,6 @@ pub(all) struct CallToolResult {
   content : Array[ContentBlock]
   structured_content : Json?
   is_error : Bool
-  meta : Json?
 } derive(Debug, Eq)
 
 ///|
@@ -248,7 +256,6 @@ pub impl ToJson for CallToolResult with fn to_json(self : CallToolResult) -> Jso
   if self.is_error {
     fields["isError"] = Json::boolean(true)
   }
-  put_optional_json(fields, "_meta", self.meta)
   Json::object(fields)
 }
 
@@ -263,14 +270,13 @@ pub fn CallToolResult::text(
     content: [ContentBlock::text(text, annotations?, meta?)],
     structured_content: None,
     is_error: false,
-    meta: None,
   }
 }
 
 ///|
 /// Return structured content without a text block.
 pub fn CallToolResult::json(value : Json) -> CallToolResult {
-  { content: [], structured_content: Some(value), is_error: false, meta: None }
+  { content: [], structured_content: Some(value), is_error: false }
 }
 
 ///|
@@ -290,7 +296,6 @@ pub fn CallToolResult::text_json(
     content: [ContentBlock::text(text, annotations?, meta?)],
     structured_content: Some(value),
     is_error: false,
-    meta: None,
   }
 }
 
@@ -305,6 +310,5 @@ pub fn CallToolResult::error_text(
     content: [ContentBlock::text(text, annotations?, meta?)],
     structured_content: None,
     is_error: true,
-    meta: None,
   }
 }

@@ -1,5 +1,6 @@
 import {
   "moonbitlang/async",
+  "moonbitlang/async/aqueue",
   "moonbitlang/async/io",
   "moonbitlang/async/process",
   "moonbitlang/async/stdio" @async_stdio,
@@ -8,3 +9,7 @@ import {
 }
 
 supported_targets = "+native"
+
+import {
+  "moonbitlang/core/test",
+} for "wbtest"

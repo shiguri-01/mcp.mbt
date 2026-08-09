@@ -1,33 +1,38 @@
 # shiguri-01/mcp/stdio
 
-Native stdio transport for `shiguri-01/mcp`.
+Native newline-delimited JSON-RPC transport for `shiguri-01/mcp`.
 
-Use this package when the process should speak MCP over stdin/stdout. Server
-programs call `serve(server)`. Client-side integration tests and local tools can
-use `Client::spawn(...)` to launch a stdio server and issue JSON-RPC requests.
-
-This package is intentionally separate from `shiguri-01/mcp` because it depends on
-`moonbitlang/async`, process pipes, and the native backend.
+Server programs register typed async handlers and pass the transport-neutral
+server to `serve`. Client programs can spawn a server process, send
+`server/discover`, and then call its advertised tools.
 
 ```mbt nocheck
 ///|
-struct HelloInput {
+struct GreetInput {
   name : String
 } derive(FromJson)
 
 ///|
-impl @schema.JsonSchema for HelloInput with fn json_schema() {
+impl @schema.JsonSchema for GreetInput with fn json_schema() {
   @schema.schema([@schema.string(name="name", required=true)])
 }
 
 ///|
 async fn main {
-  let server = @mcp.Server(name="example", version="0.1.0")
-  try! server.tool(name="hello", fn(input : HelloInput) {
+  let server = try! @mcp.Server(name="greeter", version="1.0.0")
+  try! server.simple_tool(name="greet", (input : GreetInput) => {
     @mcp.CallToolResult::text("Hello, \{input.name}!")
   })
   @mcp_stdio.serve(server)
 }
 ```
 
-On Windows, `moonbitlang/async` currently requires an MSVC native toolchain.
+Run the complete server and discover/call client examples from the repository
+root:
+
+```bash
+moon run --target native src/examples/stdio-server
+moon run --target native src/examples/stdio-client
+```
+
+On Windows, `moonbitlang/async` requires an MSVC native toolchain.

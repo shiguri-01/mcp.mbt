@@ -1,4 +1,6 @@
 ///|
+/// Deprecated logging level retained for wire compatibility with MCP
+/// 2026-07-28. New integrations should not expose connection-wide logging APIs.
 pub(all) enum LoggingLevel {
   Debug
   Info
@@ -41,11 +43,13 @@ fn parse_logging_level(value : Json) -> LoggingLevel raise McpError {
     String("alert") => Alert
     String("emergency") => Emergency
     String(other) => raise InvalidParams("unknown logging level: \{other}")
-    _ => raise InvalidParams("logging/setLevel params.level must be a string")
+    _ => raise InvalidParams("request logLevel must be a string")
   }
 }
 
 ///|
+/// Deprecated request-scoped log notification retained only for peers that
+/// negotiated the legacy logging capability.
 pub fn logging_message_notification(
   level~ : LoggingLevel,
   data~ : Json,

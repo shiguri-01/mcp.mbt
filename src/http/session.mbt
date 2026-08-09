@@ -1,83 +1,38 @@
 ///|
-/// Request metadata passed to `ServerOptions.authenticate`.
-pub(all) struct RequestContext {
-  http_method : @async_http.RequestMethod
-  path : String
-  headers : Map[String, String]
-  session_id : String?
-}
-
-///|
-/// Configuration for the Streamable HTTP server endpoint.
+/// Configuration for the stateless MCP Streamable HTTP endpoint.
 pub(all) struct ServerOptions {
-  /// Endpoint path that accepts MCP HTTP requests. Defaults to `/mcp`.
+  /// Endpoint path that accepts MCP POST requests. Defaults to `/mcp`.
   endpoint_path : String
-  /// Allowed `Origin` values. An empty set rejects any request with `Origin`.
+  /// Allowed `Origin` values. An empty set rejects any present Origin.
   allowed_origins : Set[String]
-  /// Require `MCP-Session-Id` after initialization. Defaults to `true`.
-  require_session : Bool
-  /// Creates visible-ASCII session IDs for successful `initialize` requests.
-  session_id_generator : () -> String
-  /// Optional request authentication hook. Return `false` to send `401`.
-  authenticate : (RequestContext) -> Bool
+  /// Return ordinary requests as request-scoped SSE and forward progress
+  /// notifications before the final JSON-RPC response.
+  stream_responses : Bool
+  /// Publish notifications for a validated subscription. The adapter sends
+  /// the acknowledgement before invoking this callback and the final response
+  /// after it returns.
+  on_subscription : async (@mcp.Subscription, async (Json) -> Unit) -> Unit
+  /// Accept an extension-defined client notification. Core 2026-07-28 has no
+  /// HTTP client notifications, so the default rejects them.
+  on_notification : async (Json) -> Bool
 }
 
 ///|
-fn default_session_id_generator() -> String {
-  let rand = @random.Rand::new()
-  "mcp-\{@async.now()}-\{rand.uint64()}"
-}
-
-///|
-/// Create Streamable HTTP server options.
 pub fn ServerOptions::ServerOptions(
   endpoint_path? : String = "/mcp",
   allowed_origins? : Set[String] = Set([]),
-  require_session? : Bool = true,
-  session_id_generator? : () -> String = default_session_id_generator,
-  authenticate? : (RequestContext) -> Bool = fn(_) { true },
+  stream_responses? : Bool = false,
+  on_subscription? : async (@mcp.Subscription, async (Json) -> Unit) -> Unit = (
+    _,
+    _,
+  ) => (),
+  on_notification? : async (Json) -> Bool = _ => false,
 ) -> ServerOptions {
   {
     endpoint_path,
     allowed_origins,
-    require_session,
-    session_id_generator,
-    authenticate,
+    stream_responses,
+    on_subscription,
+    on_notification,
   }
-}
-
-///|
-priv struct Session {
-  server : @mcp.Server
-}
-
-///|
-priv struct SessionStore {
-  sessions : Map[String, Session]
-}
-
-///|
-fn SessionStore::SessionStore() -> SessionStore {
-  { sessions: {} }
-}
-
-///|
-fn SessionStore::insert(
-  self : SessionStore,
-  id : String,
-  server : @mcp.Server,
-) -> Unit {
-  self.sessions[id] = { server, }
-}
-
-///|
-fn SessionStore::get(self : SessionStore, id : String) -> Session? {
-  self.sessions.get(id)
-}
-
-///|
-fn SessionStore::remove(self : SessionStore, id : String) -> Bool {
-  let existed = self.sessions.contains(id)
-  self.sessions.remove(id)
-  existed
 }

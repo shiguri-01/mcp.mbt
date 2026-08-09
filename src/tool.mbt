@@ -27,6 +27,7 @@ pub(all) struct Tool {
   input_schema : Json
   output_schema : Json?
   annotations : ToolAnnotations?
+  icons : Array[Icon]
   meta : Json?
 } derive(Debug, Eq)
 
@@ -39,9 +40,30 @@ pub fn Tool::Tool(
   input_schema? : Json = empty_object_schema(),
   output_schema? : Json,
   annotations? : ToolAnnotations,
+  icons? : Array[Icon] = [],
   meta? : Json,
-) -> Tool {
-  { name, title, description, input_schema, output_schema, annotations, meta }
+) -> Tool raise McpError {
+  validate_tool_input_schema(input_schema)
+  {
+    name,
+    title,
+    description,
+    input_schema,
+    output_schema,
+    annotations,
+    icons,
+    meta,
+  }
+}
+
+///|
+fn validate_tool_input_schema(schema : Json) -> Unit raise McpError {
+  guard schema is Object(fields) else {
+    raise InvalidParams("tool inputSchema must be a JSON Schema object")
+  }
+  guard fields.get("type") is Some(String("object")) else {
+    raise InvalidParams("tool inputSchema root type must be \"object\"")
+  }
 }
 
 ///|
@@ -57,6 +79,9 @@ pub impl ToJson for Tool with fn to_json(self : Tool) -> Json {
     Some(annotations) => fields["annotations"] = annotations.to_json()
     None => ()
   }
+  if !self.icons.is_empty() {
+    fields["icons"] = self.icons.map(fn(icon) { icon.to_json() }).to_json()
+  }
   put_optional_json(fields, "_meta", self.meta)
   Json::object(fields)
 }
@@ -68,14 +93,6 @@ pub fn Tool::text(
   description? : String,
   input_schema? : Json = empty_object_schema(),
   annotations? : ToolAnnotations,
-) -> Tool {
-  {
-    name,
-    title,
-    description,
-    input_schema,
-    output_schema: None,
-    annotations,
-    meta: None,
-  }
+) -> Tool raise McpError {
+  Tool(name~, title?, description?, input_schema~, annotations?)
 }

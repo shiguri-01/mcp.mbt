@@ -15,10 +15,10 @@ fn parse_cursor(cursor : String?, total : Int) -> Int raise McpError {
     None => 0
     Some(cursor) => {
       let mut offset = 0
+      // Empty strings are valid opaque cursors in MCP. This implementation
+      // treats one as the beginning of the deterministic registry order.
       if cursor.length() == 0 {
-        raise InvalidParams(
-          "cursor must be an opaque cursor returned by the server",
-        )
+        return 0
       }
       for c in cursor {
         if c < '0' || c > '9' {

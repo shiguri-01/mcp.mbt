@@ -1,12 +1,9 @@
 ///|
-fn jsonrpc_error(id : Json, code : Int, message : String) -> Json {
+fn jsonrpc_error(id : Json, error : @mcp.McpError) -> Json {
   Json::object({
     "jsonrpc": Json::string("2.0"),
     "id": id,
-    "error": Json::object({
-      "code": Json::number(code.to_double(), repr="\{code}"),
-      "message": Json::string(message),
-    }),
+    "error": error.to_json(),
   })
 }
 
@@ -16,16 +13,10 @@ async fn send_json(
   status : Int,
   reason : String,
   body : Json,
-  extra_headers? : Map[String, String] = {},
+  extra_headers? : Map[String, String] = Map([]),
 ) -> Unit {
   extra_headers["Content-Type"] = "application/json"
   let text = body.stringify()
-  // Content-Length must be the UTF-8 byte count of the body, not the UTF-16
-  // code-unit count String::length() returns — the body is written as UTF-8
-  // (see conn.write below, and the client's own @utf8.encode at client.mbt).
-  // A non-ASCII char (em-dash, CJK, emoji) makes length() under-count, and
-  // the async writer raises on the body/Content-Length mismatch → dropped
-  // connection. Count the same bytes the writer sends.
   extra_headers["Content-Length"] = @utf8.encode(text).length().to_string()
   conn.send_response(status, reason, extra_headers~)
   conn.write(text)
@@ -37,33 +28,174 @@ async fn send_empty(
   conn : @async_http.ServerConnection,
   status : Int,
   reason : String,
-  extra_headers? : Map[String, String] = {},
 ) -> Unit {
-  conn.send_response(status, reason, extra_headers~)
+  conn.send_response(status, reason)
   conn.end_response()
 }
 
 ///|
-async fn send_http_error(
+fn sse_message(message : Json) -> String {
+  "event: message\r\ndata: \{message.stringify()}\r\n\r\n"
+}
+
+///|
+fn subscription_event_allowed(
+  subscription : @mcp.Subscription,
+  event : Json,
+) -> Bool {
+  guard event
+    is Object(
+      {
+        "jsonrpc": String("2.0"),
+        "method": String(method_name),
+        "params": Object(params),
+        "id"? : None,
+        ..
+      }
+    ) else {
+    return false
+  }
+  guard params
+    is {
+      "_meta": Object(
+        { "io.modelcontextprotocol/subscriptionId": subscription_id, .. }
+      ),
+      ..
+    } &&
+    subscription_id == subscription.id() else {
+    return false
+  }
+  let filter = subscription.notifications()
+  match method_name {
+    "notifications/tools/list_changed" => filter.tools_list_changed
+    "notifications/prompts/list_changed" => filter.prompts_list_changed
+    "notifications/resources/list_changed" => filter.resources_list_changed
+    "notifications/resources/updated" =>
+      match params.get("uri") {
+        Some(String(uri)) => filter.resource_subscriptions.contains(uri)
+        _ => false
+      }
+    _ => false
+  }
+}
+
+///|
+async fn send_subscription_stream(
+  conn : @async_http.ServerConnection,
+  subscription : @mcp.Subscription,
+  on_subscription : async (@mcp.Subscription, async (Json) -> Unit) -> Unit,
+) -> Unit {
+  conn.send_response(200, "OK", extra_headers={
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache",
+    "X-Accel-Buffering": "no",
+  })
+  // The acknowledgement is normatively required to be the first event.
+  conn.write(sse_message(subscription.acknowledgement()))
+  let mut stopped = false
+  on_subscription(subscription, async fn(event) {
+    if stopped || !subscription_event_allowed(subscription, event) {
+      return
+    }
+    conn.write(sse_message(event)) catch {
+      _ => stopped = true
+    }
+  }) catch {
+    _ => stopped = true
+  }
+  if !stopped {
+    conn.write(sse_message(subscription.close_response())) catch {
+      _ => stopped = true
+    }
+  }
+  if !stopped {
+    conn.end_response()
+  }
+}
+
+///|
+async fn send_request_stream(
+  conn : @async_http.ServerConnection,
+  server : @mcp.Server,
+  request : @async_http.Request,
+  message : Json,
+) -> Unit {
+  let mut cancelled = false
+  let mut streaming = false
+  let transport_meta = Json::object({
+    "httpMethod": Json::string("POST"),
+    "path": Json::string(request.path),
+    "headers": request.headers.to_json(),
+  })
+  let hooks = @mcp.RequestHooks(
+    emit_notification=async fn(notification) raise @mcp.McpError {
+      if cancelled {
+        raise @mcp.InternalError("HTTP response stream is closed")
+      }
+      if !streaming {
+        conn.send_response(200, "OK", extra_headers={
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          "X-Accel-Buffering": "no",
+        }) catch {
+          _ => {
+            cancelled = true
+            raise @mcp.InternalError("failed to start HTTP response stream")
+          }
+        }
+        streaming = true
+      }
+      conn.write(sse_message(notification)) catch {
+        _ => {
+          cancelled = true
+          raise @mcp.InternalError("failed to write HTTP response stream")
+        }
+      }
+    },
+    is_cancelled=() => cancelled,
+    transport_meta~,
+  )
+  let response = server.handle_jsonrpc_with_hooks(message, hooks~)
+  match response {
+    Some(response) if !cancelled && streaming =>
+      conn.write(sse_message(response)) catch {
+        _ => cancelled = true
+      }
+    Some(response) if !cancelled => {
+      // Do not commit a 200 SSE response until progress is actually emitted.
+      // Validation and method errors therefore retain their proper HTTP status.
+      let (status, reason) = response_status(response)
+      send_json(conn, status, reason, response)
+      return
+    }
+    None if !cancelled && !streaming => {
+      send_empty(conn, 202, "Accepted")
+      return
+    }
+    _ => ()
+  }
+  if !cancelled {
+    conn.end_response()
+  }
+}
+
+///|
+async fn send_mcp_error(
   conn : @async_http.ServerConnection,
   status : Int,
   reason : String,
-  message : String,
+  id : Json,
+  error : @mcp.McpError,
 ) -> Unit {
-  send_json(
-    conn,
-    status,
-    reason,
-    jsonrpc_error(Json::null(), HEADER_MISMATCH_CODE, message),
-  )
+  send_json(conn, status, reason, jsonrpc_error(id, error))
 }
 
 ///|
 fn response_status(response : Json) -> (Int, String) {
-  if jsonrpc_error_code(response) is Some(-32601.0) {
-    (404, "Not Found")
-  } else {
-    (200, "OK")
+  match jsonrpc_error_code(response) {
+    Some(-32601.0) => (404, "Not Found")
+    Some(-32602.0 | -32020.0 | -32021.0 | -32022.0) => (400, "Bad Request")
+    _ => (200, "OK")
   }
 }
 
@@ -83,48 +215,44 @@ fn common_request_error(
   if !origin_allowed(request.headers, options.allowed_origins) {
     return Some("Origin is not allowed")
   }
-  if !(options.authenticate)(request_context(request)) {
-    return Some("Unauthorized")
-  }
   None
 }
 
 ///|
-fn response_protocol_version(
+fn validate_tool_call_headers(
   server : @mcp.Server,
-  fallback : String?,
-) -> String? {
-  match server.negotiated_protocol_version() {
-    Some(version) => Some(version)
-    None => fallback
-  }
-}
-
-///|
-async fn handle_delete(
-  store : SessionStore,
-  request : @async_http.Request,
-  conn : @async_http.ServerConnection,
-) -> Unit {
-  match header(request.headers, "MCP-Session-Id") {
-    Some(session_id) if store.remove(session_id) =>
-      send_empty(conn, 202, "Accepted")
-    Some(_) => send_empty(conn, 404, "Not Found")
-    None =>
-      send_http_error(
-        conn, 400, "Bad Request", "MCP-Session-Id header is required",
-      )
-  }
-}
-
-///|
-fn validate_post_request(
   request : @async_http.Request,
   message : Json,
-  options : ServerOptions,
-  server : @mcp.Server?,
-) -> String? {
-  ignore(options)
+) -> Unit raise @mcp.McpError {
+  guard message
+    is Object(
+      {
+        "method": String("tools/call"),
+        "params": Object({ "name": String(name), "arguments"? : arguments, .. }),
+        ..
+      }
+    ) else {
+    return
+  }
+  let arguments = match arguments {
+    Some(value) => value
+    None => Json::object({})
+  }
+  match server.tool_input_schema(name) {
+    Some(schema) =>
+      validate_tool_argument_headers(request.headers, schema, arguments) catch {
+        InvalidHeaderSchema(message) => raise @mcp.InternalError(message)
+        InvalidHeaderValue(message) | HeaderMismatch(message) =>
+          raise @mcp.HeaderMismatch(message)
+      }
+    None => ()
+  }
+}
+
+///|
+fn validate_post_media(
+  request : @async_http.Request,
+) -> Unit raise @mcp.McpError {
   let accepts_required_types = match header(request.headers, "Accept") {
     Some(accept) =>
       has_media_type(accept, "application/json") &&
@@ -132,26 +260,43 @@ fn validate_post_request(
     None => false
   }
   if !accepts_required_types {
-    return Some(
+    raise @mcp.InvalidRequest(
       "Accept header must include application/json and text/event-stream",
     )
   }
-  let protocol_version = match server {
-    Some(server) =>
-      response_protocol_version(server, protocol_version_from_message(message))
-    None => protocol_version_from_message(message)
+  match header(request.headers, "Content-Type") {
+    Some(content_type) if has_media_type(content_type, "application/json") => ()
+    _ => raise @mcp.InvalidRequest("Content-Type must be application/json")
   }
-  if validate_standard_headers(request, message, protocol_version?)
-    is Some(error) {
-    return Some(error)
+}
+
+///|
+fn validate_post_request(
+  request : @async_http.Request,
+  message : Json,
+  server : @mcp.Server,
+) -> Unit raise @mcp.McpError {
+  validate_post_media(request)
+  validate_standard_headers(
+    request,
+    message,
+    supported_versions=server.supported_versions(),
+  )
+  validate_tool_call_headers(server, request, message)
+}
+
+///|
+fn validate_http_client_message(message : Json) -> Unit raise @mcp.McpError {
+  if !is_jsonrpc_request(message) && !is_jsonrpc_notification(message) {
+    raise @mcp.InvalidRequest(
+      "Streamable HTTP accepts client JSON-RPC requests or notifications only",
+    )
   }
-  None
 }
 
 ///|
 async fn handle_post(
-  store : SessionStore,
-  make_server : () -> @mcp.Server,
+  server : @mcp.Server,
   options : ServerOptions,
   request : @async_http.Request,
   body : &@io.Reader,
@@ -160,93 +305,77 @@ async fn handle_post(
   let text = body.read_all().text()
   let message = @json.parse(text) catch {
     error => {
-      send_json(
+      send_mcp_error(
         conn,
         400,
         "Bad Request",
-        jsonrpc_error(
-          Json::null(),
-          @mcp.ParseError(error.to_string()).code(),
-          error.to_string(),
-        ),
+        Json::null(),
+        @mcp.ParseError(error.to_string()),
       )
       return
     }
   }
-  let is_initialize = request_method_name(message) == Some("initialize")
-  let server = if is_initialize {
-    make_server()
-  } else {
-    match header(request.headers, "MCP-Session-Id") {
-      Some(session_id) =>
-        match store.get(session_id) {
-          Some(session) => session.server
-          None => {
-            send_empty(conn, 404, "Not Found")
-            return
-          }
-        }
-      None => {
-        if options.require_session {
-          send_http_error(
-            conn, 400, "Bad Request", "MCP-Session-Id header is required",
-          )
-          return
-        }
-        make_server()
-      }
+  validate_http_client_message(message) catch {
+    error => {
+      send_mcp_error(
+        conn,
+        400,
+        "Bad Request",
+        request_id(message).unwrap_or(Json::null()),
+        error,
+      )
+      return
     }
   }
-  if validate_post_request(request, message, options, Some(server))
-    is Some(error) {
-    let status = if error == "Origin is not allowed" { 403 } else { 400 }
-    let reason = if status == 403 { "Forbidden" } else { "Bad Request" }
-    send_http_error(conn, status, reason, error)
-    return
+  validate_post_request(request, message, server) catch {
+    error => {
+      send_mcp_error(
+        conn,
+        400,
+        "Bad Request",
+        request_id(message).unwrap_or(Json::null()),
+        error,
+      )
+      return
+    }
   }
-  if is_jsonrpc_notification(message) || is_jsonrpc_response(message) {
-    ignore(server.handle_jsonrpc(message))
-    send_empty(conn, 202, "Accepted")
-    return
-  }
-  if !is_jsonrpc_request(message) {
-    send_json(
-      conn,
-      400,
-      "Bad Request",
-      jsonrpc_error(
+  if is_jsonrpc_notification(message) {
+    if (options.on_notification)(message) {
+      send_empty(conn, 202, "Accepted")
+    } else {
+      send_mcp_error(
+        conn,
+        400,
+        "Bad Request",
         Json::null(),
-        @mcp.InvalidRequest("invalid JSON-RPC message").code(),
-        "invalid JSON-RPC message",
-      ),
-    )
+        @mcp.InvalidRequest("client notification is not accepted"),
+      )
+    }
+    return
+  }
+  if request_method_name(message) == Some("subscriptions/listen") {
+    let subscription = server.accept_subscription(message) catch {
+      error => {
+        send_json(
+          conn,
+          200,
+          "OK",
+          jsonrpc_error(request_id(message).unwrap_or(Json::null()), error),
+        )
+        return
+      }
+    }
+    send_subscription_stream(conn, subscription, options.on_subscription)
+    return
+  }
+  if options.stream_responses {
+    send_request_stream(conn, server, request, message)
     return
   }
   match server.handle_jsonrpc(message) {
     Some(response) => {
-      let headers : Map[String, String] = Map([])
-      if is_initialize {
-        let session_id = (options.session_id_generator)()
-        if !visible_ascii(session_id) {
-          send_json(
-            conn,
-            500,
-            "Internal Server Error",
-            jsonrpc_error(
-              request_id(message).unwrap_or(Json::null()),
-              @mcp.InternalError(
-                "session ID generator returned non-visible ASCII",
-              ).code(),
-              "session ID generator returned non-visible ASCII",
-            ),
-          )
-          return
-        }
-        store.insert(session_id, server)
-        headers["MCP-Session-Id"] = session_id
-      }
       let (status, reason) = response_status(response)
-      send_json(conn, status, reason, response, extra_headers=headers)
+      send_json(conn, status, reason, response)
     }
     None => send_empty(conn, 202, "Accepted")
   }
@@ -254,8 +383,7 @@ async fn handle_post(
 
 ///|
 async fn handle_request(
-  store : SessionStore,
-  make_server : () -> @mcp.Server,
+  server : @mcp.Server,
   options : ServerOptions,
   request : @async_http.Request,
   body : &@io.Reader,
@@ -265,39 +393,28 @@ async fn handle_request(
     send_empty(conn, 404, "Not Found")
     return
   }
-  if common_request_error(request, options) is Some(error) {
-    if error == "Origin is not allowed" {
-      send_http_error(conn, 403, "Forbidden", error)
-    } else {
-      send_empty(conn, 401, "Unauthorized")
-    }
+  if common_request_error(request, options) is Some(_) {
+    send_empty(conn, 403, "Forbidden")
     return
   }
   match request.meth {
-    Post => handle_post(store, make_server, options, request, body, conn)
-    Delete => handle_delete(store, request, conn)
-    Get => send_empty(conn, 405, "Method Not Allowed")
+    Post => handle_post(server, options, request, body, conn)
     _ => send_empty(conn, 405, "Method Not Allowed")
   }
 }
 
 ///|
-/// Serve MCP Streamable HTTP on a single endpoint.
+/// Serve a stateless MCP 2026-07-28 registry at one POST endpoint.
 ///
-/// This implementation supports the required POST request path and session
-/// lifecycle. GET/SSE streams are intentionally reported as `405 Method Not
-/// Allowed`, which the 2025-11-25 transport specification permits for servers
-/// that do not offer a standalone SSE stream.
-///
-/// Specification:
-/// https://modelcontextprotocol.io/specification/2025-11-25/basic/transports
+/// GET streams, DELETE session termination, and `MCP-Session-Id` are not part
+/// of this protocol revision. Request-scoped SSE may still be returned by a
+/// custom HTTP integration; this built-in server returns JSON responses.
 pub async fn serve(
   http_server : @async_http.Server,
-  make_server : () -> @mcp.Server,
+  server : @mcp.Server,
   options? : ServerOptions = ServerOptions(),
 ) -> Unit {
-  let store = SessionStore()
   http_server.run_forever() <| ((request, body, conn) => {
-    handle_request(store, make_server, options, request, body, conn)
+    handle_request(server, options, request, body, conn)
   })
 }
