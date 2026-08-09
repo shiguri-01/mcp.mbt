@@ -269,7 +269,19 @@ async test "tool input and structured output honor declared JSON Schemas" {
   )
   guard bad_input
     is Some(
-      Object({ "error": Object({ "code": Number(-32602.0, ..), .. }), .. })
+      Object(
+        {
+          "result": Object(
+            {
+              "resultType": String("complete"),
+              "isError": True,
+              "content": Array([Object({ "type": String("text"), .. })]),
+              ..
+            }
+          ),
+          ..
+        }
+      )
     ) else {
     fail("expected inputSchema validation error")
   }

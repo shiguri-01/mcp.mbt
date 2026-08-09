@@ -743,7 +743,15 @@ async fn Server::call_tool(
   match self.tools.get(name) {
     Some(registered) => {
       if registered.input_validator.validate(arguments) is Some(error) {
-        raise InvalidParams("tool arguments do not match inputSchema: \{error}")
+        return self.outcome_json(
+          context,
+          "tools/call",
+          Complete(
+            CallToolResult::error_text(
+              "Invalid tool arguments: inputSchema validation failed: \{error}",
+            ),
+          ),
+        )
       }
       let outcome = (registered.handler)(context, arguments)
       match outcome {

@@ -1,5 +1,5 @@
 ///|
-/// A compiled, bounded JSON Schema 2020-12 validator used at tool boundaries.
+/// A compiled, bounded JSON Schema validator used at tool boundaries.
 ///
 /// Schemas remain JSON on the public API. Compilation rejects unsupported
 /// dialects and remote references; validation supports the validation keywords
@@ -47,6 +47,7 @@ fn validate_schema_shape(
   schema : Json,
   depth : Int,
   count : Ref[Int],
+  draft7 : Bool,
 ) -> Unit raise McpError {
   if depth > 64 {
     raise InvalidParams("JSON Schema nesting exceeds 64 levels")
@@ -61,7 +62,9 @@ fn validate_schema_shape(
       match fields.get("$schema") {
         None => ()
         Some(String("https://json-schema.org/draft/2020-12/schema"))
-        | Some(String("https://json-schema.org/draft/2020-12/schema#")) => ()
+        | Some(String("https://json-schema.org/draft/2020-12/schema#"))
+        | Some(String("http://json-schema.org/draft-07/schema#"))
+        | Some(String("https://json-schema.org/draft-07/schema#")) => ()
         Some(String(dialect)) =>
           raise InvalidParams("unsupported JSON Schema dialect: \{dialect}")
         Some(_) => raise InvalidParams("JSON Schema $schema must be a string")
@@ -80,38 +83,82 @@ fn validate_schema_shape(
       ignore(schema_int(fields, "maxItems"))
       ignore(schema_int(fields, "minProperties"))
       ignore(schema_int(fields, "maxProperties"))
+      if !draft7 {
+        ignore(schema_int(fields, "minContains"))
+        ignore(schema_int(fields, "maxContains"))
+      }
       ignore(schema_number(fields, "minimum"))
       ignore(schema_number(fields, "maximum"))
       ignore(schema_number(fields, "exclusiveMinimum"))
       ignore(schema_number(fields, "exclusiveMaximum"))
       ignore(schema_number(fields, "multipleOf"))
-      for
-        key in ["properties", "$defs", "dependentSchemas", "patternProperties"] {
+      let object_keywords = if draft7 {
+        ["properties", "definitions", "patternProperties"]
+      } else {
+        ["properties", "$defs", "dependentSchemas", "patternProperties"]
+      }
+      for key in object_keywords {
         match fields.get(key) {
           None => ()
           Some(Object(children)) =>
-            for _, child in children {
-              validate_schema_shape(child, depth + 1, count)
+            for name, child in children {
+              if key == "patternProperties" {
+                ignore(
+                  Regex(name) catch {
+                    _ =>
+                      raise InvalidParams(
+                        "JSON Schema patternProperties key is not a valid regular expression",
+                      )
+                  },
+                )
+              }
+              validate_schema_shape(child, depth + 1, count, draft7)
             }
           Some(_) => raise InvalidParams("JSON Schema \{key} must be an object")
         }
       }
-      for
-        key in [
-          "items", "contains", "additionalProperties", "propertyNames", "not", "if",
-          "then", "else",
-        ] {
+      let schema_keywords = if draft7 {
+        [
+          "contains", "additionalProperties", "additionalItems", "propertyNames",
+          "not", "if", "then", "else",
+        ]
+      } else {
+        [
+          "contains", "additionalProperties", "propertyNames", "not", "if", "then",
+          "else",
+        ]
+      }
+      for key in schema_keywords {
         match fields.get(key) {
           None => ()
-          Some(child) => validate_schema_shape(child, depth + 1, count)
+          Some(child) => validate_schema_shape(child, depth + 1, count, draft7)
         }
       }
-      for key in ["allOf", "anyOf", "oneOf", "prefixItems"] {
+      match fields.get("items") {
+        None => ()
+        Some(Array(children)) => {
+          if !draft7 {
+            raise InvalidParams(
+              "JSON Schema 2020-12 items must be a schema, not an array",
+            )
+          }
+          for child in children {
+            validate_schema_shape(child, depth + 1, count, draft7)
+          }
+        }
+        Some(child) => validate_schema_shape(child, depth + 1, count, draft7)
+      }
+      let array_keywords = if draft7 {
+        ["allOf", "anyOf", "oneOf"]
+      } else {
+        ["allOf", "anyOf", "oneOf", "prefixItems"]
+      }
+      for key in array_keywords {
         match fields.get(key) {
           None => ()
           Some(Array(children)) =>
             for child in children {
-              validate_schema_shape(child, depth + 1, count)
+              validate_schema_shape(child, depth + 1, count, draft7)
             }
           Some(_) => raise InvalidParams("JSON Schema \{key} must be an array")
         }
@@ -128,6 +175,72 @@ fn validate_schema_shape(
           }
         Some(_) => raise InvalidParams("JSON Schema required must be an array")
       }
+      if !draft7 {
+        let key = "dependentRequired"
+        match fields.get(key) {
+          None => ()
+          Some(Object(entries)) =>
+            for _, value in entries {
+              guard value is Array(names) else {
+                raise InvalidParams("JSON Schema \{key} values must be arrays")
+              }
+              for name in names {
+                if !(name is String(_)) {
+                  raise InvalidParams(
+                    "JSON Schema \{key} entries must be strings",
+                  )
+                }
+              }
+            }
+          Some(_) => raise InvalidParams("JSON Schema \{key} must be an object")
+        }
+      }
+      if draft7 {
+        match fields.get("dependencies") {
+          None => ()
+          Some(Object(entries)) =>
+            for _, dependency in entries {
+              match dependency {
+                Array(names) =>
+                  for name in names {
+                    if !(name is String(_)) {
+                      raise InvalidParams(
+                        "JSON Schema dependencies entries must be strings",
+                      )
+                    }
+                  }
+                child => validate_schema_shape(child, depth + 1, count, draft7)
+              }
+            }
+          Some(_) =>
+            raise InvalidParams("JSON Schema dependencies must be an object")
+        }
+      }
+      match fields.get("pattern") {
+        Some(String(pattern)) =>
+          ignore(
+            Regex(pattern) catch {
+              _ =>
+                raise InvalidParams(
+                  "JSON Schema pattern is not a valid regular expression",
+                )
+            },
+          )
+        Some(_) => raise InvalidParams("JSON Schema pattern must be a string")
+        None => ()
+      }
+      if !draft7 {
+        for
+          unsupported in [
+            "$dynamicRef", "unevaluatedProperties", "unevaluatedItems",
+          ] {
+          if fields.contains(unsupported) {
+            raise InvalidParams(
+              "unsupported JSON Schema keyword: \{unsupported}",
+            )
+          }
+        }
+      }
     }
     _ => raise InvalidParams("JSON Schema must be an object or boolean")
   }
@@ -136,7 +249,7 @@ fn validate_schema_shape(
 ///|
 fn compile_json_schema(schema : Json) -> CompiledJsonSchema raise McpError {
   let count = Ref(0)
-  validate_schema_shape(schema, 0, count)
+  validate_schema_shape(schema, 0, count, root_uses_draft_07(schema))
   { schema, }
 }
 
@@ -181,6 +294,26 @@ fn schema_type_matches(expected : String, value : Json) -> Bool {
 }
 
 ///|
+fn root_uses_draft_07(root : Json) -> Bool {
+  root
+  is Object(
+    {
+      "$schema": String(
+        "http://json-schema.org/draft-07/schema#"
+        | "https://json-schema.org/draft-07/schema#"
+      ),
+      ..
+    }
+  )
+}
+
+///|
+fn json_schema_pattern_matches(pattern : String, value : String) -> Bool {
+  // Patterns are compiled during schema registration.
+  Regex::unsafe_from_string(pattern).execute(value) is Some(_)
+}
+
+///|
 fn validate_json_schema(
   schema : Json,
   root : Json,
@@ -196,11 +329,16 @@ fn validate_json_schema(
     False => Some(json_schema_error(path, "value is rejected by false schema"))
     Object(fields) => {
       if fields.get("$ref") is Some(String(reference)) {
-        return match resolve_local_ref(root, reference) {
+        let referenced = match resolve_local_ref(root, reference) {
           Some(target) =>
             validate_json_schema(target, root, value, path, depth + 1)
           None =>
-            Some(json_schema_error(path, "unresolved local $ref \{reference}"))
+            return Some(
+              json_schema_error(path, "unresolved local $ref \{reference}"),
+            )
+        }
+        if referenced is Some(_) || root_uses_draft_07(root) {
+          return referenced
         }
       }
       if fields.get("enum") is Some(Array(values)) && !values.contains(value) {
@@ -308,6 +446,20 @@ fn validate_json_schema(
             Some(Object(items)) => Some(items)
             _ => None
           }
+          if fields.get("propertyNames") is Some(name_schema) {
+            for key, _ in object {
+              if validate_json_schema(
+                  name_schema,
+                  root,
+                  Json::string(key),
+                  "\{path}.\{key}",
+                  depth + 1,
+                )
+                is Some(error) {
+                return Some(error)
+              }
+            }
+          }
           if properties is Some(items) {
             for key, child in items {
               if object.get(key) is Some(child_value) {
@@ -324,9 +476,109 @@ fn validate_json_schema(
               }
             }
           }
+          let pattern_properties = match fields.get("patternProperties") {
+            Some(Object(items)) => Some(items)
+            _ => None
+          }
+          if pattern_properties is Some(patterns) {
+            for pattern, child in patterns {
+              for key, child_value in object {
+                if json_schema_pattern_matches(pattern, key) &&
+                  validate_json_schema(
+                    child,
+                    root,
+                    child_value,
+                    "\{path}.\{key}",
+                    depth + 1,
+                  )
+                  is Some(error) {
+                  return Some(error)
+                }
+              }
+            }
+          }
+          if !root_uses_draft_07(root) {
+            match fields.get("dependentRequired") {
+              Some(Object(dependencies)) =>
+                for key, dependency in dependencies {
+                  if object.contains(key) && dependency is Array(names) {
+                    for name in names {
+                      if name is String(required) && !object.contains(required) {
+                        return Some(
+                          json_schema_error(
+                            path,
+                            "property \{key} requires property \{required}",
+                          ),
+                        )
+                      }
+                    }
+                  }
+                }
+              _ => ()
+            }
+          }
+          if !root_uses_draft_07(root) {
+            match fields.get("dependentSchemas") {
+              Some(Object(dependencies)) =>
+                for key, dependency in dependencies {
+                  if object.contains(key) &&
+                    validate_json_schema(
+                      dependency,
+                      root,
+                      value,
+                      path,
+                      depth + 1,
+                    )
+                    is Some(error) {
+                    return Some(error)
+                  }
+                }
+              _ => ()
+            }
+          }
+          if root_uses_draft_07(root) {
+            match fields.get("dependencies") {
+              Some(Object(dependencies)) =>
+                for key, dependency in dependencies {
+                  if object.contains(key) {
+                    match dependency {
+                      Array(names) =>
+                        for name in names {
+                          if name is String(required) &&
+                            !object.contains(required) {
+                            return Some(
+                              json_schema_error(
+                                path,
+                                "property \{key} requires property \{required}",
+                              ),
+                            )
+                          }
+                        }
+                      child =>
+                        if validate_json_schema(
+                            child,
+                            root,
+                            value,
+                            path,
+                            depth + 1,
+                          )
+                          is Some(error) {
+                          return Some(error)
+                        }
+                    }
+                  }
+                }
+              _ => ()
+            }
+          }
           if fields.get("additionalProperties") is Some(False) {
             for key, _ in object {
-              if properties is None || !properties.unwrap().contains(key) {
+              let known = properties is Some(items) && items.contains(key)
+              let patterned = pattern_properties is Some(patterns) &&
+                patterns
+                .keys()
+                .any(pattern => json_schema_pattern_matches(pattern, key))
+              if !known && !patterned {
                 return Some(
                   json_schema_error(
                     path,
@@ -338,7 +590,12 @@ fn validate_json_schema(
           } else if fields.get("additionalProperties") is Some(child) &&
             !(child is True) {
             for key, child_value in object {
-              if properties is None || !properties.unwrap().contains(key) {
+              let known = properties is Some(items) && items.contains(key)
+              let patterned = pattern_properties is Some(patterns) &&
+                patterns
+                .keys()
+                .any(pattern => json_schema_pattern_matches(pattern, key))
+              if !known && !patterned {
                 if validate_json_schema(
                     child,
                     root,
@@ -373,18 +630,115 @@ fn validate_json_schema(
               }
             }
           }
-          if fields.get("items") is Some(child) {
-            for index, item in values {
-              if validate_json_schema(
-                  child,
-                  root,
-                  item,
-                  "\{path}[\{index}]",
-                  depth + 1,
-                )
-                is Some(error) {
-                return Some(error)
+          let prefix_items = if root_uses_draft_07(root) {
+            []
+          } else {
+            match fields.get("prefixItems") {
+              Some(Array(items)) => items
+              _ => []
+            }
+          }
+          for index, child in prefix_items {
+            if index < values.length() &&
+              validate_json_schema(
+                child,
+                root,
+                values[index],
+                "\{path}[\{index}]",
+                depth + 1,
+              )
+              is Some(error) {
+              return Some(error)
+            }
+          }
+          match fields.get("items") {
+            Some(Array(tuple_items)) => {
+              for index, child in tuple_items {
+                if index < values.length() &&
+                  validate_json_schema(
+                    child,
+                    root,
+                    values[index],
+                    "\{path}[\{index}]",
+                    depth + 1,
+                  )
+                  is Some(error) {
+                  return Some(error)
+                }
               }
+              if values.length() > tuple_items.length() &&
+                fields.get("additionalItems") is Some(False) {
+                return Some(
+                  json_schema_error(
+                    path, "additional array items are not allowed",
+                  ),
+                )
+              }
+              if fields.get("additionalItems") is Some(additional) &&
+                !(additional is True) &&
+                !(additional is False) {
+                for index = tuple_items.length()
+                    index < values.length()
+                    index = index + 1 {
+                  if validate_json_schema(
+                      additional,
+                      root,
+                      values[index],
+                      "\{path}[\{index}]",
+                      depth + 1,
+                    )
+                    is Some(error) {
+                    return Some(error)
+                  }
+                }
+              }
+            }
+            Some(child) => {
+              let start = prefix_items.length()
+              for index = start; index < values.length(); index = index + 1 {
+                let item = values[index]
+                if validate_json_schema(
+                    child,
+                    root,
+                    item,
+                    "\{path}[\{index}]",
+                    depth + 1,
+                  )
+                  is Some(error) {
+                  return Some(error)
+                }
+              }
+            }
+            None => ()
+          }
+          if fields.get("contains") is Some(contains) {
+            let mut matches = 0
+            for item in values {
+              if validate_json_schema(contains, root, item, path, depth + 1)
+                is None {
+                matches += 1
+              }
+            }
+            let minimum = if root_uses_draft_07(root) {
+              1
+            } else {
+              match fields.get("minContains") {
+                Some(Number(value, ..)) => value.to_int()
+                _ => 1
+              }
+            }
+            let maximum = if root_uses_draft_07(root) {
+              None
+            } else {
+              match fields.get("maxContains") {
+                Some(Number(value, ..)) => Some(value.to_int())
+                _ => None
+              }
+            }
+            if matches < minimum || (maximum is Some(limit) && matches > limit) {
+              return Some(
+                json_schema_error(path, "array does not satisfy contains"),
+              )
             }
           }
         }
