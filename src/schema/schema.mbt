@@ -18,7 +18,7 @@ pub fn schema(
   properties : Array[Property],
   additional_properties? : Bool = false,
 ) -> Json {
-  let property_fields : Map[String, Json] = {}
+  let property_fields : Map[String, Json] = Map([])
   let required : Array[String] = []
   for property in properties {
     property_fields[property.name] = property.schema

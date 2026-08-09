@@ -116,7 +116,7 @@ pub fn Client::initialized_notification(_self : Client) -> Json {
 
 ///|
 pub fn Client::list_tools_request(self : Client, cursor? : String) -> Json {
-  let params : Map[String, Json] = {}
+  let params : Map[String, Json] = Map([])
   put_optional_string(params, "cursor", cursor)
   self.jsonrpc_request("tools/list", params=Json::object(params))
 }
@@ -135,7 +135,7 @@ pub fn Client::call_tool_request(
 
 ///|
 pub fn Client::list_resources_request(self : Client, cursor? : String) -> Json {
-  let params : Map[String, Json] = {}
+  let params : Map[String, Json] = Map([])
   put_optional_string(params, "cursor", cursor)
   self.jsonrpc_request("resources/list", params=Json::object(params))
 }
@@ -145,7 +145,7 @@ pub fn Client::list_resource_templates_request(
   self : Client,
   cursor? : String,
 ) -> Json {
-  let params : Map[String, Json] = {}
+  let params : Map[String, Json] = Map([])
   put_optional_string(params, "cursor", cursor)
   self.jsonrpc_request("resources/templates/list", params=Json::object(params))
 }
@@ -181,7 +181,7 @@ pub fn Client::unsubscribe_resource_request(
 
 ///|
 pub fn Client::list_prompts_request(self : Client, cursor? : String) -> Json {
-  let params : Map[String, Json] = {}
+  let params : Map[String, Json] = Map([])
   put_optional_string(params, "cursor", cursor)
   self.jsonrpc_request("prompts/list", params=Json::object(params))
 }
@@ -214,7 +214,7 @@ pub fn Client::complete_request(
     }),
   }
   if context_arguments is Some(arguments) {
-    let argument_fields : Map[String, Json] = {}
+    let argument_fields : Map[String, Json] = Map([])
     for key, value in arguments {
       argument_fields[key] = Json::string(value)
     }

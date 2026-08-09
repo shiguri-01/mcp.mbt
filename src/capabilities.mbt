@@ -12,7 +12,7 @@ pub fn RootsCapability::RootsCapability(
 
 ///|
 pub impl ToJson for RootsCapability with fn to_json(self : RootsCapability) -> Json {
-  let fields : Map[String, Json] = {}
+  let fields : Map[String, Json] = Map([])
   put_optional_bool(fields, "listChanged", self.list_changed)
   Json::object(fields)
 }
@@ -35,7 +35,7 @@ pub fn SamplingCapability::SamplingCapability(
 pub impl ToJson for SamplingCapability with fn to_json(
   self : SamplingCapability,
 ) -> Json {
-  let fields : Map[String, Json] = {}
+  let fields : Map[String, Json] = Map([])
   if self.context {
     fields["context"] = Json::object({})
   }
@@ -63,7 +63,7 @@ pub fn ElicitationCapability::ElicitationCapability(
 pub impl ToJson for ElicitationCapability with fn to_json(
   self : ElicitationCapability,
 ) -> Json {
-  let fields : Map[String, Json] = {}
+  let fields : Map[String, Json] = Map([])
   if self.form {
     fields["form"] = Json::object({})
   }
@@ -91,7 +91,7 @@ pub fn ClientTaskRequestCapabilities::ClientTaskRequestCapabilities(
 pub impl ToJson for ClientTaskRequestCapabilities with fn to_json(
   self : ClientTaskRequestCapabilities,
 ) -> Json {
-  let fields : Map[String, Json] = {}
+  let fields : Map[String, Json] = Map([])
   if self.sampling_create_message {
     fields["sampling"] = Json::object({ "createMessage": Json::object({}) })
   }
@@ -121,7 +121,7 @@ pub fn ClientTaskCapabilities::ClientTaskCapabilities(
 pub impl ToJson for ClientTaskCapabilities with fn to_json(
   self : ClientTaskCapabilities,
 ) -> Json {
-  let fields : Map[String, Json] = {}
+  let fields : Map[String, Json] = Map([])
   if self.list {
     fields["list"] = Json::object({})
   }
@@ -151,7 +151,7 @@ pub fn ClientCapabilities::ClientCapabilities(
   elicitation? : ElicitationCapability,
   tasks? : ClientTaskCapabilities,
   experimental? : Json,
-  extra? : Map[String, Json] = {},
+  extra? : Map[String, Json] = Map([]),
 ) -> ClientCapabilities {
   { roots, sampling, elicitation, tasks, experimental, extra }
 }
@@ -165,7 +165,7 @@ pub fn ClientCapabilities::empty() -> ClientCapabilities {
 pub impl ToJson for ClientCapabilities with fn to_json(
   self : ClientCapabilities,
 ) -> Json {
-  let fields : Map[String, Json] = {}
+  let fields : Map[String, Json] = Map([])
   for key, value in self.extra {
     fields[key] = value
   }
@@ -274,7 +274,7 @@ fn parse_client_task_capabilities(
 ///|
 fn parse_client_capabilities(value : Json) -> ClientCapabilities raise McpError {
   let fields = expect_object(value, "initialize params.capabilities")
-  let extra : Map[String, Json] = {}
+  let extra : Map[String, Json] = Map([])
   for key, value in fields {
     match key {
       "roots" | "sampling" | "elicitation" | "tasks" | "experimental" => ()
@@ -342,7 +342,7 @@ pub fn ToolsCapability::ToolsCapability(
 
 ///|
 pub impl ToJson for ToolsCapability with fn to_json(self : ToolsCapability) -> Json {
-  let fields : Map[String, Json] = {}
+  let fields : Map[String, Json] = Map([])
   put_optional_bool(fields, "listChanged", self.list_changed)
   Json::object(fields)
 }
@@ -361,7 +361,7 @@ pub fn PromptsCapability::PromptsCapability(
 
 ///|
 pub impl ToJson for PromptsCapability with fn to_json(self : PromptsCapability) -> Json {
-  let fields : Map[String, Json] = {}
+  let fields : Map[String, Json] = Map([])
   put_optional_bool(fields, "listChanged", self.list_changed)
   Json::object(fields)
 }
@@ -386,7 +386,7 @@ pub fn ResourcesCapability::ResourcesCapability(
 pub impl ToJson for ResourcesCapability with fn to_json(
   self : ResourcesCapability,
 ) -> Json {
-  let fields : Map[String, Json] = {}
+  let fields : Map[String, Json] = Map([])
   put_optional_bool(fields, "subscribe", self.subscribe)
   put_optional_bool(fields, "listChanged", self.list_changed)
   Json::object(fields)
@@ -408,7 +408,7 @@ pub fn ServerTaskRequestCapabilities::ServerTaskRequestCapabilities(
 pub impl ToJson for ServerTaskRequestCapabilities with fn to_json(
   self : ServerTaskRequestCapabilities,
 ) -> Json {
-  let fields : Map[String, Json] = {}
+  let fields : Map[String, Json] = Map([])
   if self.tools_call {
     fields["tools"] = Json::object({ "call": Json::object({}) })
   }
@@ -435,7 +435,7 @@ pub fn ServerTaskCapabilities::ServerTaskCapabilities(
 pub impl ToJson for ServerTaskCapabilities with fn to_json(
   self : ServerTaskCapabilities,
 ) -> Json {
-  let fields : Map[String, Json] = {}
+  let fields : Map[String, Json] = Map([])
   if self.list {
     fields["list"] = Json::object({})
   }
@@ -469,7 +469,7 @@ pub fn ServerCapabilities::ServerCapabilities(
   completions? : Bool = false,
   tasks? : ServerTaskCapabilities,
   experimental? : Json,
-  extra? : Map[String, Json] = {},
+  extra? : Map[String, Json] = Map([]),
 ) -> ServerCapabilities {
   {
     tools,
@@ -515,7 +515,7 @@ pub fn ServerCapabilities::full(
 pub impl ToJson for ServerCapabilities with fn to_json(
   self : ServerCapabilities,
 ) -> Json {
-  let fields : Map[String, Json] = {}
+  let fields : Map[String, Json] = Map([])
   for key, value in self.extra {
     fields[key] = value
   }

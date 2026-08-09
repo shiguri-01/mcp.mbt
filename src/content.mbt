@@ -35,7 +35,7 @@ pub fn Annotations::Annotations(
 
 ///|
 pub impl ToJson for Annotations with fn to_json(self : Annotations) -> Json {
-  let fields : Map[String, Json] = {}
+  let fields : Map[String, Json] = Map([])
   if !self.audience.is_empty() {
     fields["audience"] = self.audience
       .map(fn(role) { role.to_json() })

@@ -224,7 +224,7 @@ async fn handle_post(
   }
   match server.handle_jsonrpc(message) {
     Some(response) => {
-      let headers : Map[String, String] = {}
+      let headers : Map[String, String] = Map([])
       if is_initialize {
         let session_id = (options.session_id_generator)()
         if !visible_ascii(session_id) {

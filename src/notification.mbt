@@ -1,6 +1,6 @@
 ///|
 pub fn cancelled_notification(request_id? : Json, reason? : String) -> Json {
-  let params : Map[String, Json] = {}
+  let params : Map[String, Json] = Map([])
   put_optional_json(params, "requestId", request_id)
   put_optional_string(params, "reason", reason)
   jsonrpc_notification("notifications/cancelled", params=Json::object(params))

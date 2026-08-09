@@ -9,7 +9,7 @@ pub(all) struct ToolAnnotations {
 
 ///|
 pub impl ToJson for ToolAnnotations with fn to_json(self : ToolAnnotations) -> Json {
-  let fields : Map[String, Json] = {}
+  let fields : Map[String, Json] = Map([])
   put_optional_string(fields, "title", self.title)
   put_optional_bool(fields, "readOnlyHint", self.read_only_hint)
   put_optional_bool(fields, "destructiveHint", self.destructive_hint)

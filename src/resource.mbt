@@ -148,7 +148,7 @@ pub(all) enum ResourceContent {
 
 ///|
 pub impl ToJson for ResourceContent with fn to_json(self : ResourceContent) -> Json {
-  let fields : Map[String, Json] = {}
+  let fields : Map[String, Json] = Map([])
   match self {
     ResourceText(uri~, text~, mime_type~, meta~) => {
       fields["uri"] = Json::string(uri)

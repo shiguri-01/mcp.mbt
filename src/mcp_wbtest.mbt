@@ -57,25 +57,33 @@ test "initialize stores negotiated session metadata and waits for initialized" {
 ///|
 test "dispatch rejects normal operations before ready" {
   let server = Server(name="test-server", version="0.1.0")
-  let before_initialize : Result[Json?, Error] = try? server.dispatch(
-    "tools/list",
-    None,
+
+  // before initialize
+  assert_true(
+    @test.expect_error(() => server.dispatch("tools/list", None))
+    is InvalidRequest(_),
+    msg="expected initialize-first error",
   )
-  guard before_initialize is Err(InvalidRequest(_)) else {
-    fail("expected initialize-first error")
-  }
-  ignore(try! server.initialize(Some(test_initialize_params())))
-  let before_ready : Result[Json?, Error] = try? server.dispatch(
-    "tools/list",
-    None,
+
+  let _capabilities = try! server.initialize(Some(test_initialize_params()))
+
+  // after initialize but before initialized notification
+  assert_true(
+    @test.expect_error(() => server.dispatch("tools/list", None))
+    is InvalidRequest(_),
+    msg="expected initialized notification error",
   )
-  guard before_ready is Err(InvalidRequest(_)) else {
-    fail("expected initialized notification error")
-  }
+
   try! server.notify_initialized()
-  let ready = try! server.dispatch("tools/list", None)
-  guard ready is Some(Object({ "tools": Array(_), .. })) else {
-    fail("expected tools/list result")
+
+  try server.dispatch("tools/list", None) catch {
+    _ => @test.fail("expected tools/list result")
+  } noraise {
+    res =>
+      assert_true(
+        res is Some(Object({ "tools": Array(_), .. })),
+        msg="expected tools/list result",
+      )
   }
 }
 
@@ -132,59 +140,78 @@ test "initialize rejects invalid icon theme" {
       ]),
     }),
   })
-  let result : Result[InitializeResult, Error] = try? server.initialize(
-    Some(params),
+  assert_true(
+    @test.expect_error(() => server.initialize(Some(params)))
+    is InvalidParams(_),
+    msg="expected invalid icon theme error",
   )
-  guard result is Err(InvalidParams(_)) else {
-    fail("expected invalid icon theme error")
-  }
 }
 
 ///|
 test "resource subscription dispatch respects capability and resource existence" {
   let unsupported = Server(name="test-server", version="0.1.0")
-  ignore(try! unsupported.initialize(Some(test_initialize_params())))
+  let _unsupported_capabilities = try! unsupported.initialize(
+    Some(test_initialize_params()),
+  )
   try! unsupported.notify_initialized()
-  let unsupported_result : Result[Json?, Error] = try? unsupported.dispatch(
-    "resources/subscribe",
-    Some(Json::object({ "uri": Json::string("memory://status") })),
+
+  assert_true(
+    @test.expect_error(() => {
+      unsupported.dispatch(
+        "resources/subscribe",
+        Some(Json::object({ "uri": Json::string("memory://status") })),
+      )
+    })
+    is MethodNotFound("resources/subscribe"),
+    msg="expected unsupported subscribe method",
   )
-  guard unsupported_result is Err(MethodNotFound("resources/subscribe")) else {
-    fail("expected unsupported subscribe method")
-  }
-  let unsupported_unsubscribe : Result[Json?, Error] = try? unsupported.dispatch(
-    "resources/unsubscribe",
-    Some(Json::object({ "uri": Json::string("memory://status") })),
+
+  assert_true(
+    @test.expect_error(() => {
+      unsupported.dispatch(
+        "resources/unsubscribe",
+        Some(Json::object({ "uri": Json::string("memory://status") })),
+      )
+    })
+    is MethodNotFound("resources/unsubscribe"),
+    msg="expected unsupported unsubscribe method",
   )
-  guard unsupported_unsubscribe is Err(MethodNotFound("resources/unsubscribe")) else {
-    fail("expected unsupported unsubscribe method")
-  }
+
   let server = Server(
     name="test-server",
     version="0.1.0",
     capabilities=ServerCapabilities::full(resource_subscribe=true),
   )
-  ignore(try! server.initialize(Some(test_initialize_params())))
+  let _server_capabilities = try! server.initialize(
+    Some(test_initialize_params()),
+  )
   try! server.notify_initialized()
-  let missing : Result[Json?, Error] = try? server.dispatch(
-    "resources/subscribe",
-    Some(Json::object({ "uri": Json::string("memory://missing") })),
+
+  assert_true(
+    @test.expect_error(() => {
+      server.dispatch(
+        "resources/subscribe",
+        Some(Json::object({ "uri": Json::string("memory://missing") })),
+      )
+    })
+    is ResourceNotFound("memory://missing"),
+    msg="expected missing resource error",
   )
-  guard missing is Err(ResourceNotFound("memory://missing")) else {
-    fail("expected missing resource error")
-  }
-  let unsubscribe_missing = try! server.dispatch(
-    "resources/unsubscribe",
-    Some(Json::object({ "uri": Json::string("memory://missing") })),
+
+  assert_true(
+    try! (server.dispatch(
+      "resources/unsubscribe",
+      Some(Json::object({ "uri": Json::string("memory://missing") })),
+    )
+    is Some(Object(_))),
+    msg="expected idempotent unsubscribe result",
   )
-  guard unsubscribe_missing is Some(Object(_)) else {
-    fail("expected idempotent unsubscribe result")
-  }
-  let unsubscribe_without_uri : Result[Json?, Error] = try? server.dispatch(
-    "resources/unsubscribe",
-    Some(Json::object({})),
+
+  assert_true(
+    @test.expect_error(() => {
+      server.dispatch("resources/subscribe", Some(Json::object({})))
+    })
+    is InvalidParams(_),
+    msg="expected missing uri error",
   )
-  guard unsubscribe_without_uri is Err(InvalidParams(_)) else {
-    fail("expected missing uri error")
-  }
 }

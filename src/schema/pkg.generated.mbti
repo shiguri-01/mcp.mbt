@@ -47,4 +47,3 @@ pub struct Property {
 pub(open) trait JsonSchema {
   fn json_schema() -> Json
 }
-

@@ -55,7 +55,7 @@ fn parse_string_map(
   context : String,
 ) -> Map[String, String] raise McpError {
   let fields = expect_object(value, context)
-  let result : Map[String, String] = {}
+  let result : Map[String, String] = Map([])
   for key, value in fields {
     match value {
       String(value) => result[key] = value

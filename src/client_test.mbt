@@ -72,8 +72,9 @@ async test "client maps resource not found JSON-RPC errors" {
       "data": Json::object({ "uri": Json::string("memory://missing") }),
     }),
   })
-  let result : Result[Json?, Error] = try? client.receive_jsonrpc(response)
-  guard result is Err(@mcp.ResourceNotFound("memory://missing")) else {
-    fail("expected resource not found")
+  try client.receive_jsonrpc(response) catch {
+    err => assert_true(err is @mcp.ResourceNotFound("memory://missing"))
+  } noraise {
+    _ => fail("expected error to be raised")
   }
 }

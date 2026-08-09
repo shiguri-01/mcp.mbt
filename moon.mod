@@ -17,6 +17,4 @@ import {
   "shiguri-01/jsonrpc@0.2.0",
 }
 
-options(
-  source: "src",
-)
+source = "src"

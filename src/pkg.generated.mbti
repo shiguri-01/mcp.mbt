@@ -432,4 +432,3 @@ pub impl ToJson for ToolsCapability
 pub(open) trait PromptArguments {
   fn prompt_arguments() -> Array[PromptArgument]
 }
-

@@ -698,7 +698,7 @@ fn Server::list_prompts(self : Server, params : Json?) -> Json raise McpError {
 fn get_prompt_arguments(
   params : Map[String, Json],
 ) -> Map[String, String] raise McpError {
-  let arguments : Map[String, String] = {}
+  let arguments : Map[String, String] = Map([])
   match params.get("arguments") {
     Some(Object(raw)) =>
       for key, value in raw {
@@ -715,7 +715,7 @@ fn get_prompt_arguments(
 
 ///|
 fn prompt_arguments_json(arguments : Map[String, String]) -> Json {
-  let fields : Map[String, Json] = {}
+  let fields : Map[String, Json] = Map([])
   for key, value in arguments {
     fields[key] = Json::string(value)
   }
