@@ -5,6 +5,15 @@ pub(open) trait JsonSchema {
 }
 
 ///|
+/// The JSON Schema dialect used by MCP `2026-07-28` when `$schema` is absent.
+pub let draft_2020_12 : String = "https://json-schema.org/draft/2020-12/schema"
+
+///|
+pub(all) suberror SchemaError {
+  InvalidHeaderName(String)
+} derive(Debug, Eq)
+
+///|
 /// JSON Schema object field descriptor used by `schema`.
 pub struct Property {
   priv name : String
@@ -27,11 +36,59 @@ pub fn schema(
     }
   }
   Json::object({
+    "$schema": Json::string(draft_2020_12),
     "type": Json::string("object"),
     "properties": Json::object(property_fields),
     "required": required.to_json(),
     "additionalProperties": Json::boolean(additional_properties),
   })
+}
+
+///|
+fn is_http_token_char(char : Char) -> Bool {
+  match char {
+    'a'..='z'
+    | 'A'..='Z'
+    | '0'..='9'
+    | '!'
+    | '#'
+    | '$'
+    | '%'
+    | '&'
+    | '\''
+    | '*'
+    | '+'
+    | '-'
+    | '.'
+    | '^'
+    | '_'
+    | '`'
+    | '|'
+    | '~' => true
+    _ => false
+  }
+}
+
+///|
+fn validate_header_name(name : String) -> Unit raise SchemaError {
+  if name.is_empty() {
+    raise InvalidHeaderName("x-mcp-header must not be empty")
+  }
+  for char in name {
+    if !is_http_token_char(char) {
+      raise InvalidHeaderName("invalid x-mcp-header name: \{name}")
+    }
+  }
+}
+
+///|
+fn with_header(schema : Json, header_name : String) -> Json raise SchemaError {
+  validate_header_name(header_name)
+  guard schema is Object(fields) else {
+    raise InvalidHeaderName("header property schema must be an object")
+  }
+  fields["x-mcp-header"] = Json::string(header_name)
+  Json::object(fields)
 }
 
 ///|
@@ -74,6 +131,51 @@ pub fn boolean_schema(description? : String) -> Json {
   let fields : Map[String, Json] = { "type": Json::string("boolean") }
   put_optional_string(fields, "description", description)
   Json::object(fields)
+}
+
+///|
+/// Build a string property mirrored to `Mcp-Param-{header_name}` by HTTP.
+pub fn header_string(
+  name~ : String,
+  header_name~ : String,
+  description? : String,
+  required? : Bool = false,
+) -> Property raise SchemaError {
+  field(
+    name~,
+    schema=with_header(string_schema(description?), header_name),
+    required~,
+  )
+}
+
+///|
+/// Build an integer property mirrored to `Mcp-Param-{header_name}` by HTTP.
+pub fn header_integer(
+  name~ : String,
+  header_name~ : String,
+  description? : String,
+  required? : Bool = false,
+) -> Property raise SchemaError {
+  field(
+    name~,
+    schema=with_header(integer_schema(description?), header_name),
+    required~,
+  )
+}
+
+///|
+/// Build a boolean property mirrored to `Mcp-Param-{header_name}` by HTTP.
+pub fn header_boolean(
+  name~ : String,
+  header_name~ : String,
+  description? : String,
+  required? : Bool = false,
+) -> Property raise SchemaError {
+  field(
+    name~,
+    schema=with_header(boolean_schema(description?), header_name),
+    required~,
+  )
 }
 
 ///|
