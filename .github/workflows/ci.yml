@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  native:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Set up MoonBit
+        run: |
+          curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash
+          echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
+      - name: Verify packages and unit tests
+        run: |
+          moon version --all
+          moon update
+          moon check --target all
+          moon test --target native
+          moon test src --target wasm-gc
+          moon info
+          git diff --exit-code -- '*.mbti'
+      - name: Verify stdio process roundtrip
+        run: |
+          moon build --target native src/integration/stdio-roundtrip
+          executable="$PWD/_build/native/debug/build/integration/stdio-roundtrip/stdio-roundtrip"
+          MCP_STDIO_INTEGRATION_SERVER="$executable" "$executable"
+      - name: Verify HTTP socket roundtrip
+        run: |
+          moon build --target native src/integration/http-roundtrip
+          executable="$PWD/_build/native/debug/build/integration/http-roundtrip/http-roundtrip"
+          MCP_HTTP_INTEGRATION_SERVER="$executable" "$executable"
