@@ -25,7 +25,7 @@ the optional Authorization specification is enabled.
 ```mbt check
 ///|
 pub fn make_client() -> @http.Client {
-  @http.Client("http://127.0.0.1:8080/mcp")
+  try! @http.Client("http://127.0.0.1:8080/mcp")
 }
 
 ///|

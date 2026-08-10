@@ -52,6 +52,7 @@ fn find_subscription(
 ///|
 priv struct ActiveSubscription {
   subscription : @mcp.Subscription
+  cancelled : Array[Bool]
   task : @async.Task[Unit]
 }
 
@@ -159,6 +160,7 @@ pub async fn serve(
         }
         // Queue the acknowledgement before starting application work.
         output.put(Some(encode_frame(subscription.acknowledgement())))
+        let cancelled = [false]
         let task = group.spawn(() => {
           on_subscription(subscription, async fn(notification) {
             if subscription_event_allowed(subscription, notification) {
@@ -167,17 +169,20 @@ pub async fn serve(
           }) catch {
             _ => ()
           }
-          output.put(Some(encode_frame(subscription.close_response())))
+          if !cancelled[0] {
+            output.put(Some(encode_frame(subscription.close_response())))
+          }
           if find_subscription(subscriptions, subscription.id()) is Some(index) {
             ignore(subscriptions.remove(index))
           }
         })
-        subscriptions.push({ subscription, task })
+        subscriptions.push({ subscription, cancelled, task })
         continue
       }
       if cancelled_request_id(message) is Some(id) {
         if find_subscription(subscriptions, id) is Some(index) {
           let active = subscriptions.remove(index)
+          active.cancelled[0] = true
           active.task.cancel()
         } else if find_request(requests, id) is Some(index) {
           let active = requests.remove(index)
@@ -211,14 +216,20 @@ pub async fn serve(
         requests.push({ id: request_id, cancelled, task })
       }
     }
+    // EOF cancels all work before joining so a disconnected client cannot
+    // leave the server process blocked in an application handler.
+    for active in requests {
+      active.cancelled[0] = true
+      active.task.cancel()
+    }
+    while subscriptions.pop() is Some(active) {
+      active.cancelled[0] = true
+      active.task.cancel()
+    }
     for task in handlers {
       task.wait() catch {
         _ => ()
       }
-    }
-    while subscriptions.pop() is Some(active) {
-      active.task.cancel()
-      output.put(Some(encode_frame(active.subscription.close_response())))
     }
     output.put(None)
     writer.wait()

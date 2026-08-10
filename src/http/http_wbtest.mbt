@@ -52,7 +52,7 @@ test "standard request headers are required and match body metadata" {
 }
 
 ///|
-test "missing request metadata is an InvalidParams protocol error" {
+test "standard headers require matching protocol metadata in the body" {
   let message = Json::object({
     "jsonrpc": Json::string("2.0"),
     "id": Json::number(1.0, repr="1"),
@@ -63,7 +63,9 @@ test "missing request metadata is an InvalidParams protocol error" {
     "MCP-Protocol-Version": @mcp.latest_protocol_version,
     "Mcp-Method": "server/discover",
   })
-  assert_true(standard_validation_error(request, message) is None)
+  assert_true(
+    standard_validation_error(request, message) is Some(@mcp.HeaderMismatch(_)),
+  )
 }
 
 ///|

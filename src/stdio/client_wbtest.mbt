@@ -108,6 +108,17 @@ async test "single reader demultiplexes interleaved responses" {
 }
 
 ///|
+test "numeric request ids route by JSON number value" {
+  assert_eq(
+    routing_key(Json::number(1.0, repr="1")),
+    routing_key(Json::number(1.0, repr="1.0")),
+  )
+  assert_true(
+    routing_key(Json::string("1")) != routing_key(Json::number(1.0, repr="1")),
+  )
+}
+
+///|
 test "MRTR resolution requires a positive bound" {
   try validate_max_rounds(0) catch {
     InvalidRequest(message) => assert_true(message.contains("positive"))

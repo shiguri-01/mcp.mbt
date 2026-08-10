@@ -138,6 +138,7 @@ pub struct Server {
   priv prompt_list_changed : Bool
   priv resource_subscriptions : Bool
   priv extensions : Map[String, Json]
+  priv extension_result_types : Map[String, String]
   priv experimental : Map[String, Json]
 }
 
@@ -157,11 +158,14 @@ pub fn Server::Server(
   prompt_list_changed? : Bool = false,
   resource_subscriptions? : Bool = false,
   extensions? : Map[String, Json] = Map([]),
+  extension_result_types? : Map[String, String] = Map([]),
   experimental? : Map[String, Json] = Map([]),
 ) -> Server raise McpError {
   if supported_versions.is_empty() {
     raise InvalidParams("supported_versions must not be empty")
   }
+  validate_extension_map(extensions, "server capabilities.extensions")
+  validate_extension_result_types(extension_result_types, extensions)
   {
     info: Implementation(
       name~,
@@ -186,6 +190,7 @@ pub fn Server::Server(
     prompt_list_changed,
     resource_subscriptions,
     extensions,
+    extension_result_types,
     experimental,
   }
 }
@@ -665,6 +670,23 @@ fn Server::input_required_json(
 }
 
 ///|
+fn Server::extension_result_json(
+  self : Server,
+  result_type : String,
+  result : Json,
+) -> Json raise McpError {
+  if !self.extension_result_types.contains(result_type) {
+    raise InvalidRequest(
+      "handler returned unregistered extension result type \{result_type}",
+    )
+  }
+  let fields = expect_object(result, "extension result").copy()
+  fields["resultType"] = Json::string(result_type)
+  merge_result_meta(fields, server_info=self.info)
+  Json::object(fields)
+}
+
+///|
 fn[T : ToJson] Server::outcome_json(
   self : Server,
   context : RequestContext,
@@ -681,6 +703,8 @@ fn[T : ToJson] Server::outcome_json(
       }
       self.input_required_json(context, result)
     }
+    ExtensionResult(result_type, result) =>
+      self.extension_result_json(result_type, result)
   }
 }
 
@@ -743,6 +767,9 @@ async fn Server::call_tool(
   match self.tools.get(name) {
     Some(registered) => {
       if registered.input_validator.validate(arguments) is Some(error) {
+        if tool_argument_shape_error(error) {
+          raise InvalidParams("invalid arguments for tool \{name}: \{error}")
+        }
         return self.outcome_json(
           context,
           "tools/call",
@@ -769,6 +796,7 @@ async fn Server::call_tool(
             }
           }
         InputRequired(_) => ()
+        ExtensionResult(_, _) => ()
       }
       self.outcome_json(context, "tools/call", outcome)
     }
@@ -833,6 +861,8 @@ async fn Server::read_resource(
       match (registered.handler)(context, uri) {
         Complete(value) => self.cacheable_complete(value.to_json())
         InputRequired(value) => self.input_required_json(context, value)
+        ExtensionResult(result_type, value) =>
+          self.extension_result_json(result_type, value)
       }
     None => {
       for registered in self.resource_templates.values() {
@@ -840,6 +870,8 @@ async fn Server::read_resource(
           return match (registered.handler)(context, uri, captures) {
             Complete(value) => self.cacheable_complete(value.to_json())
             InputRequired(value) => self.input_required_json(context, value)
+            ExtensionResult(result_type, value) =>
+              self.extension_result_json(result_type, value)
           }
         }
       }
@@ -963,16 +995,12 @@ fn response_error_id(message : Json) -> Json? {
 }
 
 ///|
-fn is_cancel_notification(message : Json) -> Bool {
-  message
-  is Object(
-    {
-      "jsonrpc": String("2.0"),
-      "method": String("notifications/cancelled"),
-      "id"? : None,
-      ..
-    }
-  )
+fn tool_argument_shape_error(error : String) -> Bool {
+  error.contains("required property") ||
+  error.contains("expected type") ||
+  error.contains("does not match any declared type") ||
+  error.contains("additional property") ||
+  error.contains("requires property")
 }
 
 ///|
@@ -990,7 +1018,7 @@ pub async fn Server::handle_jsonrpc_with_hooks(
   message : Json,
   hooks~ : RequestHooks,
 ) -> Json? {
-  if is_cancel_notification(message) {
+  if is_rpc_notification(message) {
     return None
   }
   let id = response_error_id(message)

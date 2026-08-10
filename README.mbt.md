@@ -38,7 +38,7 @@ async test "discover and call a typed tool" {
     },
   )
 
-  let client = @mcp.Client(name="example-client", version="1.0.0")
+  let client = try! @mcp.Client(name="example-client", version="1.0.0")
   let discover_response = server.handle_jsonrpc(client.discover_request())
   guard discover_response is Some(discover_response) else {
     fail("server/discover returned no response")

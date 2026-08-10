@@ -112,8 +112,15 @@ fn require_result_type(result : Json) -> String raise McpError {
   match fields.get("resultType") {
     Some(String("complete")) => "complete"
     Some(String("input_required")) => "input_required"
-    Some(String(value)) => raise InvalidRequest("unknown resultType: \{value}")
+    Some(String(value)) => value
     Some(_) => raise InvalidRequest("resultType must be a string")
-    None => raise InvalidRequest("resultType is required by MCP 2026-07-28")
+    // Compatibility rule: an absent resultType is interpreted as complete.
+    None => "complete"
   }
+}
+
+///|
+fn is_rpc_notification(message : Json) -> Bool {
+  message
+  is Object({ "jsonrpc": String("2.0"), "method": String(_), "id"? : None, .. })
 }

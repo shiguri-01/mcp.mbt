@@ -106,23 +106,23 @@ pub impl ToJson for CallToolResult
 pub struct Client {
   // private fields
 }
-pub fn Client::Client(name~ : String, version~ : String, title? : String, description? : String, icons? : Array[Icon], website_url? : String, capabilities? : ClientCapabilities, protocol_version? : String) -> Self
+pub fn Client::Client(name~ : String, version~ : String, title? : String, description? : String, icons? : Array[Icon], website_url? : String, capabilities? : ClientCapabilities, extension_result_types? : Map[String, String], protocol_version? : String) -> Self raise McpError
 pub fn Client::call_tool_request(Self, name~ : String, arguments? : Json, options? : RequestOptions) -> Json raise McpError
 pub fn Client::capabilities(Self) -> ClientCapabilities
-pub fn Client::complete_request(Self, reference~ : CompletionReference, argument_name~ : String, argument_value~ : String, context_arguments? : Map[String, String], options? : RequestOptions) -> Json
+pub fn Client::complete_request(Self, reference~ : CompletionReference, argument_name~ : String, argument_value~ : String, context_arguments? : Map[String, String], options? : RequestOptions) -> Json raise McpError
 pub fn Client::decode_discover(Self, Json) -> DiscoverResult raise McpError
 pub fn Client::decode_response(Self, Json) -> HandlerOutcome[Json] raise McpError
-pub fn Client::discover_request(Self, options? : RequestOptions) -> Json
+pub fn Client::discover_request(Self, options? : RequestOptions) -> Json raise McpError
 pub fn Client::get_prompt_request(Self, name~ : String, arguments? : Json, options? : RequestOptions) -> Json raise McpError
 pub fn Client::info(Self) -> Implementation
-pub fn Client::list_prompts_request(Self, cursor? : String, options? : RequestOptions) -> Json
-pub fn Client::list_resource_templates_request(Self, cursor? : String, options? : RequestOptions) -> Json
-pub fn Client::list_resources_request(Self, cursor? : String, options? : RequestOptions) -> Json
-pub fn Client::list_tools_request(Self, cursor? : String, options? : RequestOptions) -> Json
-pub fn Client::listen_request(Self, notifications~ : SubscriptionFilter, options? : RequestOptions) -> Json
+pub fn Client::list_prompts_request(Self, cursor? : String, options? : RequestOptions) -> Json raise McpError
+pub fn Client::list_resource_templates_request(Self, cursor? : String, options? : RequestOptions) -> Json raise McpError
+pub fn Client::list_resources_request(Self, cursor? : String, options? : RequestOptions) -> Json raise McpError
+pub fn Client::list_tools_request(Self, cursor? : String, options? : RequestOptions) -> Json raise McpError
+pub fn Client::listen_request(Self, notifications~ : SubscriptionFilter, options? : RequestOptions) -> Json raise McpError
 pub fn Client::protocol_version(Self) -> String
-pub fn Client::read_resource_request(Self, uri~ : String, options? : RequestOptions) -> Json
-pub fn Client::request(Self, method_name~ : String, params? : Map[String, Json], options? : RequestOptions) -> Json
+pub fn Client::read_resource_request(Self, uri~ : String, options? : RequestOptions) -> Json raise McpError
+pub fn Client::request(Self, method_name~ : String, params? : Map[String, Json], options? : RequestOptions) -> Json raise McpError
 
 pub(all) struct ClientCapabilities {
   elicitation : ElicitationCapability?
@@ -207,6 +207,7 @@ pub impl ToJson for GetPromptResult
 pub(all) enum HandlerOutcome[T] {
   Complete(T)
   InputRequired(InputRequiredResult)
+  ExtensionResult(String, Json)
 }
 
 pub(all) struct Icon {
@@ -254,8 +255,9 @@ pub struct InputRequiredResult {
 } derive(Eq, @debug.Debug)
 pub fn InputRequiredResult::InputRequiredResult(input_requests? : Map[String, InputRequest], request_state? : String, meta? : ResultMeta) -> Self raise McpError
 pub fn InputRequiredResult::input_requests(Self) -> Map[String, InputRequest]?
+pub fn InputRequiredResult::meta(Self) -> ResultMeta?
 pub fn InputRequiredResult::request_state(Self) -> String?
-pub fn InputRequiredResult::retry_options(Self, Map[String, InputResponse]) -> RequestOptions raise McpError
+pub fn InputRequiredResult::retry_options(Self, Map[String, InputResponse], base? : RequestOptions) -> RequestOptions raise McpError
 pub impl ToJson for InputRequiredResult
 
 pub struct InputResponse {
@@ -360,7 +362,7 @@ pub(all) struct RequestMeta {
   log_level : LoggingLevel?
   extra : Map[String, Json]
 } derive(Eq, @debug.Debug)
-pub fn RequestMeta::RequestMeta(protocol_version? : String, client_info? : Implementation, client_capabilities? : ClientCapabilities, progress_token? : Json, log_level? : LoggingLevel, extra? : Map[String, Json]) -> Self
+pub fn RequestMeta::RequestMeta(protocol_version? : String, client_info? : Implementation, client_capabilities? : ClientCapabilities, progress_token? : Json, log_level? : LoggingLevel, extra? : Map[String, Json]) -> Self raise McpError
 pub impl ToJson for RequestMeta
 
 pub(all) struct RequestOptions {
@@ -371,8 +373,8 @@ pub(all) struct RequestOptions {
   meta : Map[String, Json]
 } derive(Eq, @debug.Debug)
 pub fn RequestOptions::RequestOptions(progress_token? : Json, log_level? : LoggingLevel, input_responses? : Map[String, InputResponse], request_state? : String, meta? : Map[String, Json]) -> Self
-pub fn RequestOptions::request_meta(Self, client_capabilities~ : ClientCapabilities, client_info? : Implementation, protocol_version? : String) -> RequestMeta
-pub fn RequestOptions::request_params(Self, Map[String, Json], client_capabilities~ : ClientCapabilities, client_info? : Implementation, protocol_version? : String) -> Json
+pub fn RequestOptions::request_meta(Self, client_capabilities~ : ClientCapabilities, client_info? : Implementation, protocol_version? : String) -> RequestMeta raise McpError
+pub fn RequestOptions::request_params(Self, Map[String, Json], client_capabilities~ : ClientCapabilities, client_info? : Implementation, protocol_version? : String) -> Json raise McpError
 
 pub(all) struct Resource {
   uri : String
@@ -435,7 +437,7 @@ pub(all) struct ResultMeta {
   server_info : Implementation?
   extra : Map[String, Json]
 } derive(Eq, @debug.Debug)
-pub fn ResultMeta::ResultMeta(server_info? : Implementation, extra? : Map[String, Json]) -> Self
+pub fn ResultMeta::ResultMeta(server_info? : Implementation, extra? : Map[String, Json]) -> Self raise McpError
 pub impl ToJson for ResultMeta
 
 pub(all) enum ResultType {
@@ -457,7 +459,7 @@ pub impl ToJson for Role
 pub struct Server {
   // private fields
 }
-pub fn Server::Server(name~ : String, version~ : String, title? : String, description? : String, icons? : Array[Icon], website_url? : String, instructions? : String, cache_policy? : CachePolicy, supported_versions? : Array[String], tool_list_changed? : Bool, resource_list_changed? : Bool, prompt_list_changed? : Bool, resource_subscriptions? : Bool, extensions? : Map[String, Json], experimental? : Map[String, Json]) -> Self raise McpError
+pub fn Server::Server(name~ : String, version~ : String, title? : String, description? : String, icons? : Array[Icon], website_url? : String, instructions? : String, cache_policy? : CachePolicy, supported_versions? : Array[String], tool_list_changed? : Bool, resource_list_changed? : Bool, prompt_list_changed? : Bool, resource_subscriptions? : Bool, extensions? : Map[String, Json], extension_result_types? : Map[String, String], experimental? : Map[String, Json]) -> Self raise McpError
 pub fn Server::accept_subscription(Self, Json) -> Subscription raise McpError
 pub fn Server::completion(Self, reference~ : CompletionReference, async (RequestContext, CompletionRequest) -> CompleteResult raise McpError) -> Unit raise McpError
 pub async fn Server::handle_jsonrpc(Self, Json) -> Json?

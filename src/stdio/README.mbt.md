@@ -27,12 +27,13 @@ async fn main {
 }
 ```
 
-Run the complete server and discover/call client examples from the repository
-root:
+Build the server before running the client so the client process can launch it
+directly (without nesting another `moon` build):
 
 ```bash
-moon run --target native src/examples/stdio-server
-moon run --target native src/examples/stdio-client
+moon build --target native src/examples/stdio-server
+MCP_STDIO_SERVER="$PWD/_build/native/debug/build/examples/stdio-server/stdio-server" \
+  moon run --target native src/examples/stdio-client
 ```
 
 On Windows, `moonbitlang/async` requires an MSVC native toolchain.

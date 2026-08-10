@@ -11,8 +11,54 @@ pub fn InputRequest::InputRequest(
   method_name~ : String,
   params? : Json = Json::object({}),
 ) -> InputRequest raise McpError {
-  ignore(expect_object(params, "input request params"))
+  let fields = expect_object(params, "input request params")
+  validate_core_input_request(method_name, fields)
   { method_name, params }
+}
+
+///|
+fn validate_core_input_request(
+  method_name : String,
+  fields : Map[String, Json],
+) -> Unit raise McpError {
+  match method_name {
+    "elicitation/create" => {
+      ignore(get_string(fields, "message", "elicitation/create params"))
+      match fields.get("mode") {
+        Some(String("url")) =>
+          ignore(get_string(fields, "url", "elicitation/create params"))
+        Some(String("form")) | None => {
+          guard fields.get("requestedSchema") is Some(Object(schema)) else {
+            raise InvalidParams(
+              "elicitation/create form params.requestedSchema is required",
+            )
+          }
+          guard schema.get("type") == Some(Json::string("object")) &&
+            schema.get("properties") is Some(Object(_)) else {
+            raise InvalidParams(
+              "elicitation/create requestedSchema requires object properties",
+            )
+          }
+        }
+        Some(_) =>
+          raise InvalidParams("elicitation/create params.mode is invalid")
+      }
+    }
+    "sampling/createMessage" => {
+      guard fields.get("messages") is Some(Array(_)) else {
+        raise InvalidParams(
+          "sampling/createMessage params.messages is required",
+        )
+      }
+      guard fields.get("maxTokens") is Some(Number(value, ..)) && value > 0.0 else {
+        raise InvalidParams(
+          "sampling/createMessage params.maxTokens must be positive",
+        )
+      }
+    }
+    "roots/list" => ()
+    _ => () // Explicit extension escape hatch.
+  }
 }
 
 ///|
@@ -118,12 +164,18 @@ pub fn InputRequiredResult::request_state(
 }
 
 ///|
+pub fn InputRequiredResult::meta(self : InputRequiredResult) -> ResultMeta? {
+  self.meta
+}
+
+///|
 /// Build retry options while preserving the server's opaque request state.
 /// Every requested input must have exactly one response; callers never need to
 /// inspect or copy `requestState` themselves.
 pub fn InputRequiredResult::retry_options(
   self : InputRequiredResult,
   responses : Map[String, InputResponse],
+  base? : RequestOptions = RequestOptions(),
 ) -> RequestOptions raise McpError {
   match self.input_requests {
     Some(requests) => {
@@ -137,15 +189,52 @@ pub fn InputRequiredResult::retry_options(
           raise InvalidParams("unexpected input response: \{key}")
         }
       }
+      for key, request in requests {
+        validate_core_input_response(
+          request.method_name(),
+          responses[key].result(),
+        )
+      }
     }
     None if !responses.is_empty() =>
       raise InvalidParams("input_required result did not request responses")
     None => ()
   }
   RequestOptions(
+    progress_token?=base.progress_token,
+    log_level?=base.log_level,
     input_responses?=if responses.is_empty() { None } else { Some(responses) },
     request_state?=self.request_state,
+    meta=base.meta,
   )
+}
+
+///|
+fn validate_core_input_response(
+  method_name : String,
+  result : Json,
+) -> Unit raise McpError {
+  let fields = expect_object(result, "input response")
+  match method_name {
+    "elicitation/create" =>
+      match fields.get("action") {
+        Some(String("accept" | "decline" | "cancel")) => ()
+        _ => raise InvalidParams("elicitation response.action is invalid")
+      }
+    "sampling/createMessage" => {
+      ignore(get_string(fields, "model", "sampling response"))
+      ignore(get_string(fields, "role", "sampling response"))
+      guard fields.contains("content") else {
+        raise InvalidParams("sampling response.content is required")
+      }
+    }
+    "roots/list" => {
+      guard fields.get("roots") is Some(Array(_)) else {
+        raise InvalidParams("roots response.roots is required")
+      }
+    }
+    _ => ()
+  }
 }
 
 ///|
@@ -191,6 +280,11 @@ pub fn parse_input_required_result(
       None => None
     },
     request_state?=get_optional_string(fields, "requestState", "result"),
+    meta?=match fields.get("_meta") {
+      Some(value) =>
+        Some(parse_result_meta(value, "input_required result._meta"))
+      None => None
+    },
   )
 }
 
@@ -199,4 +293,5 @@ pub fn parse_input_required_result(
 pub(all) enum HandlerOutcome[T] {
   Complete(T)
   InputRequired(InputRequiredResult)
+  ExtensionResult(String, Json)
 }

@@ -96,26 +96,73 @@ async fn send_subscription_stream(
     "Cache-Control": "no-cache",
     "X-Accel-Buffering": "no",
   })
-  // The acknowledgement is normatively required to be the first event.
-  conn.write(sse_message(subscription.acknowledgement()))
-  let mut stopped = false
-  on_subscription(subscription, async fn(event) {
-    if stopped || !subscription_event_allowed(subscription, event) {
-      return
+  let outbound : @aqueue.Queue[String?] = Queue(kind=Unbounded)
+  let stopped = Ref(false)
+  let producer_error : Ref[String?] = Ref(None)
+  // Every subscription stream begins with its acknowledgement.
+  outbound.put(Some(sse_message(subscription.acknowledgement())))
+  @async.with_task_group(group => {
+    let producer = group.spawn(
+      async fn() {
+        on_subscription(subscription, async fn(event) {
+          if !stopped.val && subscription_event_allowed(subscription, event) {
+            outbound.put(Some(sse_message(event)))
+          }
+        }) catch {
+          error => producer_error.val = Some(error.to_string())
+        }
+      },
+      allow_failure=true,
+    )
+    let writer = group.spawn(
+      async fn() {
+        while outbound.get() is Some(frame) {
+          try {
+            conn.write(frame)
+            conn.flush()
+          } catch {
+            _ => {
+              stopped.val = true
+              producer.cancel()
+              outbound.close(clear=true)
+              return
+            }
+          }
+        }
+      },
+      allow_failure=true,
+    )
+    // SSE comments keep an otherwise idle subscription observable. A failed
+    // heartbeat is the transport's disconnect signal and cancels its producer.
+    let heartbeat = group.spawn(
+      async fn() {
+        while !stopped.val {
+          @async.sleep(15000)
+          if !stopped.val {
+            outbound.put(Some(": keepalive\r\n\r\n"))
+          }
+        }
+      },
+      allow_failure=true,
+    )
+    producer.wait()
+    heartbeat.cancel()
+    if !stopped.val {
+      let final_response = match producer_error.val {
+        Some(message) =>
+          jsonrpc_error(
+            subscription.id(),
+            @mcp.InternalError("subscription producer failed: \{message}"),
+          )
+        None => subscription.close_response()
+      }
+      outbound.put(Some(sse_message(final_response)))
+      outbound.put(None)
     }
-    conn.write(sse_message(event)) catch {
-      _ => stopped = true
-    }
-  }) catch {
-    _ => stopped = true
-  }
-  if !stopped {
-    conn.write(sse_message(subscription.close_response())) catch {
-      _ => stopped = true
-    }
-  }
-  if !stopped {
-    conn.end_response()
+    writer.wait()
+  })
+  conn.end_response() catch {
+    _ => ()
   }
 }
 
@@ -150,8 +197,17 @@ async fn send_request_stream(
           }
         }
         streaming = true
+        conn.flush() catch {
+          _ => {
+            cancelled = true
+            raise @mcp.InternalError("failed to flush HTTP response stream")
+          }
+        }
       }
-      conn.write(sse_message(notification)) catch {
+      try {
+        conn.write(sse_message(notification))
+        conn.flush()
+      } catch {
         _ => {
           cancelled = true
           raise @mcp.InternalError("failed to write HTTP response stream")
@@ -164,7 +220,10 @@ async fn send_request_stream(
   let response = server.handle_jsonrpc_with_hooks(message, hooks~)
   match response {
     Some(response) if !cancelled && streaming =>
-      conn.write(sse_message(response)) catch {
+      try {
+        conn.write(sse_message(response))
+        conn.flush()
+      } catch {
         _ => cancelled = true
       }
     Some(response) if !cancelled => {
@@ -207,9 +266,10 @@ fn response_status(response : Json) -> (Int, String) {
 
 ///|
 fn origin_allowed(headers : Map[String, String], allowed : Set[String]) -> Bool {
-  match header(headers, "Origin") {
-    Some(origin) => allowed.contains(origin)
-    None => true
+  match unique_header(headers, "Origin") {
+    Ok(Some(origin)) => allowed.contains(origin)
+    Ok(None) => true
+    Err(_) => false
   }
 }
 

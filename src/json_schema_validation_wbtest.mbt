@@ -115,11 +115,62 @@ test "schema validator evaluates array applicators" {
 }
 
 ///|
-test "schema compiler rejects unevaluated and remote references" {
+test "2020-12 unevaluated properties include successful applicators" {
+  let validator = compile_json_schema(
+    Json::object({
+      "$schema": Json::string("https://json-schema.org/draft/2020-12/schema"),
+      "allOf": [
+        Json::object({
+          "properties": Json::object({
+            "name": Json::object({ "type": Json::string("string") }),
+          }),
+        }),
+      ],
+      "unevaluatedProperties": Json::boolean(false),
+    }),
+  )
+  assert_eq(
+    validator.validate(Json::object({ "name": Json::string("mcp") })),
+    None,
+  )
+  assert_true(
+    validator.validate(
+      Json::object({
+        "name": Json::string("mcp"),
+        "unknown": Json::boolean(true),
+      }),
+    )
+    is Some(_),
+  )
+}
+
+///|
+test "2020-12 dynamic references resolve local dynamic anchors" {
+  let validator = compile_json_schema(
+    Json::object({
+      "$defs": Json::object({
+        "positive": Json::object({
+          "$dynamicAnchor": Json::string("value"),
+          "type": Json::string("integer"),
+          "minimum": Json::number(1.0),
+        }),
+      }),
+      "$dynamicRef": Json::string("#value"),
+    }),
+  )
+  assert_eq(validator.validate(Json::number(1.0)), None)
+  assert_true(validator.validate(Json::number(0.0)) is Some(_))
+}
+
+///|
+test "schema compilation enforces structural and reference constraints" {
   for
     schema in [
-      Json::object({ "unevaluatedProperties": Json::boolean(false) }),
       Json::object({ "$ref": Json::string("https://example.com/schema") }),
+      Json::object({ "$dynamicRef": Json::string("https://example.com/schema") }),
+      Json::object({ "type": Json::string("unknown") }),
+      Json::object({ "enum": Json::array([]) }),
+      Json::object({ "multipleOf": Json::number(0.0) }),
       Json::object({
         "patternProperties": Json::object({
           "[": Json::object({ "type": Json::string("string") }),

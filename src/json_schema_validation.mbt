@@ -43,6 +43,57 @@ fn schema_int(fields : Map[String, Json], key : String) -> Int? raise McpError {
 }
 
 ///|
+fn validate_schema_type_keyword(
+  fields : Map[String, Json],
+) -> Unit raise McpError {
+  let allowed = [
+    "null", "boolean", "object", "array", "number", "string", "integer",
+  ]
+  match fields.get("type") {
+    None => ()
+    Some(String(value)) =>
+      if !allowed.contains(value) {
+        raise InvalidParams("JSON Schema type is not recognized: \{value}")
+      }
+    Some(Array(values)) => {
+      if values.is_empty() {
+        raise InvalidParams("JSON Schema type array must not be empty")
+      }
+      let seen : Map[String, Bool] = Map([])
+      for value in values {
+        guard value is String(name) && allowed.contains(name) else {
+          raise InvalidParams(
+            "JSON Schema type entries must be recognized strings",
+          )
+        }
+        if seen.contains(name) {
+          raise InvalidParams("JSON Schema type entries must be unique")
+        }
+        seen[name] = true
+      }
+    }
+    Some(_) => raise InvalidParams("JSON Schema type must be a string or array")
+  }
+}
+
+///|
+fn validate_unique_strings(
+  values : Array[Json],
+  keyword : String,
+) -> Unit raise McpError {
+  let seen : Map[String, Bool] = Map([])
+  for value in values {
+    guard value is String(name) else {
+      raise InvalidParams("JSON Schema \{keyword} entries must be strings")
+    }
+    if seen.contains(name) {
+      raise InvalidParams("JSON Schema \{keyword} entries must be unique")
+    }
+    seen[name] = true
+  }
+}
+
+///|
 fn validate_schema_shape(
   schema : Json,
   depth : Int,
@@ -59,6 +110,7 @@ fn validate_schema_shape(
   match schema {
     True | False => ()
     Object(fields) => {
+      validate_schema_type_keyword(fields)
       match fields.get("$schema") {
         None => ()
         Some(String("https://json-schema.org/draft/2020-12/schema"))
@@ -77,6 +129,28 @@ fn validate_schema_shape(
           }
         Some(_) => raise InvalidParams("JSON Schema $ref must be a string")
       }
+      match fields.get("$dynamicRef") {
+        None => ()
+        Some(String(reference)) =>
+          if !reference.has_prefix("#") {
+            raise InvalidParams("remote JSON Schema $dynamicRef is disabled")
+          }
+        Some(_) =>
+          raise InvalidParams("JSON Schema $dynamicRef must be a string")
+      }
+      for keyword in ["$anchor", "$dynamicAnchor"] {
+        match fields.get(keyword) {
+          None => ()
+          Some(String(value)) =>
+            if value.is_empty() || value.contains("/") {
+              raise InvalidParams(
+                "JSON Schema \{keyword} is not a valid anchor",
+              )
+            }
+          Some(_) =>
+            raise InvalidParams("JSON Schema \{keyword} must be a string")
+        }
+      }
       ignore(schema_int(fields, "minLength"))
       ignore(schema_int(fields, "maxLength"))
       ignore(schema_int(fields, "minItems"))
@@ -92,6 +166,24 @@ fn validate_schema_shape(
       ignore(schema_number(fields, "exclusiveMinimum"))
       ignore(schema_number(fields, "exclusiveMaximum"))
       ignore(schema_number(fields, "multipleOf"))
+      if schema_number(fields, "multipleOf") is Some(value) && value <= 0.0 {
+        raise InvalidParams("JSON Schema multipleOf must be greater than zero")
+      }
+      for keyword in ["uniqueItems"] {
+        match fields.get(keyword) {
+          None | Some(True) | Some(False) => ()
+          Some(_) =>
+            raise InvalidParams("JSON Schema \{keyword} must be a boolean")
+        }
+      }
+      match fields.get("enum") {
+        None => ()
+        Some(Array(values)) =>
+          if values.is_empty() {
+            raise InvalidParams("JSON Schema enum must not be empty")
+          }
+        Some(_) => raise InvalidParams("JSON Schema enum must be an array")
+      }
       let object_keywords = if draft7 {
         ["properties", "definitions", "patternProperties"]
       } else {
@@ -125,7 +217,7 @@ fn validate_schema_shape(
       } else {
         [
           "contains", "additionalProperties", "propertyNames", "not", "if", "then",
-          "else",
+          "else", "unevaluatedProperties", "unevaluatedItems",
         ]
       }
       for key in schema_keywords {
@@ -165,14 +257,7 @@ fn validate_schema_shape(
       }
       match fields.get("required") {
         None => ()
-        Some(Array(values)) =>
-          for value in values {
-            if !(value is String(_)) {
-              raise InvalidParams(
-                "JSON Schema required entries must be strings",
-              )
-            }
-          }
+        Some(Array(values)) => validate_unique_strings(values, "required")
         Some(_) => raise InvalidParams("JSON Schema required must be an array")
       }
       if !draft7 {
@@ -184,13 +269,7 @@ fn validate_schema_shape(
               guard value is Array(names) else {
                 raise InvalidParams("JSON Schema \{key} values must be arrays")
               }
-              for name in names {
-                if !(name is String(_)) {
-                  raise InvalidParams(
-                    "JSON Schema \{key} entries must be strings",
-                  )
-                }
-              }
+              validate_unique_strings(names, key)
             }
           Some(_) => raise InvalidParams("JSON Schema \{key} must be an object")
         }
@@ -229,18 +308,6 @@ fn validate_schema_shape(
         Some(_) => raise InvalidParams("JSON Schema pattern must be a string")
         None => ()
       }
-      if !draft7 {
-        for
-          unsupported in [
-            "$dynamicRef", "unevaluatedProperties", "unevaluatedItems",
-          ] {
-          if fields.contains(unsupported) {
-            raise InvalidParams(
-              "unsupported JSON Schema keyword: \{unsupported}",
-            )
-          }
-        }
-      }
     }
     _ => raise InvalidParams("JSON Schema must be an object or boolean")
   }
@@ -259,9 +326,52 @@ fn decode_pointer_segment(segment : String) -> String {
 }
 
 ///|
+fn find_schema_anchor(
+  schema : Json,
+  anchor : String,
+  dynamic : Bool,
+  depth : Int,
+) -> Json? {
+  if depth > 64 {
+    return None
+  }
+  match schema {
+    Object(fields) => {
+      let keyword = if dynamic { "$dynamicAnchor" } else { "$anchor" }
+      if fields.get(keyword) is Some(String(value)) && value == anchor {
+        return Some(schema)
+      }
+      for _, child in fields {
+        match child {
+          Object(_) | Array(_) =>
+            if find_schema_anchor(child, anchor, dynamic, depth + 1)
+              is Some(found) {
+              return Some(found)
+            }
+          _ => ()
+        }
+      }
+      None
+    }
+    Array(children) => {
+      for child in children {
+        if find_schema_anchor(child, anchor, dynamic, depth + 1) is Some(found) {
+          return Some(found)
+        }
+      }
+      None
+    }
+    _ => None
+  }
+}
+
+///|
 fn resolve_local_ref(root : Json, reference : String) -> Json? {
   if reference == "#" {
     return Some(root)
+  }
+  if reference.has_prefix("#") && !reference.has_prefix("#/") {
+    return find_schema_anchor(root, reference[1:].to_owned(), false, 0)
   }
   guard reference.has_prefix("#/") else { return None }
   let mut current = root
@@ -277,6 +387,19 @@ fn resolve_local_ref(root : Json, reference : String) -> Json? {
     }
   }
   Some(current)
+}
+
+///|
+fn resolve_local_dynamic_ref(root : Json, reference : String) -> Json? {
+  if reference == "#" || reference.has_prefix("#/") {
+    return resolve_local_ref(root, reference)
+  }
+  guard reference.has_prefix("#") else { return None }
+  let anchor = reference[1:].to_owned()
+  match find_schema_anchor(root, anchor, true, 0) {
+    Some(schema) => Some(schema)
+    None => find_schema_anchor(root, anchor, false, 0)
+  }
 }
 
 ///|
@@ -314,6 +437,139 @@ fn json_schema_pattern_matches(pattern : String, value : String) -> Bool {
 }
 
 ///|
+fn collect_evaluated_object_properties(
+  schema : Json,
+  root : Json,
+  object : Map[String, Json],
+  evaluated : Map[String, Bool],
+  depth : Int,
+) -> Unit {
+  if depth > 64 {
+    return
+  }
+  guard schema is Object(fields) else { return }
+  for keyword in ["$ref", "$dynamicRef"] {
+    if fields.get(keyword) is Some(String(reference)) {
+      let target = if keyword == "$dynamicRef" {
+        resolve_local_dynamic_ref(root, reference)
+      } else {
+        resolve_local_ref(root, reference)
+      }
+      if target is Some(child) {
+        collect_evaluated_object_properties(
+          child,
+          root,
+          object,
+          evaluated,
+          depth + 1,
+        )
+      }
+    }
+  }
+  let properties = match fields.get("properties") {
+    Some(Object(items)) => Some(items)
+    _ => None
+  }
+  if properties is Some(items) {
+    for key, _ in items {
+      if object.contains(key) {
+        evaluated[key] = true
+      }
+    }
+  }
+  let patterns = match fields.get("patternProperties") {
+    Some(Object(items)) => Some(items)
+    _ => None
+  }
+  if patterns is Some(items) {
+    for pattern, _ in items {
+      for key, _ in object {
+        if json_schema_pattern_matches(pattern, key) {
+          evaluated[key] = true
+        }
+      }
+    }
+  }
+  if fields.contains("additionalProperties") {
+    for key, _ in object {
+      let known = properties is Some(items) && items.contains(key)
+      let patterned = patterns is Some(items) &&
+        items.keys().any(pattern => json_schema_pattern_matches(pattern, key))
+      if !known && !patterned {
+        evaluated[key] = true
+      }
+    }
+  }
+  for keyword in ["allOf", "anyOf", "oneOf"] {
+    if fields.get(keyword) is Some(Array(children)) {
+      for child in children {
+        if validate_json_schema(
+            child,
+            root,
+            Json::object(object),
+            "$",
+            depth + 1,
+          )
+          is None {
+          collect_evaluated_object_properties(
+            child,
+            root,
+            object,
+            evaluated,
+            depth + 1,
+          )
+        }
+      }
+    }
+  }
+  if fields.get("if") is Some(condition) {
+    collect_evaluated_object_properties(
+      condition,
+      root,
+      object,
+      evaluated,
+      depth + 1,
+    )
+    let branch = if validate_json_schema(
+        condition,
+        root,
+        Json::object(object),
+        "$",
+        depth + 1,
+      )
+      is None {
+      fields.get("then")
+    } else {
+      fields.get("else")
+    }
+    if branch is Some(child) {
+      collect_evaluated_object_properties(
+        child,
+        root,
+        object,
+        evaluated,
+        depth + 1,
+      )
+    }
+  }
+  if fields.get("dependentSchemas") is Some(Object(dependencies)) {
+    for key, child in dependencies {
+      if object.contains(key) &&
+        validate_json_schema(child, root, Json::object(object), "$", depth + 1)
+        is None {
+        collect_evaluated_object_properties(
+          child,
+          root,
+          object,
+          evaluated,
+          depth + 1,
+        )
+      }
+    }
+  }
+}
+
+///|
 fn validate_json_schema(
   schema : Json,
   root : Json,
@@ -338,6 +594,22 @@ fn validate_json_schema(
             )
         }
         if referenced is Some(_) || root_uses_draft_07(root) {
+          return referenced
+        }
+      }
+      if fields.get("$dynamicRef") is Some(String(reference)) {
+        let referenced = match resolve_local_dynamic_ref(root, reference) {
+          Some(target) =>
+            validate_json_schema(target, root, value, path, depth + 1)
+          None =>
+            return Some(
+              json_schema_error(
+                path,
+                "unresolved local $dynamicRef \{reference}",
+              ),
+            )
+        }
+        if referenced is Some(_) {
           return referenced
         }
       }
@@ -609,6 +881,30 @@ fn validate_json_schema(
               }
             }
           }
+          if fields.get("unevaluatedProperties") is Some(child) &&
+            !root_uses_draft_07(root) {
+            let evaluated : Map[String, Bool] = Map([])
+            collect_evaluated_object_properties(
+              schema,
+              root,
+              object,
+              evaluated,
+              depth + 1,
+            )
+            for key, child_value in object {
+              if !evaluated.contains(key) &&
+                validate_json_schema(
+                  child,
+                  root,
+                  child_value,
+                  "\{path}.\{key}",
+                  depth + 1,
+                )
+                is Some(error) {
+                return Some(error)
+              }
+            }
+          }
         }
         Array(values) => {
           if fields.get("minItems") is Some(Number(minimum, ..)) &&
@@ -739,6 +1035,37 @@ fn validate_json_schema(
               return Some(
                 json_schema_error(path, "array does not satisfy contains"),
               )
+            }
+          }
+          if fields.get("unevaluatedItems") is Some(child) &&
+            !root_uses_draft_07(root) {
+            let mut evaluated_until = prefix_items.length()
+            if fields.contains("items") {
+              evaluated_until = values.length()
+            }
+            for index = evaluated_until
+                index < values.length()
+                index = index + 1 {
+              let matched_contains = fields.get("contains") is Some(contains) &&
+                validate_json_schema(
+                  contains,
+                  root,
+                  values[index],
+                  "\{path}[\{index}]",
+                  depth + 1,
+                )
+                is None
+              if !matched_contains &&
+                validate_json_schema(
+                  child,
+                  root,
+                  values[index],
+                  "\{path}[\{index}]",
+                  depth + 1,
+                )
+                is Some(error) {
+                return Some(error)
+              }
             }
           }
         }

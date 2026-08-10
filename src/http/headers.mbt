@@ -521,12 +521,17 @@ fn validate_standard_headers(
   if !plain_header_value_is_safe(header_version) {
     raise @mcp.HeaderMismatch("MCP-Protocol-Version is malformed")
   }
-  if protocol_version_from_message(message) is Some(body_version) {
-    if header_version != body_version {
+  match protocol_version_from_message(message) {
+    Some(body_version) =>
+      if header_version != body_version {
+        raise @mcp.HeaderMismatch(
+          "MCP-Protocol-Version does not match request metadata",
+        )
+      }
+    None =>
       raise @mcp.HeaderMismatch(
-        "MCP-Protocol-Version does not match request metadata",
+        "request metadata must include MCP protocol version",
       )
-    }
   }
   if !supported_versions.contains(header_version) {
     raise @mcp.UnsupportedProtocolVersion(

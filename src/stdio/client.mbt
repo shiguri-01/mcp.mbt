@@ -7,6 +7,8 @@ pub struct Client {
   priv outbound : @aqueue.Queue[String?]
   priv pending : Map[String, @aqueue.Queue[Inbound]]
   priv progress_routes : Map[String, String]
+  priv writer_task : @async.Task[Unit]
+  priv reader_task : @async.Task[Unit]
 }
 
 ///|
@@ -24,11 +26,16 @@ pub async fn[X] Client::spawn(
   name~ : String,
   version~ : String,
   capabilities? : @mcp.ClientCapabilities = @mcp.ClientCapabilities::empty(),
+  extension_result_types? : Map[String, String] = Map([]),
   args? : Array[String] = [],
   cwd? : String,
-) -> Client {
-  let (server_stdin, client_writer) = @process.write_to_process()
-  let (client_reader, server_stdout) = @process.read_from_process()
+) -> Client raise @mcp.McpError {
+  let (server_stdin, client_writer) = @process.write_to_process() catch {
+    error => raise @mcp.InternalError(error.to_string())
+  }
+  let (client_reader, server_stdout) = @process.read_from_process() catch {
+    error => raise @mcp.InternalError(error.to_string())
+  }
   let process = match cwd {
     Some(cwd) =>
       @process.spawn(
@@ -38,7 +45,9 @@ pub async fn[X] Client::spawn(
         stdin=server_stdin,
         stdout=server_stdout,
         cwd~,
-      )
+      ) catch {
+        error => raise @mcp.InternalError(error.to_string())
+      }
     None =>
       @process.spawn(
         group,
@@ -46,20 +55,26 @@ pub async fn[X] Client::spawn(
         args,
         stdin=server_stdin,
         stdout=server_stdout,
-      )
+      ) catch {
+        error => raise @mcp.InternalError(error.to_string())
+      }
   }
   let outbound : @aqueue.Queue[String?] = Queue(kind=Unbounded)
   let pending : Map[String, @aqueue.Queue[Inbound]] = Map([])
   let progress_routes : Map[String, String] = Map([])
-  group.spawn_bg(() => write_messages(client_writer, outbound))
-  group.spawn_bg(() => read_messages(client_reader, pending, progress_routes))
+  let writer_task = group.spawn(() => write_messages(client_writer, outbound))
+  let reader_task = group.spawn(() => {
+    read_messages(client_reader, pending, progress_routes)
+  })
   {
-    core: Client(name~, version~, capabilities~),
+    core: Client(name~, version~, capabilities~, extension_result_types~),
     process,
     reader: client_reader,
     outbound,
     pending,
     progress_routes,
+    writer_task,
+    reader_task,
   }
 }
 
@@ -72,6 +87,29 @@ pub fn Client::pid(self : Client) -> Int {
 pub fn Client::close(self : Client) -> Unit {
   ignore(self.outbound.try_put(None) catch { _ => false })
   self.reader.close()
+  self.writer_task.cancel()
+  self.reader_task.cancel()
+  self.process.cancel()
+}
+
+///|
+/// Close stdin, wait for the server to observe EOF, and join transport tasks.
+pub async fn Client::shutdown(self : Client) -> Unit raise @mcp.McpError {
+  self.outbound.put(None) catch {
+    error => raise InternalError(error.to_string())
+  }
+  self.writer_task.wait() catch {
+    error => raise InternalError(error.to_string())
+  }
+  let exit_code = self.process.wait() catch {
+    error => raise InternalError(error.to_string())
+  }
+  self.reader_task.wait() catch {
+    error => raise InternalError(error.to_string())
+  }
+  if exit_code != 0 {
+    raise InternalError("MCP server exited with status \{exit_code}")
+  }
 }
 
 ///|
@@ -87,7 +125,11 @@ async fn write_messages(
 
 ///|
 fn routing_key(id : Json) -> String {
-  id.stringify()
+  match id {
+    String(value) => "string:\{value}"
+    Number(value, ..) => "number:\{value.to_string()}"
+    _ => "invalid:\{id.stringify()}"
+  }
 }
 
 ///|
@@ -305,9 +347,15 @@ pub async fn Client::request_with_notifications(
 ) -> @mcp.HandlerOutcome[Json] raise @mcp.McpError {
   let id = request_id(request)
   let key = routing_key(id)
+  if self.pending.contains(key) {
+    raise InvalidRequest("stdio request id is already active")
+  }
+  let progress_key = request_progress_token(request).map(routing_key)
+  if progress_key is Some(token_key) && self.progress_routes.contains(token_key) {
+    raise InvalidRequest("stdio progress token is already active")
+  }
   let queue : @aqueue.Queue[Inbound] = Queue(kind=Unbounded)
   self.pending[key] = queue
-  let progress_key = request_progress_token(request).map(routing_key)
   if progress_key is Some(token_key) {
     self.progress_routes[token_key] = key
   }
@@ -382,6 +430,10 @@ fn require_complete(
     Complete(result) => result
     InputRequired(_) =>
       raise InvalidRequest("\{method_name} cannot return input_required")
+    ExtensionResult(result_type, _) =>
+      raise InvalidRequest(
+        "\{method_name} cannot return extension result type \{result_type}",
+      )
   }
 }
 
@@ -427,6 +479,7 @@ pub async fn[T : FromJson] Client::call_tool_as(
   match self.call_tool(name~, arguments~, options~) {
     Complete(result) => Complete(@mcp.decode_structured_content(result))
     InputRequired(value) => InputRequired(value)
+    ExtensionResult(result_type, value) => ExtensionResult(result_type, value)
   }
 }
 
@@ -548,10 +601,11 @@ async fn Client::resolve_mrtr(
       self.resolve_mrtr(
         build,
         resolve,
-        pending.retry_options(responses),
+        pending.retry_options(responses, base=options),
         rounds_left - 1,
       )
     }
+    ExtensionResult(_, result) => result
   }
 }
 
@@ -569,6 +623,7 @@ pub async fn Client::call_tool_resolving(
   self : Client,
   name~ : String,
   arguments? : Json = Json::object({}),
+  options? : @mcp.RequestOptions = RequestOptions(),
   max_rounds? : Int = 8,
   resolve~ : async (Map[String, @mcp.InputRequest]) -> Map[
     String,
@@ -579,7 +634,7 @@ pub async fn Client::call_tool_resolving(
   self.resolve_mrtr(
     options => self.core.call_tool_request(name~, arguments~, options~),
     resolve,
-    RequestOptions(),
+    options,
     max_rounds,
   )
 }
@@ -588,6 +643,7 @@ pub async fn Client::call_tool_resolving(
 pub async fn Client::read_resource_resolving(
   self : Client,
   uri~ : String,
+  options? : @mcp.RequestOptions = RequestOptions(),
   max_rounds? : Int = 8,
   resolve~ : async (Map[String, @mcp.InputRequest]) -> Map[
     String,
@@ -598,7 +654,7 @@ pub async fn Client::read_resource_resolving(
   self.resolve_mrtr(
     options => self.core.read_resource_request(uri~, options~),
     resolve,
-    RequestOptions(),
+    options,
     max_rounds,
   )
 }
@@ -608,6 +664,7 @@ pub async fn Client::get_prompt_resolving(
   self : Client,
   name~ : String,
   arguments? : Json = Json::object({}),
+  options? : @mcp.RequestOptions = RequestOptions(),
   max_rounds? : Int = 8,
   resolve~ : async (Map[String, @mcp.InputRequest]) -> Map[
     String,
@@ -618,7 +675,7 @@ pub async fn Client::get_prompt_resolving(
   self.resolve_mrtr(
     options => self.core.get_prompt_request(name~, arguments~, options~),
     resolve,
-    RequestOptions(),
+    options,
     max_rounds,
   )
 }

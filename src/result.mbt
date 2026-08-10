@@ -39,7 +39,8 @@ pub(all) struct ResultMeta {
 pub fn ResultMeta::ResultMeta(
   server_info? : Implementation,
   extra? : Map[String, Json] = {},
-) -> ResultMeta {
+) -> ResultMeta raise McpError {
+  validate_meta_map(extra)
   { server_info, extra }
 }
 
@@ -58,6 +59,7 @@ fn parse_result_meta(
   context : String,
 ) -> ResultMeta raise McpError {
   let fields = expect_object(value, context)
+  validate_meta_map(fields)
   let extra = fields.copy()
   extra.remove("io.modelcontextprotocol/serverInfo")
   let server_info : Implementation? = match
@@ -84,6 +86,8 @@ fn merge_result_meta(
     Some(value) => expect_object(value, "result._meta").copy()
     None => Map([])
   }
+  validate_meta_map(merged)
+  validate_meta_map(extra)
   for key, value in extra {
     merged[key] = value
   }

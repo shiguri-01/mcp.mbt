@@ -1,12 +1,16 @@
 ///|
 async fn main {
   @async.with_task_group <| group => {
-    let client = @mcp_stdio.Client::spawn(
+    let server_executable = match @env.get_env_var("MCP_STDIO_SERVER") {
+      Some(value) => value
+      None =>
+        abort("MCP_STDIO_SERVER must name a built stdio server executable")
+    }
+    let client = try! @mcp_stdio.Client::spawn(
       group,
-      "moon",
+      server_executable,
       name="stdio-example-client",
       version="1.0.0",
-      args=["run", "--target", "native", "src/examples/stdio-server"],
     )
     let discovered = try! client.discover()
     println(discovered.to_json().stringify(indent=2))
@@ -20,7 +24,9 @@ async fn main {
         println(result.stringify(indent=2))
       @mcp.HandlerOutcome::InputRequired(request) =>
         println(request.to_json().stringify(indent=2))
+      @mcp.HandlerOutcome::ExtensionResult(_, result) =>
+        println(result.stringify(indent=2))
     }
-    client.close()
+    try! client.shutdown()
   }
 }

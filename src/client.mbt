@@ -6,6 +6,7 @@
 pub struct Client {
   priv info : Implementation
   priv capabilities : ClientCapabilities
+  priv extension_result_types : Map[String, String]
   priv protocol_version : String
   priv mut next_request_id : Int
 }
@@ -19,8 +20,17 @@ pub fn Client::Client(
   icons? : Array[Icon] = [],
   website_url? : String,
   capabilities? : ClientCapabilities = ClientCapabilities::empty(),
+  extension_result_types? : Map[String, String] = Map([]),
   protocol_version? : String = latest_protocol_version,
-) -> Client {
+) -> Client raise McpError {
+  validate_extension_map(
+    capabilities.extensions,
+    "client capabilities.extensions",
+  )
+  validate_extension_result_types(
+    extension_result_types,
+    capabilities.extensions,
+  )
   {
     info: Implementation(
       name~,
@@ -31,6 +41,7 @@ pub fn Client::Client(
       website_url?,
     ),
     capabilities,
+    extension_result_types,
     protocol_version,
     next_request_id: 1,
   }
@@ -65,7 +76,7 @@ pub fn Client::request(
   method_name~ : String,
   params? : Map[String, Json] = Map([]),
   options? : RequestOptions = RequestOptions(),
-) -> Json {
+) -> Json raise McpError {
   rpc_request(
     self.fresh_id(),
     method_name,
@@ -82,7 +93,7 @@ pub fn Client::request(
 pub fn Client::discover_request(
   self : Client,
   options? : RequestOptions = RequestOptions(),
-) -> Json {
+) -> Json raise McpError {
   self.request(method_name="server/discover", options~)
 }
 
@@ -91,7 +102,7 @@ pub fn Client::list_tools_request(
   self : Client,
   cursor? : String,
   options? : RequestOptions = RequestOptions(),
-) -> Json {
+) -> Json raise McpError {
   let params : Map[String, Json] = Map([])
   put_optional_string(params, "cursor", cursor)
   self.request(method_name="tools/list", params~, options~)
@@ -117,7 +128,7 @@ pub fn Client::list_resources_request(
   self : Client,
   cursor? : String,
   options? : RequestOptions = RequestOptions(),
-) -> Json {
+) -> Json raise McpError {
   let params : Map[String, Json] = Map([])
   put_optional_string(params, "cursor", cursor)
   self.request(method_name="resources/list", params~, options~)
@@ -128,7 +139,7 @@ pub fn Client::list_resource_templates_request(
   self : Client,
   cursor? : String,
   options? : RequestOptions = RequestOptions(),
-) -> Json {
+) -> Json raise McpError {
   let params : Map[String, Json] = Map([])
   put_optional_string(params, "cursor", cursor)
   self.request(method_name="resources/templates/list", params~, options~)
@@ -139,7 +150,7 @@ pub fn Client::read_resource_request(
   self : Client,
   uri~ : String,
   options? : RequestOptions = RequestOptions(),
-) -> Json {
+) -> Json raise McpError {
   self.request(
     method_name="resources/read",
     params={ "uri": Json::string(uri) },
@@ -152,7 +163,7 @@ pub fn Client::list_prompts_request(
   self : Client,
   cursor? : String,
   options? : RequestOptions = RequestOptions(),
-) -> Json {
+) -> Json raise McpError {
   let params : Map[String, Json] = Map([])
   put_optional_string(params, "cursor", cursor)
   self.request(method_name="prompts/list", params~, options~)
@@ -181,7 +192,7 @@ pub fn Client::complete_request(
   argument_value~ : String,
   context_arguments? : Map[String, String],
   options? : RequestOptions = RequestOptions(),
-) -> Json {
+) -> Json raise McpError {
   let params : Map[String, Json] = {
     "ref": reference.to_json(),
     "argument": Json::object({
@@ -204,7 +215,7 @@ pub fn Client::listen_request(
   self : Client,
   notifications~ : SubscriptionFilter,
   options? : RequestOptions = RequestOptions(),
-) -> Json {
+) -> Json raise McpError {
   self.request(
     method_name="subscriptions/listen",
     params={ "notifications": notifications.to_json() },
@@ -224,7 +235,12 @@ pub fn Client::decode_response(
   match require_result_type(result) {
     "complete" => Complete(result)
     "input_required" => InputRequired(parse_input_required_result(result))
-    _ => raise InvalidRequest("unreachable result type")
+    result_type =>
+      if self.extension_result_types.contains(result_type) {
+        ExtensionResult(result_type, result)
+      } else {
+        raise InvalidRequest("unknown resultType: \{result_type}")
+      }
   }
 }
 
@@ -237,6 +253,10 @@ pub fn Client::decode_discover(
     Complete(result) => parse_discover_result(result)
     InputRequired(_) =>
       raise InvalidRequest("server/discover cannot return input_required")
+    ExtensionResult(result_type, _) =>
+      raise InvalidRequest(
+        "server/discover cannot return extension result type \{result_type}",
+      )
   }
 }
 

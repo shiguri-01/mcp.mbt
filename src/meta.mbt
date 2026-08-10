@@ -10,6 +10,56 @@ pub(all) struct RequestMeta {
 } derive(Debug, Eq)
 
 ///|
+fn valid_meta_key(key : String) -> Bool {
+  let segments = key.split("/").to_array()
+  if segments.length() > 2 {
+    return false
+  }
+  let name = segments[segments.length() - 1].to_owned()
+  if !name.is_empty() {
+    let chars = name.to_array()
+    let endpoint = fn(char : Char) {
+      char.is_ascii_alphabetic() || char.is_ascii_digit()
+    }
+    if !endpoint(chars[0]) ||
+      !endpoint(chars[chars.length() - 1]) ||
+      !chars.all(fn(char) {
+        endpoint(char) || char == '-' || char == '_' || char == '.'
+      }) {
+      return false
+    }
+  }
+  if segments.length() == 2 {
+    let labels = segments[0].split(".").to_array()
+    if labels.is_empty() {
+      return false
+    }
+    for label in labels {
+      let chars = label.to_array()
+      if chars.is_empty() ||
+        !chars[0].is_ascii_alphabetic() ||
+        !(chars[chars.length() - 1].is_ascii_alphabetic() ||
+        chars[chars.length() - 1].is_ascii_digit()) ||
+        !chars.all(fn(char) {
+          char.is_ascii_alphabetic() || char.is_ascii_digit() || char == '-'
+        }) {
+        return false
+      }
+    }
+  }
+  true
+}
+
+///|
+fn validate_meta_map(values : Map[String, Json]) -> Unit raise McpError {
+  for key, _ in values {
+    if !valid_meta_key(key) {
+      raise InvalidParams("invalid _meta key: \{key}")
+    }
+  }
+}
+
+///|
 pub fn RequestMeta::RequestMeta(
   protocol_version? : String = latest_protocol_version,
   client_info? : Implementation,
@@ -17,7 +67,8 @@ pub fn RequestMeta::RequestMeta(
   progress_token? : Json,
   log_level? : LoggingLevel,
   extra? : Map[String, Json] = {},
-) -> RequestMeta {
+) -> RequestMeta raise McpError {
+  validate_meta_map(extra)
   {
     protocol_version,
     client_info,
@@ -70,6 +121,7 @@ fn parse_request_implementation(
 pub fn parse_request_meta(value : Json) -> RequestMeta raise McpError {
   let context = "request params._meta"
   let fields = expect_object(value, context)
+  validate_meta_map(fields)
   let protocol_version = get_string(
     fields, "io.modelcontextprotocol/protocolVersion", context,
   )
@@ -146,6 +198,7 @@ pub struct RequestHooks {
   priv emit_notification : async (Json) -> Unit raise McpError
   priv is_cancelled : () -> Bool
   priv transport_meta : Json?
+  priv last_progress : Ref[Double?]
 }
 
 ///|
@@ -154,7 +207,7 @@ pub fn RequestHooks::RequestHooks(
   is_cancelled? : () -> Bool = fn() { false },
   transport_meta? : Json,
 ) -> RequestHooks {
-  { emit_notification, is_cancelled, transport_meta }
+  { emit_notification, is_cancelled, transport_meta, last_progress: Ref(None) }
 }
 
 ///|
@@ -163,7 +216,8 @@ pub fn RequestOptions::request_meta(
   client_capabilities~ : ClientCapabilities,
   client_info? : Implementation,
   protocol_version? : String = latest_protocol_version,
-) -> RequestMeta {
+) -> RequestMeta raise McpError {
+  validate_meta_map(self.meta)
   RequestMeta(
     protocol_version~,
     client_info?,
@@ -182,7 +236,7 @@ pub fn RequestOptions::request_params(
   client_capabilities~ : ClientCapabilities,
   client_info? : Implementation,
   protocol_version? : String = latest_protocol_version,
-) -> Json {
+) -> Json raise McpError {
   let fields = params.copy()
   fields["_meta"] = self
     .request_meta(client_capabilities~, client_info?, protocol_version~)
@@ -272,7 +326,20 @@ pub async fn RequestContext::report_progress(
   guard self.meta.progress_token is Some(token) else {
     raise InvalidRequest("request did not provide a progress token")
   }
+  if progress < 0.0 || progress.is_nan() || progress.is_inf() {
+    raise InvalidParams("progress must be a finite non-negative number")
+  }
+  if self.hooks.last_progress.val is Some(previous) && progress <= previous {
+    raise InvalidParams("progress must increase with each notification")
+  }
+  if total is Some(limit) &&
+    (limit <= 0.0 || limit.is_nan() || limit.is_inf() || progress > limit) {
+    raise InvalidParams(
+      "progress total must be finite, positive, and not below progress",
+    )
+  }
   (self.hooks.emit_notification)(
     progress_notification(progress_token=token, progress~, total?, message?),
   )
+  self.hooks.last_progress.val = Some(progress)
 }

@@ -14,9 +14,10 @@ pub fn Client::Client(
   name? : String = "moonbit-http-client",
   version? : String = "0.2.0",
   capabilities? : @mcp.ClientCapabilities = @mcp.ClientCapabilities::empty(),
-) -> Client {
+  extension_result_types? : Map[String, String] = Map([]),
+) -> Client raise @mcp.McpError {
   {
-    core: @mcp.Client(name~, version~, capabilities~),
+    core: @mcp.Client(name~, version~, capabilities~, extension_result_types~),
     endpoint,
     tool_schemas: Map([]),
   }
@@ -324,30 +325,91 @@ fn validate_response_id(
 }
 
 ///|
-async fn Client::send_messages(
+async fn Client::send_response_with_notifications(
   self : Client,
   request : Json,
   input_schema? : Json,
-) -> Array[Json] raise @mcp.McpError {
+  on_notification~ : (Json) -> Unit,
+) -> Json raise @mcp.McpError {
+  guard request_id(request) is Some(expected_id) else {
+    raise @mcp.InvalidRequest("HTTP request is missing its JSON-RPC id")
+  }
   let headers = self.headers(request, input_schema?) catch {
     InvalidHeaderSchema(message)
     | InvalidHeaderValue(message)
     | HeaderMismatch(message) => raise @mcp.InvalidRequest(message)
   }
-  let (response, data) = @async_http.post(
-    self.endpoint,
-    @utf8.encode(request.stringify()),
-    headers~,
-  ) catch {
+  let request_bytes = @utf8.encode(request.stringify())
+  headers["Content-Length"] = request_bytes.length().to_string()
+  let stream = @async_http.post_stream(self.endpoint, headers~) catch {
     error => raise @mcp.InternalError(error.to_string())
   }
-  let body = data.text() catch {
+  defer stream.close()
+  stream.write(request_bytes) catch {
+    error => raise @mcp.InternalError(error.to_string())
+  }
+  let response = stream.end_request() catch {
     error => raise @mcp.InternalError(error.to_string())
   }
   guard response.code is (200..<300) else {
+    let body = stream.read_all().text() catch {
+        error => raise @mcp.InternalError(error.to_string())
+      }
     raise http_error_to_mcp(response, body)
   }
-  parse_http_messages(response, body)
+  let content_type = match header(response.headers, "Content-Type") {
+    Some(value) => value
+    None => raise @mcp.InvalidRequest("MCP HTTP response omitted Content-Type")
+  }
+  if has_media_type(content_type, "application/json") {
+    let body = stream.read_all().text() catch {
+        error => raise @mcp.InternalError(error.to_string())
+      }
+    guard parse_http_messages(response, body) is [message] else {
+      raise @mcp.InvalidRequest("HTTP JSON response must contain one message")
+    }
+    validate_response_id(message, expected_id, "HTTP")
+    return message
+  }
+  guard has_media_type(content_type, "text/event-stream") else {
+    raise @mcp.InvalidRequest("unsupported MCP HTTP response Content-Type")
+  }
+  let mut data_lines : Array[String] = []
+  while true {
+    let next_line = stream.read_until("\n") catch {
+      error => raise @mcp.InternalError(error.to_string())
+    }
+    guard next_line is Some(raw_line) else { break }
+    let line = raw_line.trim_end(chars="\r")
+    if line == "" {
+      if !data_lines.is_empty() {
+        let data = data_lines.join("\n")
+        data_lines = []
+        if data != "" {
+          let message : Json = @json.parse(data) catch {
+            error => raise @mcp.ParseError(error.to_string())
+          }
+          if is_jsonrpc_response(message) {
+            validate_response_id(message, expected_id, "HTTP")
+            return message
+          }
+          if is_jsonrpc_notification(message) {
+            on_notification(message)
+          }
+        }
+      }
+    } else if line.has_prefix("data:"[:]) {
+      let value = line[5:]
+      data_lines.push(
+        if value.has_prefix(" "[:]) {
+          value[1:].to_owned()
+        } else {
+          value.to_owned()
+        },
+      )
+    }
+  }
+  raise @mcp.InvalidRequest("HTTP request did not return a JSON-RPC response")
 }
 
 ///|
@@ -356,16 +418,11 @@ async fn Client::send_response(
   request : Json,
   input_schema? : Json,
 ) -> Json raise @mcp.McpError {
-  guard request_id(request) is Some(expected_id) else {
-    raise @mcp.InvalidRequest("HTTP request is missing its JSON-RPC id")
-  }
-  for message in self.send_messages(request, input_schema?) {
-    if is_jsonrpc_response(message) {
-      validate_response_id(message, expected_id, "HTTP")
-      return message
-    }
-  }
-  raise @mcp.InvalidRequest("HTTP request did not return a JSON-RPC response")
+  self.send_response_with_notifications(request, input_schema?, on_notification=fn(
+    _,
+  ) {
+
+  })
 }
 
 ///|
@@ -376,6 +433,24 @@ pub async fn Client::request(
   input_schema? : Json,
 ) -> @mcp.HandlerOutcome[Json] raise @mcp.McpError {
   self.core.decode_response(self.send_response(request, input_schema?))
+}
+
+///|
+/// Send a request while consuming request-scoped progress and logging
+/// notifications as they arrive on an SSE response.
+pub async fn Client::request_with_notifications(
+  self : Client,
+  request : Json,
+  input_schema? : Json,
+  on_notification~ : (Json) -> Unit,
+) -> @mcp.HandlerOutcome[Json] raise @mcp.McpError {
+  self.core.decode_response(
+    self.send_response_with_notifications(
+      request,
+      input_schema?,
+      on_notification~,
+    ),
+  )
 }
 
 ///|
@@ -424,6 +499,10 @@ fn require_complete(
     @mcp.Complete(result) => result
     @mcp.InputRequired(_) =>
       raise @mcp.InvalidRequest("\{method_name} cannot require MRTR input")
+    @mcp.ExtensionResult(result_type, _) =>
+      raise @mcp.InvalidRequest(
+        "\{method_name} cannot return extension result type \{result_type}",
+      )
   }
 }
 
@@ -684,8 +763,12 @@ pub async fn Client::call_tool_resolving(
       @mcp.Complete(result) => return result
       @mcp.InputRequired(required) => {
         let requests = required.input_requests().unwrap_or(Map([]))
-        retry_options = required.retry_options(resolve(requests))
+        retry_options = required.retry_options(
+          resolve(requests),
+          base=retry_options,
+        )
       }
+      @mcp.ExtensionResult(_, result) => return result
     }
   }
   raise @mcp.InvalidRequest("MRTR exceeded max_rounds")
@@ -711,8 +794,12 @@ pub async fn Client::read_resource_resolving(
       @mcp.Complete(result) => return result
       @mcp.InputRequired(required) => {
         let requests = required.input_requests().unwrap_or(Map([]))
-        retry_options = required.retry_options(resolve(requests))
+        retry_options = required.retry_options(
+          resolve(requests),
+          base=retry_options,
+        )
       }
+      @mcp.ExtensionResult(_, result) => return result
     }
   }
   raise @mcp.InvalidRequest("MRTR exceeded max_rounds")
@@ -739,8 +826,12 @@ pub async fn Client::get_prompt_resolving(
       @mcp.Complete(result) => return result
       @mcp.InputRequired(required) => {
         let requests = required.input_requests().unwrap_or(Map([]))
-        retry_options = required.retry_options(resolve(requests))
+        retry_options = required.retry_options(
+          resolve(requests),
+          base=retry_options,
+        )
       }
+      @mcp.ExtensionResult(_, result) => return result
     }
   }
   raise @mcp.InvalidRequest("MRTR exceeded max_rounds")

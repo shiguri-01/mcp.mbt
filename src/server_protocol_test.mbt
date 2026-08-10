@@ -118,6 +118,17 @@ async test "JSON-RPC batches return InvalidRequest" {
 }
 
 ///|
+async test "JSON-RPC notifications never receive a response" {
+  let server = try! @mcp.Server(name="server", version="1")
+  let notification = Json::object({
+    "jsonrpc": Json::string("2.0"),
+    "method": Json::string("com.example/event"),
+    "params": Json::object({}),
+  })
+  assert_eq(server.handle_jsonrpc(notification), None)
+}
+
+///|
 async test "MRTR retries echo opaque state and supply input responses" {
   let server = try! @mcp.Server(name="server", version="1")
   try! server.json_tool(name="confirm", fn(
@@ -136,7 +147,10 @@ async test "MRTR retries echo opaque state and supply input responses" {
             method_name="elicitation/create",
             params=Json::object({
               "message": Json::string("Continue?"),
-              "requestedSchema": Json::object({ "type": Json::string("object") }),
+              "requestedSchema": Json::object({
+                "type": Json::string("object"),
+                "properties": Json::object({}),
+              }),
             }),
           ),
         },
@@ -183,7 +197,13 @@ async test "MRTR requirements without client capabilities return -32021" {
       try! @mcp.InputRequiredResult(input_requests={
         "answer": try! @mcp.InputRequest(
           method_name="elicitation/create",
-          params=Json::object({ "message": Json::string("Continue?") }),
+          params=Json::object({
+            "message": Json::string("Continue?"),
+            "requestedSchema": Json::object({
+              "type": Json::string("object"),
+              "properties": Json::object({}),
+            }),
+          }),
         ),
       }),
     )
@@ -272,6 +292,15 @@ async test "tool input and structured output honor declared JSON Schemas" {
     },
   )
   let client = @mcp.Client(name="client", version="1")
+  let missing_input = server.handle_jsonrpc(
+    try! client.call_tool_request(name="bounded", arguments={}),
+  )
+  guard missing_input
+    is Some(
+      Object({ "error": Object({ "code": Number(-32602.0, ..), .. }), .. })
+    ) else {
+    fail("expected missing required property to be InvalidParams")
+  }
   let bad_input = server.handle_jsonrpc(
     try! client.call_tool_request(name="bounded", arguments={
       "count": Json::number(0.0),

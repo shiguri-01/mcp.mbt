@@ -66,6 +66,55 @@ pub fn ClientCapabilities::empty() -> ClientCapabilities {
 }
 
 ///|
+fn valid_extension_identifier(identifier : String) -> Bool {
+  let segments = identifier.split("/").to_array()
+  if segments.length() != 2 || segments[1].is_empty() {
+    return false
+  }
+  let labels = segments[0].split(".").to_array()
+  if labels.length() < 2 {
+    return false
+  }
+  valid_meta_key(identifier)
+}
+
+///|
+fn validate_extension_map(
+  extensions : Map[String, Json],
+  context : String,
+) -> Unit raise McpError {
+  for identifier, settings in extensions {
+    if !valid_extension_identifier(identifier) {
+      raise InvalidParams(
+        "\{context} has invalid extension identifier: \{identifier}",
+      )
+    }
+    if !(settings is Object(_)) {
+      raise InvalidParams("\{context}.\{identifier} must be an object")
+    }
+  }
+}
+
+///|
+fn validate_extension_result_types(
+  result_types : Map[String, String],
+  extensions : Map[String, Json],
+) -> Unit raise McpError {
+  for result_type, extension in result_types {
+    if result_type.is_empty() ||
+      result_type == "complete" ||
+      result_type == "input_required" {
+      raise InvalidParams("invalid extension result type: \{result_type}")
+    }
+    if !extensions.contains(extension) {
+      raise InvalidParams(
+        "result type \{result_type} references unadvertised extension \{extension}",
+      )
+    }
+  }
+}
+
+///|
 fn put_capability_map(
   fields : Map[String, Json],
   key : String,
@@ -111,6 +160,9 @@ fn parse_capability_map(
         if !(value is Object(_)) {
           raise InvalidParams("\{context}.\{key}.\{name} must be an object")
         }
+      }
+      if key == "extensions" {
+        validate_extension_map(values, "\{context}.extensions")
       }
       values
     }

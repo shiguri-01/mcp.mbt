@@ -17,16 +17,12 @@ test "wire accepts a single request and rejects a batch" {
 }
 
 ///|
-test "2026-07-28 results require resultType" {
+test "clients treat an absent resultType as complete" {
   assert_eq(
     require_result_type(
       Json::object({ "resultType": Json::string("complete") }),
     ),
     "complete",
   )
-  try require_result_type(Json::object({})) catch {
-    _ => ()
-  } noraise {
-    _ => fail("expected missing resultType to be rejected")
-  }
+  assert_eq(require_result_type(Json::object({})), "complete")
 }

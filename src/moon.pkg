@@ -9,5 +9,6 @@ import {
 } for "test"
 
 import {
+  "moonbitlang/async",
   "moonbitlang/core/test",
 } for "wbtest"
