@@ -65,7 +65,7 @@ test "prompt metadata and messages match the content union" {
 }
 
 ///|
-test "domain results leave envelope metadata to the dispatcher" {
+test "operation payloads exclude result envelope metadata" {
   for
     result in [
       @mcp.CallToolResult::json(Json::array([Json::number(1.0)])).to_json(),
@@ -80,7 +80,7 @@ test "domain results leave envelope metadata to the dispatcher" {
 }
 
 ///|
-test "subscription filter and acknowledgement use 2026 names" {
+test "subscription filters and acknowledgements use protocol field names" {
   let filter = @mcp.SubscriptionFilter(tools_list_changed=true, resource_subscriptions=[
     "memory://status",
   ])

@@ -8,6 +8,12 @@ fn jsonrpc_error(id : Json, error : @mcp.McpError) -> Json {
 }
 
 ///|
+fn encode_json_response(body : Json) -> (String, Int) {
+  let text = body.stringify()
+  (text, @utf8.encode(text).length())
+}
+
+///|
 async fn send_json(
   conn : @async_http.ServerConnection,
   status : Int,
@@ -16,8 +22,8 @@ async fn send_json(
   extra_headers? : Map[String, String] = Map([]),
 ) -> Unit {
   extra_headers["Content-Type"] = "application/json"
-  let text = body.stringify()
-  extra_headers["Content-Length"] = @utf8.encode(text).length().to_string()
+  let (text, content_length) = encode_json_response(body)
+  extra_headers["Content-Length"] = content_length.to_string()
   conn.send_response(status, reason, extra_headers~)
   conn.write(text)
   conn.end_response()

@@ -1,7 +1,7 @@
 ///|
-async test "stateless discover, tools, and per-request client context" {
+async test "each request carries the client context used by the server" {
   let server = try! @mcp.Server(
-    name="modern-server",
+    name="test-server",
     version="1.0.0",
     instructions="Use the echo tool",
     cache_policy=try! @mcp.CachePolicy(ttl_ms=1000L, scope=@mcp.Public),
@@ -32,7 +32,7 @@ async test "stateless discover, tools, and per-request client context" {
         ..
       }
     ) else {
-    fail("expected modern discovery result")
+    fail("expected discovery result")
   }
   let tools_response = server.handle_jsonrpc(first.list_tools_request())
   guard tools_response is Some(message) else { fail("expected tools response") }
@@ -71,7 +71,7 @@ async test "stateless discover, tools, and per-request client context" {
 }
 
 ///|
-async test "unsupported version, missing metadata, and batch are errors" {
+async test "unsupported protocol versions return -32022" {
   let server = try! @mcp.Server(name="server", version="1")
   let old = @mcp.Client(name="old", version="1", protocol_version="1900-01-01")
   guard server.handle_jsonrpc(old.discover_request())
@@ -87,6 +87,11 @@ async test "unsupported version, missing metadata, and batch are errors" {
     ) else {
     fail("expected unsupported protocol version")
   }
+}
+
+///|
+async test "requests without required metadata return InvalidParams" {
+  let server = try! @mcp.Server(name="server", version="1")
   let missing_meta = Json::object({
     "jsonrpc": Json::string("2.0"),
     "id": Json::number(1.0, repr="1"),
@@ -99,6 +104,11 @@ async test "unsupported version, missing metadata, and batch are errors" {
     ) else {
     fail("expected invalid params")
   }
+}
+
+///|
+async test "JSON-RPC batches return InvalidRequest" {
+  let server = try! @mcp.Server(name="server", version="1")
   guard server.handle_jsonrpc(Json::array([]))
     is Some(
       Object({ "error": Object({ "code": Number(-32600.0, ..), .. }), .. })
@@ -108,7 +118,7 @@ async test "unsupported version, missing metadata, and batch are errors" {
 }
 
 ///|
-async test "MRTR is restricted and preserves opaque state" {
+async test "MRTR retries echo opaque state and supply input responses" {
   let server = try! @mcp.Server(name="server", version="1")
   try! server.json_tool(name="confirm", fn(
     context,
@@ -163,7 +173,7 @@ async test "MRTR is restricted and preserves opaque state" {
 }
 
 ///|
-async test "MRTR reports missing client capabilities distinctly" {
+async test "MRTR requirements without client capabilities return -32021" {
   let server = try! @mcp.Server(name="server", version="1")
   try! server.json_tool(name="confirm", fn(
     _context,
@@ -202,7 +212,7 @@ async test "MRTR reports missing client capabilities distinctly" {
 }
 
 ///|
-async test "transport hooks expose progress without server session state" {
+async test "progress notifications carry the request progress token" {
   let server = try! @mcp.Server(name="server", version="1")
   try! server.json_tool(name="work", async fn(
     context,

@@ -17,7 +17,7 @@ test "wire accepts a single request and rejects a batch" {
 }
 
 ///|
-test "wire requires resultType on modern results" {
+test "2026-07-28 results require resultType" {
   assert_eq(
     require_result_type(
       Json::object({ "resultType": Json::string("complete") }),

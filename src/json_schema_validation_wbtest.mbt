@@ -47,14 +47,17 @@ test "schema shape checks follow the selected dialect" {
   } noraise {
     _ => fail("2020-12 must reject tuple-form items")
   }
-  let modern = compile_json_schema(
+  let draft_2020_12 = compile_json_schema(
     Json::object({
       "$schema": Json::string("https://json-schema.org/draft/2020-12/schema"),
       "type": Json::string("object"),
       "dependencies": Json::object({ "a": ["b"].to_json() }),
     }),
   )
-  assert_eq(modern.validate(Json::object({ "a": Json::boolean(true) })), None)
+  assert_eq(
+    draft_2020_12.validate(Json::object({ "a": Json::boolean(true) })),
+    None,
+  )
 }
 
 ///|

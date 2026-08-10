@@ -74,7 +74,7 @@ test "cancel is a client-to-server notification" {
 }
 
 ///|
-test "stdio transport owns listen requests" {
+test "subscriptions/listen is a long-lived transport request" {
   let core = @mcp.Client(name="test", version="1")
   let request = core.listen_request(
     notifications=SubscriptionFilter(tools_list_changed=true),

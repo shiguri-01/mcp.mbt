@@ -52,7 +52,7 @@ test "standard request headers are required and match body metadata" {
 }
 
 ///|
-test "missing request metadata remains an InvalidParams protocol error" {
+test "missing request metadata is an InvalidParams protocol error" {
   let message = Json::object({
     "jsonrpc": Json::string("2.0"),
     "id": Json::number(1.0, repr="1"),
@@ -293,7 +293,7 @@ test "annotated integer enforces JavaScript safe range" {
 }
 
 ///|
-test "POST validation requires modern content negotiation and metadata" {
+test "POST requests require both JSON and SSE response media types" {
   let server = try! @mcp.Server(name="test", version="0.1.0")
   let message = metadata_request("server/discover")
   let accepted_headers = standard_request_headers(
@@ -327,7 +327,7 @@ test "POST validation requires modern content negotiation and metadata" {
 }
 
 ///|
-test "server validates custom tool headers from its authoritative registry" {
+test "Mcp-Param headers match annotated tool arguments" {
   let server = try! @mcp.Server(name="tool-header-test", version="0.1.0")
   try! server.json_tool(name="regional", input_schema=annotated_schema(), (_, _) => {
     @mcp.Complete(@mcp.CallToolResult::text("ok"))
@@ -357,7 +357,7 @@ test "server validates custom tool headers from its authoritative registry" {
 }
 
 ///|
-test "Origin checks are independent of sessions" {
+test "Streamable HTTP rejects origins outside the configured allowlist" {
   let origin = post_request(headers={ "Origin": "https://client.example" })
   assert_true(
     common_request_error(origin, ServerOptions()) ==
@@ -426,6 +426,15 @@ test "JSON and request-scoped SSE response bodies are parsed" {
   )
   assert_eq(events.length(), 2)
   assert_true(is_jsonrpc_response(events[1]))
+}
+
+///|
+test "JSON response Content-Length is the UTF-8 octet count" {
+  let (text, content_length) = encode_json_response(
+    Json::object({ "text": Json::string("世界—😀") }),
+  )
+  assert_eq(text, "{\"text\":\"世界—😀\"}")
+  assert_eq(content_length, 24)
 }
 
 ///|

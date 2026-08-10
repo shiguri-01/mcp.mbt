@@ -1,5 +1,5 @@
 ///|
-test "modern metadata protects reserved keys" {
+test "request metadata owns reserved fields and preserves extension fields" {
   let meta = RequestMeta(progress_token=Json::string("p"), extra={
     "io.modelcontextprotocol/protocolVersion": Json::string("bad"),
     "com.example/trace": Json::string("trace-1"),
@@ -14,13 +14,17 @@ test "modern metadata protects reserved keys" {
 }
 
 ///|
-test "cache and MRTR constructors enforce invariants" {
+test "cache TTL cannot be negative" {
   try CachePolicy(ttl_ms=-1L) catch {
     InvalidParams(_) => ()
     _ => fail("expected invalid cache policy")
   } noraise {
     _ => fail("expected negative ttlMs to raise")
   }
+}
+
+///|
+test "input_required includes inputRequests or requestState" {
   try InputRequiredResult() catch {
     InvalidParams(_) => ()
     _ => fail("expected invalid input-required result")
@@ -30,7 +34,7 @@ test "cache and MRTR constructors enforce invariants" {
 }
 
 ///|
-test "modern protocol errors carry structured data" {
+test "unsupported protocol errors identify requested and supported versions" {
   let error = UnsupportedProtocolVersion(requested="1900-01-01", supported=[
     latest_protocol_version,
   ])
