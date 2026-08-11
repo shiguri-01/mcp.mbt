@@ -445,6 +445,7 @@ pub fn decode_call_tool_result(value : Json) -> CallToolResult raise McpError {
     is_error: get_optional_bool(fields, "isError", "tools/call result").unwrap_or(
       false,
     ),
+    meta: decoded_result_meta(fields, "tools/call result"),
   }
 }
 
@@ -461,6 +462,8 @@ pub fn decode_read_resource_result(
     contents: values.map(value => {
       decode_resource_content(value, "resources/read result.contents[]")
     }),
+    cache_policy: Some(decoded_cache_policy(fields, "resources/read result")),
+    meta: decoded_result_meta(fields, "resources/read result"),
   }
 }
 
@@ -500,6 +503,7 @@ pub fn decode_get_prompt_result(value : Json) -> GetPromptResult raise McpError 
     messages: values.map(value => {
       decode_prompt_message(value, "prompts/get result.messages[]")
     }),
+    meta: decoded_result_meta(fields, "prompts/get result"),
   }
 }
 
@@ -539,13 +543,14 @@ pub fn decode_complete_result(value : Json) -> CompleteResult raise McpError {
         "completion/complete result.completion.total must be a non-negative integer",
       )
   }
-  CompleteResult(
+  let result = CompleteResult(
     values~,
     total?,
     has_more=get_optional_bool(
       completion, "hasMore", "completion/complete result.completion",
     ).unwrap_or(false),
   )
+  { ..result, meta: decoded_result_meta(fields, "completion/complete result") }
 }
 
 ///|

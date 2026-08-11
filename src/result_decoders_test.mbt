@@ -73,12 +73,15 @@ test "resource prompt and completion payloads decode to canonical types" {
           "mimeType": Json::string("text/plain"),
         }),
       ]),
+      "ttlMs": Json::number(0.0),
+      "cacheScope": Json::string("private"),
     }),
   )
   assert_true(
     resource.contents
     is [@mcp.ResourceText(uri="test://greeting", text="hello", ..)],
   )
+  assert_true(resource.cache_policy is Some(_))
 
   let prompt = try! @mcp.decode_get_prompt_result(
     Json::object({

@@ -27,6 +27,8 @@ fn register_resource_fixtures(server : @mcp.Server) -> Unit {
             mime_type="image/png",
           ),
         ],
+        cache_policy: None,
+        meta: None,
       })
     },
   )

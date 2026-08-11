@@ -135,6 +135,7 @@ pub(all) struct CompleteResult {
   values : Array[String]
   total : Int?
   has_more : Bool
+  meta : ResultMeta?
 } derive(Debug, Eq)
 
 ///|
@@ -146,7 +147,7 @@ pub fn CompleteResult::CompleteResult(
   if values.length() > 100 {
     raise InvalidParams("completion values must not exceed 100 items")
   }
-  { values, total, has_more }
+  { values, total, has_more, meta: None }
 }
 
 ///|
@@ -160,5 +161,9 @@ pub impl ToJson for CompleteResult with fn to_json(self : CompleteResult) -> Jso
   if self.has_more {
     completion["hasMore"] = Json::boolean(true)
   }
-  Json::object({ "completion": Json::object(completion) })
+  let fields : Map[String, Json] = { "completion": Json::object(completion) }
+  if self.meta is Some(meta) {
+    fields["_meta"] = meta.to_json()
+  }
+  Json::object(fields)
 }

@@ -45,6 +45,7 @@ fn register_prompt_fixtures(server : @mcp.Server) -> Unit {
             "Please process the embedded resource above.",
           ),
         ],
+        meta: None,
       })
     },
   )
@@ -64,6 +65,7 @@ fn register_prompt_fixtures(server : @mcp.Server) -> Unit {
           ),
           @mcp.PromptMessage::user("Please analyze the image above."),
         ],
+        meta: None,
       })
     },
   )

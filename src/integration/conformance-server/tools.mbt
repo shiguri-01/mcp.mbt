@@ -27,6 +27,7 @@ fn register_tool_fixtures(server : @mcp.Server) -> Unit {
         ],
         structured_content: None,
         is_error: false,
+        meta: None,
       })
     },
   )
@@ -41,6 +42,7 @@ fn register_tool_fixtures(server : @mcp.Server) -> Unit {
         ],
         structured_content: None,
         is_error: false,
+        meta: None,
       })
     },
   )
@@ -61,6 +63,7 @@ fn register_tool_fixtures(server : @mcp.Server) -> Unit {
         ],
         structured_content: None,
         is_error: false,
+        meta: None,
       })
     },
   )
@@ -83,6 +86,7 @@ fn register_tool_fixtures(server : @mcp.Server) -> Unit {
         ],
         structured_content: None,
         is_error: false,
+        meta: None,
       })
     },
   )
