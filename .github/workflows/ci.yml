@@ -55,3 +55,12 @@ jobs:
             server \
             --url http://127.0.0.1:8080/mcp \
             --requirements 2026-07-28
+      - name: Verify frozen MCP 2026-07-28 client requirements
+        run: |
+          moon build --target native src/integration/conformance-client
+          executable="$PWD/_build/native/debug/build/integration/conformance-client/conformance-client"
+          npx --yes @modelcontextprotocol/conformance@0.2.0-alpha.11 \
+            client \
+            --command "$executable" \
+            --requirements 2026-07-28 \
+            --timeout 30000

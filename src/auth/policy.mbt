@@ -92,7 +92,7 @@ pub struct ClientCredentials {
   priv client_id : String
   priv client_secret : String?
   priv token_endpoint_auth_method : TokenEndpointAuthMethod
-} derive(Debug, Eq)
+} derive(Eq)
 
 ///|
 pub fn ClientCredentials::ClientCredentials(
@@ -164,6 +164,7 @@ pub struct OAuthTokens {
   priv token_type : String
   priv refresh_token : String?
   priv scope : Array[String]
+  priv expires_in : Int?
 }
 
 ///|
@@ -172,13 +173,23 @@ pub fn OAuthTokens::OAuthTokens(
   token_type? : String = "Bearer",
   refresh_token? : String,
   scope? : Array[String] = [],
+  expires_in? : Int,
 ) -> OAuthTokens raise AuthError {
   if access_token.is_empty() || !token_type.equal_ignore_ascii_case("Bearer") {
     raise AuthorizationFailed(
       "MCP authorization requires a Bearer access token",
     )
   }
-  { access_token, token_type: "Bearer", refresh_token, scope: scope.copy() }
+  if expires_in is Some(seconds) && seconds <= 0 {
+    raise AuthorizationFailed("expires_in must be positive")
+  }
+  {
+    access_token,
+    token_type: "Bearer",
+    refresh_token,
+    scope: scope.copy(),
+    expires_in,
+  }
 }
 
 ///|
@@ -199,6 +210,11 @@ pub fn OAuthTokens::refresh_token(self : OAuthTokens) -> String? {
 ///|
 pub fn OAuthTokens::scope(self : OAuthTokens) -> Array[String] {
   self.scope.copy()
+}
+
+///|
+pub fn OAuthTokens::expires_in(self : OAuthTokens) -> Int? {
+  self.expires_in
 }
 
 ///|
@@ -240,21 +256,30 @@ pub(all) enum RegistrationChoice {
   ClientIdMetadataDocument(String)
   PreRegistered(ClientCredentials)
   Dynamic(String)
-} derive(Debug, Eq)
+} derive(Eq)
 
 ///|
 pub fn choose_registration(
   metadata : AuthorizationServerMetadata,
   client_id_metadata_url? : String,
   pre_registered? : ClientCredentials,
+  allow_insecure_loopback? : Bool = false,
 ) -> RegistrationChoice raise AuthError {
-  if metadata.client_id_metadata_document_supported() &&
-    client_id_metadata_url is Some(url) {
-    ignore(parse_absolute_uri(url))
-    return ClientIdMetadataDocument(url)
-  }
   if pre_registered is Some(credentials) {
     return PreRegistered(credentials)
+  }
+  if metadata.client_id_metadata_document_supported() &&
+    client_id_metadata_url is Some(url) {
+    let document = validate_secure_uri(
+      url,
+      allow_loopback_http=allow_insecure_loopback,
+    )
+    if document.path().is_empty() || document.path() == "/" {
+      raise UnsupportedRegistration(
+        "client metadata document URL must have a non-root path",
+      )
+    }
+    return ClientIdMetadataDocument(url)
   }
   match metadata.registration_endpoint() {
     Some(endpoint) => Dynamic(endpoint)

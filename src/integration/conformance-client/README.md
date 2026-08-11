@@ -18,5 +18,22 @@ Build it with:
 moon build --target native src/integration/conformance-client
 ```
 
-Authorization scenarios require an `@auth`-enabled driver configuration and
-are rejected explicitly by this non-authorization executable.
+Authorization scenarios use the HTTP client's authorization configuration.
+The provider sends OAuth discovery, registration, and token requests, follows
+the authorization endpoint's redirect without contacting the callback URI,
+and permits insecure loopback URLs only because the conformance runner binds
+its isolated servers to loopback. The authorization user-agent seam requires
+the `curl` executable and reads its non-following HTTP response.
+
+The frozen authorization suite exercises these contracts:
+
+| Scenarios | Client contract |
+|---|---|
+| `auth/metadata-*`, `auth/basic-cimd` | RFC 9728/RFC 8414/OIDC discovery order and Client ID Metadata Documents |
+| `auth/scope-*` | challenge scope precedence, scope union during step-up, and bounded retries |
+| `auth/token-endpoint-auth-*` | selected token endpoint authentication and resource parameter consistency |
+| `auth/pre-registration` | issuer-bound credentials from `MCP_CONFORMANCE_CONTEXT` without dynamic registration |
+| `auth/resource-mismatch` | rejection of protected-resource metadata for another resource |
+| `auth/offline-access-*` | refresh-token grant metadata and conditional `offline_access` scope |
+| `auth/authorization-server-migration` | credentials are not reused after the resource changes authorization server |
+| `auth/iss-*`, `auth/metadata-issuer-mismatch` | exact issuer validation in metadata and authorization responses |

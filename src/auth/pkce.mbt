@@ -10,6 +10,11 @@ pub fn pkce_challenge(code_verifier : String) -> String raise AuthError {
   if code_verifier.length() < 43 || code_verifier.length() > 128 {
     raise AuthorizationFailed("PKCE verifier must contain 43 to 128 characters")
   }
+  for char in code_verifier {
+    if !unreserved(char) {
+      raise AuthorizationFailed("PKCE verifier contains an invalid character")
+    }
+  }
   base64_url(sha256_digest(@utf8.encode(code_verifier)))
 }
 

@@ -923,3 +923,239 @@ test "Streamable HTTP accepts notification shapes but rejects responses" {
   }
   assert_true(rejected_response)
 }
+
+///|
+fn test_authorization_provider() -> @auth.AuthorizationProvider {
+  @auth.AuthorizationProvider(
+    send_request=_ => @auth.HttpResponse(status=500),
+    open_authorization_url=url => url,
+    random_bytes=size => Bytes::make(size, 1),
+  )
+}
+
+///|
+test "authorization configuration requires an absolute redirect URI" {
+  try
+    ignore(
+      AuthorizationOptions(
+        provider=test_authorization_provider(),
+        redirect_uri="/callback",
+      ),
+    )
+  catch {
+    @mcp.InvalidParams(_) => ()
+    _ => fail("expected InvalidParams")
+  } noraise {
+    _ => fail("expected invalid redirect URI to be rejected")
+  }
+}
+
+///|
+test "Bearer credentials are attached only as an Authorization header" {
+  let options = try! AuthorizationOptions(
+    provider=test_authorization_provider(),
+    redirect_uri="https://client.example/callback",
+  )
+  let client = try! Client("https://rs.example/mcp", authorization=options)
+  let issuer = "https://as.example"
+  client.authorization_issuer = Some(issuer)
+  client.token_cache.put(
+    try! @auth.OAuthTokens(access_token="top-secret"),
+    issuer~,
+    resource="https://rs.example/mcp",
+  )
+  let request = metadata_request("tools/list")
+  let headers = try! client.headers(request)
+  assert_eq(headers.get("Authorization"), Some("Bearer top-secret"))
+  assert_false(client.endpoint.contains("top-secret"[:]))
+  assert_false(request.stringify().contains("top-secret"[:]))
+}
+
+///|
+test "Bearer credentials are not reused across resource bindings" {
+  let options = try! AuthorizationOptions(
+    provider=test_authorization_provider(),
+    redirect_uri="https://client.example/callback",
+  )
+  let client = try! Client("https://rs.example/mcp", authorization=options)
+  let issuer = "https://as.example"
+  client.authorization_issuer = Some(issuer)
+  client.token_cache.put(
+    try! @auth.OAuthTokens(access_token="wrong-resource"),
+    issuer~,
+    resource="https://rs.example/other",
+  )
+  assert_true(
+    try! (client.headers(metadata_request("tools/list")).get("Authorization")
+    is None),
+  )
+}
+
+///|
+async test "401 without a challenge falls back to protected-resource discovery" {
+  let auth_requests : Array[@auth.HttpRequest] = []
+  let opened : Array[String] = []
+  let provider = @auth.AuthorizationProvider(
+    send_request=request => {
+      auth_requests.push(request)
+      match request.url() {
+        "https://rs.example/.well-known/oauth-protected-resource" =>
+          @auth.HttpResponse(
+            status=200,
+            headers=Map([("Content-Type", "application/json")]),
+            body=Json::object({
+              "resource": "https://rs.example",
+              "authorization_servers": ["https://as.example"],
+              "scopes_supported": ["read"],
+            }).stringify(),
+          )
+        "https://as.example/.well-known/oauth-authorization-server" =>
+          @auth.HttpResponse(
+            status=200,
+            headers=Map([("content-type", "Application/JSON; charset=utf-8")]),
+            body=Json::object({
+              "issuer": "https://as.example",
+              "authorization_endpoint": "https://as.example/authorize",
+              "token_endpoint": "https://as.example/token",
+              "token_endpoint_auth_methods_supported": ["none"],
+              "code_challenge_methods_supported": ["S256"],
+              "authorization_response_iss_parameter_supported": true,
+            }).stringify(),
+          )
+        "https://as.example/token" =>
+          @auth.HttpResponse(
+            status=200,
+            headers=Map([("Content-Type", "application/json")]),
+            body=Json::object({
+              "access_token": "bound-access",
+              "token_type": "Bearer",
+              "scope": "read",
+            }).stringify(),
+          )
+        _ => @auth.HttpResponse(status=404)
+      }
+    },
+    open_authorization_url=url => {
+      opened.push(url)
+      let parsed = @auth.parse_absolute_uri(url)
+      let state = @auth.parse_query(parsed.query().unwrap_or(""))
+        .get("state")
+        .unwrap()
+      "https://client.example/callback?code=code-1&state=" +
+      @auth.percent_encode(state) +
+      "&iss=https%3A%2F%2Fas.example"
+    },
+    random_bytes=size => Bytes::make(size, 9),
+  )
+  let credentials = try! @auth.ClientCredentials(client_id="registered")
+  let options = try! AuthorizationOptions(
+    provider~,
+    redirect_uri="https://client.example/callback",
+    pre_registered=Map([("https://as.example", credentials)]),
+  )
+  let client = try! Client("https://rs.example/mcp", authorization=options)
+  let response : @async_http.Response = {
+    code: 401,
+    reason: "Unauthorized",
+    headers: Map([]),
+    cookies: [],
+  }
+  client.authorize_challenge(response, "tools/list") catch {
+    _ => abort("authorization failed")
+  }
+  let headers = try! client.headers(metadata_request("tools/list"))
+  assert_eq(headers.get("Authorization"), Some("Bearer bound-access"))
+  assert_eq(opened.length(), 1)
+  assert_false(opened[0].contains("bound-access"[:]))
+  guard auth_requests.last() is Some(token_request) else {
+    abort("missing token request")
+  }
+  assert_true(
+    token_request.body().contains("resource=https%3A%2F%2Frs.example%2Fmcp"[:]),
+  )
+}
+
+///|
+test "generic 403 is not treated as scope step-up" {
+  let generic : @async_http.Response = {
+    code: 403,
+    reason: "Forbidden",
+    headers: Map([]),
+    cookies: [],
+  }
+  let step_up : @async_http.Response = {
+    code: 403,
+    reason: "Forbidden",
+    headers: Map([
+      (
+        "WWW-Authenticate", "Bearer error=\"insufficient_scope\", scope=\"write\"",
+      ),
+    ]),
+    cookies: [],
+  }
+  assert_false(response_requires_authorization(generic))
+  assert_true(response_requires_authorization(step_up))
+}
+
+///|
+test "authorization endpoint policy is enforced when Client is constructed" {
+  let strict = try! AuthorizationOptions(
+    provider=test_authorization_provider(),
+    redirect_uri="https://client.example/callback",
+  )
+  try ignore(Client("http://127.0.0.1:8080/mcp", authorization=strict)) catch {
+    @mcp.InvalidRequest(_) => ()
+    _ => fail("expected authorization destination rejection")
+  } noraise {
+    _ => fail("authorization bypassed endpoint policy")
+  }
+  let loopback_provider = @auth.AuthorizationProvider(
+    send_request=_ => @auth.HttpResponse(status=500),
+    open_authorization_url=url => url,
+    random_bytes=size => Bytes::make(size, 1),
+    allow_insecure_loopback=true,
+  )
+  let loopback = try! AuthorizationOptions(
+    provider=loopback_provider,
+    redirect_uri="http://127.0.0.1:9000/callback",
+  )
+  ignore(try! Client("http://127.0.0.1:8080/mcp", authorization=loopback))
+}
+
+///|
+test "authorization resource override preserves a significant trailing slash" {
+  let options = try! AuthorizationOptions(
+    provider=test_authorization_provider(),
+    redirect_uri="https://client.example/callback",
+    resource_uri="https://rs.example/mcp/",
+  )
+  let client = try! Client("https://rs.example/mcp", authorization=options)
+  assert_eq(client.authorization_resource, "https://rs.example/mcp/")
+  assert_true(client.authorization_resource_exact)
+  let issuer = "https://as.example"
+  client.authorization_issuer = Some(issuer)
+  client.token_cache.put(
+    try! @auth.OAuthTokens(access_token="slash-bound"),
+    issuer~,
+    resource="https://rs.example/mcp/",
+  )
+  assert_eq(
+    (try! client.headers(metadata_request("tools/list"))).get("Authorization"),
+    Some("Bearer slash-bound"),
+  )
+}
+
+///|
+test "authorization resource override obeys destination security policy" {
+  let options = try! AuthorizationOptions(
+    provider=test_authorization_provider(),
+    redirect_uri="https://client.example/callback",
+    resource_uri="https://169.254.169.254/mcp/",
+  )
+  try ignore(Client("https://rs.example/mcp", authorization=options)) catch {
+    @mcp.InvalidRequest(_) => ()
+    _ => fail("expected resource policy rejection")
+  } noraise {
+    _ => fail("private resource override was accepted")
+  }
+}

@@ -6,6 +6,59 @@ pub struct Client {
   priv supported_protocol_versions : Array[String]
   priv mut protocol_version : String
   priv tool_schemas : Map[String, Json]
+  priv authorization : AuthorizationOptions?
+  priv credential_cache : @auth.CredentialCache
+  priv token_cache : @auth.TokenCache
+  priv retry_policy : @auth.RetryPolicy
+  priv mut authorization_issuer : String?
+  priv authorization_resource : String
+  priv authorization_resource_exact : Bool
+}
+
+///|
+/// Optional MCP Authorization configuration. HTTP delivery, user interaction,
+/// and secure random generation remain explicit host responsibilities through
+/// `AuthorizationProvider`.
+pub struct AuthorizationOptions {
+  priv provider : @auth.AuthorizationProvider
+  priv redirect_uri : String
+  priv client_name : String
+  priv client_id_metadata_url : String?
+  priv pre_registered : Map[String, @auth.ClientCredentials]
+  priv wants_refresh_token : Bool
+  priv resource_uri : String?
+}
+
+///|
+pub fn AuthorizationOptions::AuthorizationOptions(
+  provider~ : @auth.AuthorizationProvider,
+  redirect_uri~ : String,
+  client_name? : String = "MoonBit MCP client",
+  client_id_metadata_url? : String,
+  pre_registered? : Map[String, @auth.ClientCredentials] = Map([]),
+  wants_refresh_token? : Bool = false,
+  resource_uri? : String,
+) -> AuthorizationOptions raise @mcp.McpError {
+  ignore(
+    @auth.validate_secure_uri(
+      redirect_uri,
+      allow_loopback_http=provider.allows_insecure_loopback(),
+    ),
+  ) catch {
+    _ => raise @mcp.InvalidParams("authorization redirect_uri must be absolute")
+  }
+  if client_name.is_empty() {
+    raise @mcp.InvalidParams("authorization client_name must not be empty")
+  }
+  {
+    provider,
+    redirect_uri,
+    client_name,
+    client_id_metadata_url,
+    pre_registered: pre_registered.copy(),
+    wants_refresh_token,
+    resource_uri,
+  }
 }
 
 ///|
@@ -21,6 +74,7 @@ pub fn Client::Client(
   capabilities? : @mcp.ClientCapabilities = @mcp.ClientCapabilities::empty(),
   extension_result_types? : Map[String, String] = Map([]),
   supported_protocol_versions? : Array[String] = [@mcp.latest_protocol_version],
+  authorization? : AuthorizationOptions,
 ) -> Client raise @mcp.McpError {
   guard supported_protocol_versions is [protocol_version, ..] else {
     raise @mcp.InvalidParams("supported_protocol_versions must not be empty")
@@ -31,6 +85,35 @@ pub fn Client::Client(
         "supported_protocol_versions must contain non-empty strings",
       )
     }
+  }
+  let (authorization_resource, authorization_resource_exact) = match
+    authorization {
+    Some(options) if options.resource_uri is Some(resource_uri) => {
+      ignore(@auth.parse_absolute_uri(resource_uri)) catch {
+        _ =>
+          raise @mcp.InvalidParams(
+            "authorization resource_uri must be absolute",
+          )
+      }
+      options.provider.check_destination(resource_uri) catch {
+        error => raise auth_error_to_mcp(error)
+      }
+      (resource_uri, true)
+    }
+    _ => {
+      let canonical = @auth.canonical_resource_uri(endpoint) catch {
+        _ => raise @mcp.InvalidParams("HTTP endpoint must be an absolute URI")
+      }
+      (canonical, false)
+    }
+  }
+  if authorization is Some(options) {
+    options.provider.check_destination(endpoint) catch {
+      error => raise auth_error_to_mcp(error)
+    }
+  }
+  let retry_policy = @auth.RetryPolicy() catch {
+    _ => raise @mcp.InternalError("could not initialize authorization policy")
   }
   {
     core: @mcp.Client(
@@ -44,6 +127,13 @@ pub fn Client::Client(
     supported_protocol_versions: supported_protocol_versions.copy(),
     protocol_version,
     tool_schemas: Map([]),
+    authorization,
+    credential_cache: @auth.CredentialCache(),
+    token_cache: @auth.TokenCache(),
+    retry_policy,
+    authorization_issuer: None,
+    authorization_resource,
+    authorization_resource_exact,
   }
 }
 
@@ -60,6 +150,13 @@ fn Client::headers(
   for name, value in standard_request_headers(request, self.protocol_version) {
     headers[name] = value
   }
+  if self.authorization_issuer is Some(issuer) &&
+    self.token_cache.get(issuer~, resource=self.authorization_resource)
+    is Some(tokens) {
+    // Bearer credentials are header-only. They are never appended to the MCP
+    // endpoint, discovery URLs, or authorization URL query parameters.
+    headers["Authorization"] = tokens.authorization_header()
+  }
   if input_schema is Some(schema) &&
     request
     is Object(
@@ -74,6 +171,218 @@ fn Client::headers(
     }
   }
   headers
+}
+
+///|
+fn request_operation(request : Json) -> String {
+  match request {
+    Object({ "method": String(operation), .. }) => operation
+    _ => "unknown"
+  }
+}
+
+///|
+fn response_requires_authorization(response : @async_http.Response) -> Bool {
+  if response.code == 401 {
+    return true
+  }
+  if response.code != 403 {
+    return false
+  }
+  match header(response.headers, "WWW-Authenticate") {
+    Some(value) => {
+      let parsed = try @auth.parse_bearer_challenge(value) catch {
+        _ => None
+      } noraise {
+        challenge => Some(challenge)
+      }
+      match parsed {
+        Some(challenge) => challenge.error() == Some("insufficient_scope")
+        None => false
+      }
+    }
+    None => false
+  }
+}
+
+///|
+fn auth_error_to_mcp(error : @auth.AuthError) -> @mcp.McpError {
+  let message = match error {
+    @auth.InvalidUri(value) => "invalid authorization URI: " + value
+    @auth.InvalidChallenge(value) => "invalid authorization challenge: " + value
+    @auth.InvalidMetadata(value) => "invalid authorization metadata: " + value
+    @auth.InvalidAuthorizationResponse(value) =>
+      "invalid authorization response: " + value
+    @auth.UnsupportedRegistration(value) =>
+      "unsupported client registration: " + value
+    @auth.TransportFailure(value) => "authorization transport failed: " + value
+    @auth.AuthorizationFailed(value) => "authorization failed: " + value
+    @auth.RetryLimitExceeded(value) => value
+  }
+  @mcp.InvalidRequest(message)
+}
+
+///|
+async fn Client::authorize_challenge(
+  self : Client,
+  response : @async_http.Response,
+  operation : String,
+) -> Unit raise @mcp.McpError {
+  guard self.authorization is Some(options) else {
+    raise @mcp.InvalidRequest("HTTP authorization is required")
+  }
+  let challenge = match header(response.headers, "WWW-Authenticate") {
+    Some(value) =>
+      Some(
+        @auth.parse_bearer_challenge(value) catch {
+          error => raise auth_error_to_mcp(error)
+        },
+      )
+    None => None
+  }
+  self.retry_policy.record_attempt(self.authorization_resource, operation) catch {
+    error => raise auth_error_to_mcp(error)
+  }
+  let resource_metadata = @auth.discover_protected_resource_metadata(
+    options.provider,
+    self.authorization_resource,
+    challenge?,
+    exact_resource=self.authorization_resource_exact,
+  ) catch {
+    error => raise auth_error_to_mcp(error)
+  }
+  guard resource_metadata.authorization_servers() is [issuer, ..] else {
+    raise @mcp.InvalidRequest(
+      "protected resource metadata has no authorization server",
+    )
+  }
+  let metadata = @auth.discover_authorization_server_metadata(
+    options.provider,
+    issuer,
+  ) catch {
+    error => raise auth_error_to_mcp(error)
+  }
+  let credentials = match self.credential_cache.get(issuer) {
+    Some(credentials) => credentials
+    None => {
+      let pre_registered = options.pre_registered.get(issuer)
+      if pre_registered is None && options.client_id_metadata_url is Some(url) {
+        options.provider.check_destination(url) catch {
+          error => raise auth_error_to_mcp(error)
+        }
+      }
+      let choice = @auth.choose_registration(
+        metadata,
+        client_id_metadata_url?=options.client_id_metadata_url,
+        pre_registered?,
+        allow_insecure_loopback=options.provider.allows_insecure_loopback(),
+      ) catch {
+        error => raise auth_error_to_mcp(error)
+      }
+      let credentials = match choice {
+        @auth.ClientIdMetadataDocument(client_id) =>
+          @auth.ClientCredentials(client_id~, token_endpoint_auth_method=None) catch {
+            error => raise auth_error_to_mcp(error)
+          }
+        @auth.PreRegistered(credentials) => credentials
+        @auth.Dynamic(_) => {
+          let registration_request = @auth.dynamic_registration_request(
+            metadata,
+            client_name=options.client_name,
+            redirect_uris=[options.redirect_uri],
+            wants_refresh_token=options.wants_refresh_token,
+          ) catch {
+            error => raise auth_error_to_mcp(error)
+          }
+          let registration_response = options.provider.send(
+            registration_request,
+          ) catch {
+            error => raise auth_error_to_mcp(error)
+          }
+          if !(registration_response.status() is (200..<300)) {
+            raise @mcp.InvalidRequest("dynamic registration was rejected")
+          }
+          let registration_json = @json.parse(registration_response.body()) catch {
+            _ =>
+              raise @mcp.InvalidRequest(
+                "dynamic registration returned invalid JSON",
+              )
+          }
+          @auth.parse_dynamic_registration_response(
+            registration_json,
+            requested_token_endpoint_auth_method=None,
+          ) catch {
+            error => raise auth_error_to_mcp(error)
+          }
+        }
+      }
+      self.credential_cache.put(issuer~, credentials)
+      credentials
+    }
+  }
+  let previous_tokens = self.token_cache.get(
+    issuer~,
+    resource=self.authorization_resource,
+  )
+  let challenge_error = match challenge {
+    Some(value) => value.error()
+    None => None
+  }
+  let challenge_scope = match challenge {
+    Some(value) => value.scope()
+    None => None
+  }
+  if challenge_error == Some("invalid_token") &&
+    previous_tokens is Some(tokens) &&
+    tokens.refresh_token() is Some(refresh_token) {
+    let refreshed = try
+      @auth.AuthorizationEngine(options.provider).refresh(
+        metadata,
+        credentials,
+        refresh_token~,
+        resource=self.authorization_resource,
+        scopes=tokens.scope(),
+        exact_resource=self.authorization_resource_exact,
+      )
+    catch {
+      _ => None
+    } noraise {
+      value => Some(value)
+    }
+    if refreshed is Some(tokens) {
+      self.token_cache.put(
+        issuer~,
+        resource=self.authorization_resource,
+        tokens,
+      )
+      self.authorization_issuer = Some(issuer)
+      return
+    }
+  }
+  let previous_scopes = previous_tokens.map(tokens => tokens.scope())
+  let scopes = match (challenge_error, challenge_scope, previous_scopes) {
+    (Some("insufficient_scope"), Some(required), Some(previous)) =>
+      @auth.step_up_scopes(previous, required)
+    _ =>
+      @auth.initial_scopes(
+        challenge_scope?,
+        resource_scopes?=resource_metadata.scopes_supported(),
+        authorization_server_scopes?=metadata.scopes_supported(),
+        wants_refresh_token=options.wants_refresh_token,
+      )
+  }
+  let tokens = @auth.AuthorizationEngine(options.provider).authorize(
+    metadata,
+    credentials,
+    redirect_uri=options.redirect_uri,
+    resource=self.authorization_resource,
+    scopes~,
+    exact_resource=self.authorization_resource_exact,
+  ) catch {
+    error => raise auth_error_to_mcp(error)
+  }
+  self.token_cache.put(issuer~, resource=self.authorization_resource, tokens)
+  self.authorization_issuer = Some(issuer)
 }
 
 ///|
@@ -458,12 +767,27 @@ async fn Client::send_response_once_with_notifications(
   let response = stream.end_request() catch {
     error => raise @mcp.InternalError(error.to_string())
   }
+  if response_requires_authorization(response) && self.authorization is Some(_) {
+    ignore(stream.read_all()) catch {
+      error => raise @mcp.InternalError(error.to_string())
+    }
+    self.authorize_challenge(response, request_operation(request))
+    return self.send_response_once_with_notifications(
+      request,
+      input_schema?,
+      on_notification~,
+    )
+  }
   guard response.code is (200..<300) else {
     let body = stream.read_all().text() catch {
         error => raise @mcp.InternalError(error.to_string())
       }
     raise http_error_to_mcp(response, body)
   }
+  self.retry_policy.clear(
+    self.authorization_resource,
+    request_operation(request),
+  )
   let content_type = match header(response.headers, "Content-Type") {
     Some(value) => value
     None => raise @mcp.InvalidRequest("MCP HTTP response omitted Content-Type")
@@ -611,7 +935,15 @@ async fn Client::send_notification_once(
   let body = stream.read_all().text() catch {
       error => raise @mcp.InternalError(error.to_string())
     }
+  if response_requires_authorization(response) && self.authorization is Some(_) {
+    self.authorize_challenge(response, request_operation(notification))
+    return self.send_notification_once(notification)
+  }
   validate_notification_response(response, body)
+  self.retry_policy.clear(
+    self.authorization_resource,
+    request_operation(notification),
+  )
 }
 
 ///|
@@ -724,7 +1056,7 @@ fn require_complete(
 ///|
 /// List tools, excluding invalid `x-mcp-header` definitions and remembering
 /// valid schemas for subsequent `call_tool` requests.
-pub async fn Client::list_tools(
+pub async fn Client::list_tools_raw(
   self : Client,
   cursor? : String,
   options? : @mcp.RequestOptions = @mcp.RequestOptions(),
@@ -737,9 +1069,20 @@ pub async fn Client::list_tools(
 }
 
 ///|
+/// List tools as the canonical domain result. Use `list_tools_raw` to inspect
+/// extension fields that are not represented by the core specification.
+pub async fn Client::list_tools(
+  self : Client,
+  cursor? : String,
+  options? : @mcp.RequestOptions = @mcp.RequestOptions(),
+) -> @mcp.ListToolsResult raise @mcp.McpError {
+  @mcp.decode_list_tools_result(self.list_tools_raw(cursor?, options~))
+}
+
+///|
 /// Call a tool. Pass `input_schema` to call directly, or call `list_tools`
 /// first so the client can use its validated schema cache.
-pub async fn Client::call_tool(
+pub async fn Client::call_tool_raw(
   self : Client,
   name~ : String,
   arguments? : Json = Json::object({}),
@@ -757,6 +1100,22 @@ pub async fn Client::call_tool(
 }
 
 ///|
+/// Call a tool and decode every complete response into `CallToolResult`.
+pub async fn Client::call_tool(
+  self : Client,
+  name~ : String,
+  arguments? : Json = Json::object({}),
+  input_schema? : Json,
+  options? : @mcp.RequestOptions = @mcp.RequestOptions(),
+) -> @mcp.HandlerOutcome[@mcp.CallToolResult] raise @mcp.McpError {
+  match self.call_tool_raw(name~, arguments~, input_schema?, options~) {
+    Complete(result) => Complete(@mcp.decode_call_tool_result(result))
+    InputRequired(value) => InputRequired(value)
+    ExtensionResult(result_type, value) => ExtensionResult(result_type, value)
+  }
+}
+
+///|
 /// Call a tool and decode its `structuredContent` as `T`.
 pub async fn[T : FromJson] Client::call_tool_as(
   self : Client,
@@ -765,7 +1124,7 @@ pub async fn[T : FromJson] Client::call_tool_as(
   input_schema? : Json,
   options? : @mcp.RequestOptions = @mcp.RequestOptions(),
 ) -> @mcp.HandlerOutcome[T] raise @mcp.McpError {
-  match self.call_tool(name~, arguments~, input_schema?, options~) {
+  match self.call_tool_raw(name~, arguments~, input_schema?, options~) {
     Complete(result) => Complete(@mcp.decode_structured_content(result))
     InputRequired(value) => InputRequired(value)
     ExtensionResult(result_type, value) => ExtensionResult(result_type, value)
@@ -773,7 +1132,7 @@ pub async fn[T : FromJson] Client::call_tool_as(
 }
 
 ///|
-pub async fn Client::list_resources(
+pub async fn Client::list_resources_raw(
   self : Client,
   cursor? : String,
   options? : @mcp.RequestOptions = @mcp.RequestOptions(),
@@ -785,7 +1144,16 @@ pub async fn Client::list_resources(
 }
 
 ///|
-pub async fn Client::list_resource_templates(
+pub async fn Client::list_resources(
+  self : Client,
+  cursor? : String,
+  options? : @mcp.RequestOptions = @mcp.RequestOptions(),
+) -> @mcp.ListResourcesResult raise @mcp.McpError {
+  @mcp.decode_list_resources_result(self.list_resources_raw(cursor?, options~))
+}
+
+///|
+pub async fn Client::list_resource_templates_raw(
   self : Client,
   cursor? : String,
   options? : @mcp.RequestOptions = @mcp.RequestOptions(),
@@ -797,7 +1165,18 @@ pub async fn Client::list_resource_templates(
 }
 
 ///|
-pub async fn Client::read_resource(
+pub async fn Client::list_resource_templates(
+  self : Client,
+  cursor? : String,
+  options? : @mcp.RequestOptions = @mcp.RequestOptions(),
+) -> @mcp.ListResourceTemplatesResult raise @mcp.McpError {
+  @mcp.decode_list_resource_templates_result(
+    self.list_resource_templates_raw(cursor?, options~),
+  )
+}
+
+///|
+pub async fn Client::read_resource_raw(
   self : Client,
   uri~ : String,
   options? : @mcp.RequestOptions = @mcp.RequestOptions(),
@@ -806,7 +1185,20 @@ pub async fn Client::read_resource(
 }
 
 ///|
-pub async fn Client::list_prompts(
+pub async fn Client::read_resource(
+  self : Client,
+  uri~ : String,
+  options? : @mcp.RequestOptions = @mcp.RequestOptions(),
+) -> @mcp.HandlerOutcome[@mcp.ReadResourceResult] raise @mcp.McpError {
+  match self.read_resource_raw(uri~, options~) {
+    Complete(result) => Complete(@mcp.decode_read_resource_result(result))
+    InputRequired(value) => InputRequired(value)
+    ExtensionResult(result_type, value) => ExtensionResult(result_type, value)
+  }
+}
+
+///|
+pub async fn Client::list_prompts_raw(
   self : Client,
   cursor? : String,
   options? : @mcp.RequestOptions = @mcp.RequestOptions(),
@@ -818,7 +1210,16 @@ pub async fn Client::list_prompts(
 }
 
 ///|
-pub async fn Client::get_prompt(
+pub async fn Client::list_prompts(
+  self : Client,
+  cursor? : String,
+  options? : @mcp.RequestOptions = @mcp.RequestOptions(),
+) -> @mcp.ListPromptsResult raise @mcp.McpError {
+  @mcp.decode_list_prompts_result(self.list_prompts_raw(cursor?, options~))
+}
+
+///|
+pub async fn Client::get_prompt_raw(
   self : Client,
   name~ : String,
   arguments? : Json = Json::object({}),
@@ -828,7 +1229,21 @@ pub async fn Client::get_prompt(
 }
 
 ///|
-pub async fn Client::complete(
+pub async fn Client::get_prompt(
+  self : Client,
+  name~ : String,
+  arguments? : Json = Json::object({}),
+  options? : @mcp.RequestOptions = @mcp.RequestOptions(),
+) -> @mcp.HandlerOutcome[@mcp.GetPromptResult] raise @mcp.McpError {
+  match self.get_prompt_raw(name~, arguments~, options~) {
+    Complete(result) => Complete(@mcp.decode_get_prompt_result(result))
+    InputRequired(value) => InputRequired(value)
+    ExtensionResult(result_type, value) => ExtensionResult(result_type, value)
+  }
+}
+
+///|
+pub async fn Client::complete_raw(
   self : Client,
   reference~ : @mcp.CompletionReference,
   argument_name~ : String,
@@ -847,6 +1262,26 @@ pub async fn Client::complete(
       ),
     ),
     "completion/complete",
+  )
+}
+
+///|
+pub async fn Client::complete(
+  self : Client,
+  reference~ : @mcp.CompletionReference,
+  argument_name~ : String,
+  argument_value~ : String,
+  context_arguments? : Map[String, String],
+  options? : @mcp.RequestOptions = @mcp.RequestOptions(),
+) -> @mcp.CompleteResult raise @mcp.McpError {
+  @mcp.decode_complete_result(
+    self.complete_raw(
+      reference~,
+      argument_name~,
+      argument_value~,
+      context_arguments?,
+      options~,
+    ),
   )
 }
 
@@ -877,12 +1312,23 @@ async fn Client::listen_once(
   let response = stream.end_request() catch {
     error => raise @mcp.InternalError(error.to_string())
   }
+  if response_requires_authorization(response) && self.authorization is Some(_) {
+    ignore(stream.read_all()) catch {
+      error => raise @mcp.InternalError(error.to_string())
+    }
+    self.authorize_challenge(response, request_operation(request))
+    return self.listen_once(request, notifications~, on_notification~)
+  }
   guard response.code is (200..<300) else {
     let body = stream.read_all().text() catch {
         error => raise @mcp.InternalError(error.to_string())
       }
     raise http_error_to_mcp(response, body)
   }
+  self.retry_policy.clear(
+    self.authorization_resource,
+    request_operation(request),
+  )
   let content_type = match header(response.headers, "Content-Type") {
     Some(value) => value
     None => raise @mcp.InvalidRequest("MCP HTTP response omitted Content-Type")
@@ -1001,7 +1447,7 @@ pub async fn Client::listen(
 ///|
 /// Resolve bounded multi-round-trip tool input requests. Each retry gets a
 /// fresh JSON-RPC ID while `retry_options` preserves opaque request state.
-pub async fn Client::call_tool_resolving(
+pub async fn Client::call_tool_resolving_raw(
   self : Client,
   name~ : String,
   arguments? : Json = Json::object({}),
@@ -1019,7 +1465,69 @@ pub async fn Client::call_tool_resolving(
   let mut retry_options = options
   for _ in 0..<max_rounds {
     match
-      self.call_tool(name~, arguments~, input_schema?, options=retry_options) {
+      self.call_tool_raw(
+        name~,
+        arguments~,
+        input_schema?,
+        options=retry_options,
+      ) {
+      @mcp.Complete(result) => return result
+      @mcp.InputRequired(required) => {
+        let requests = required.input_requests().unwrap_or(Map([]))
+        retry_options = required.retry_options(
+          resolve(requests),
+          base=retry_options,
+        )
+      }
+      @mcp.ExtensionResult(_, result) => return result
+    }
+  }
+  raise @mcp.InvalidRequest("MRTR exceeded max_rounds")
+}
+
+///|
+/// Resolve bounded MRTR input and decode the final tool result.
+pub async fn Client::call_tool_resolving(
+  self : Client,
+  name~ : String,
+  arguments? : Json = Json::object({}),
+  input_schema? : Json,
+  options? : @mcp.RequestOptions = @mcp.RequestOptions(),
+  max_rounds? : Int = 8,
+  resolve~ : async (Map[String, @mcp.InputRequest]) -> Map[
+    String,
+    @mcp.InputResponse,
+  ] raise @mcp.McpError,
+) -> @mcp.CallToolResult raise @mcp.McpError {
+  @mcp.decode_call_tool_result(
+    self.call_tool_resolving_raw(
+      name~,
+      arguments~,
+      input_schema?,
+      options~,
+      max_rounds~,
+      resolve~,
+    ),
+  )
+}
+
+///|
+pub async fn Client::read_resource_resolving_raw(
+  self : Client,
+  uri~ : String,
+  options? : @mcp.RequestOptions = @mcp.RequestOptions(),
+  max_rounds? : Int = 8,
+  resolve~ : async (Map[String, @mcp.InputRequest]) -> Map[
+    String,
+    @mcp.InputResponse,
+  ] raise @mcp.McpError,
+) -> Json raise @mcp.McpError {
+  if max_rounds <= 0 {
+    raise @mcp.InvalidParams("max_rounds must be positive")
+  }
+  let mut retry_options = options
+  for _ in 0..<max_rounds {
+    match self.read_resource_raw(uri~, options=retry_options) {
       @mcp.Complete(result) => return result
       @mcp.InputRequired(required) => {
         let requests = required.input_requests().unwrap_or(Map([]))
@@ -1044,13 +1552,30 @@ pub async fn Client::read_resource_resolving(
     String,
     @mcp.InputResponse,
   ] raise @mcp.McpError,
+) -> @mcp.ReadResourceResult raise @mcp.McpError {
+  @mcp.decode_read_resource_result(
+    self.read_resource_resolving_raw(uri~, options~, max_rounds~, resolve~),
+  )
+}
+
+///|
+pub async fn Client::get_prompt_resolving_raw(
+  self : Client,
+  name~ : String,
+  arguments? : Json = Json::object({}),
+  options? : @mcp.RequestOptions = @mcp.RequestOptions(),
+  max_rounds? : Int = 8,
+  resolve~ : async (Map[String, @mcp.InputRequest]) -> Map[
+    String,
+    @mcp.InputResponse,
+  ] raise @mcp.McpError,
 ) -> Json raise @mcp.McpError {
   if max_rounds <= 0 {
     raise @mcp.InvalidParams("max_rounds must be positive")
   }
   let mut retry_options = options
   for _ in 0..<max_rounds {
-    match self.read_resource(uri~, options=retry_options) {
+    match self.get_prompt_raw(name~, arguments~, options=retry_options) {
       @mcp.Complete(result) => return result
       @mcp.InputRequired(required) => {
         let requests = required.input_requests().unwrap_or(Map([]))
@@ -1076,23 +1601,14 @@ pub async fn Client::get_prompt_resolving(
     String,
     @mcp.InputResponse,
   ] raise @mcp.McpError,
-) -> Json raise @mcp.McpError {
-  if max_rounds <= 0 {
-    raise @mcp.InvalidParams("max_rounds must be positive")
-  }
-  let mut retry_options = options
-  for _ in 0..<max_rounds {
-    match self.get_prompt(name~, arguments~, options=retry_options) {
-      @mcp.Complete(result) => return result
-      @mcp.InputRequired(required) => {
-        let requests = required.input_requests().unwrap_or(Map([]))
-        retry_options = required.retry_options(
-          resolve(requests),
-          base=retry_options,
-        )
-      }
-      @mcp.ExtensionResult(_, result) => return result
-    }
-  }
-  raise @mcp.InvalidRequest("MRTR exceeded max_rounds")
+) -> @mcp.GetPromptResult raise @mcp.McpError {
+  @mcp.decode_get_prompt_result(
+    self.get_prompt_resolving_raw(
+      name~,
+      arguments~,
+      options~,
+      max_rounds~,
+      resolve~,
+    ),
+  )
 }

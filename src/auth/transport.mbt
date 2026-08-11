@@ -70,6 +70,16 @@ pub fn HttpResponse::headers(self : HttpResponse) -> Map[String, String] {
 }
 
 ///|
+pub fn HttpResponse::header(self : HttpResponse, name : String) -> String? {
+  for header_name, value in self.headers {
+    if header_name.equal_ignore_ascii_case(name) {
+      return Some(value)
+    }
+  }
+  None
+}
+
+///|
 pub fn HttpResponse::body(self : HttpResponse) -> String {
   self.body
 }
@@ -81,6 +91,23 @@ pub struct AuthorizationProvider {
   priv send_request : async (HttpRequest) -> HttpResponse raise AuthError
   priv open_authorization_url : async (String) -> String raise AuthError
   priv random_bytes : (Int) -> Bytes raise AuthError
+  priv validate_destination : (String) -> Unit raise AuthError
+  priv allow_insecure_loopback : Bool
+}
+
+///|
+fn validate_destination_default(
+  url : String,
+  allow_insecure_loopback : Bool,
+) -> Unit raise AuthError {
+  let uri = validate_secure_uri(
+    url,
+    allow_loopback_http=allow_insecure_loopback,
+  )
+  if private_literal_authority(uri.authority()) &&
+    !(allow_insecure_loopback && loopback_authority(uri.authority())) {
+    raise InvalidUri("authorization destination must not be a private address")
+  }
 }
 
 ///|
@@ -88,8 +115,34 @@ pub fn AuthorizationProvider::AuthorizationProvider(
   send_request~ : async (HttpRequest) -> HttpResponse raise AuthError,
   open_authorization_url~ : async (String) -> String raise AuthError,
   random_bytes~ : (Int) -> Bytes raise AuthError,
+  validate_destination? : (String) -> Unit raise AuthError,
+  allow_insecure_loopback? : Bool = false,
 ) -> AuthorizationProvider {
-  { send_request, open_authorization_url, random_bytes }
+  let validate_destination = validate_destination.unwrap_or(url => {
+    validate_destination_default(url, allow_insecure_loopback)
+  })
+  {
+    send_request,
+    open_authorization_url,
+    random_bytes,
+    validate_destination,
+    allow_insecure_loopback,
+  }
+}
+
+///|
+pub fn AuthorizationProvider::allows_insecure_loopback(
+  self : AuthorizationProvider,
+) -> Bool {
+  self.allow_insecure_loopback
+}
+
+///|
+pub fn AuthorizationProvider::check_destination(
+  self : AuthorizationProvider,
+  url : String,
+) -> Unit raise AuthError {
+  (self.validate_destination)(url)
 }
 
 ///|
@@ -100,6 +153,7 @@ pub async fn AuthorizationProvider::send(
   if @async.is_being_cancelled() {
     raise TransportFailure("authorization transport cancelled")
   }
+  (self.validate_destination)(request.url())
   (self.send_request)(request)
 }
 
@@ -111,6 +165,7 @@ pub async fn AuthorizationProvider::authorize(
   if @async.is_being_cancelled() {
     raise TransportFailure("authorization interaction cancelled")
   }
+  (self.validate_destination)(authorization_url)
   (self.open_authorization_url)(authorization_url)
 }
 

@@ -22,9 +22,68 @@ notifications through `on_subscription`. Client notifications are sent with
 `Client::notify` and require the specified HTTP 202 response with an empty
 body.
 
-Authorization is intentionally not approximated by a boolean callback. Put an
-OAuth 2.1 / MCP Authorization-aware middleware in front of this adapter when
-the optional Authorization specification is enabled.
+Normal client verbs decode complete responses into the canonical domain types
+from `shiguri-01/mcp`. For example, `list_tools` returns `ListToolsResult` and
+`call_tool` returns `HandlerOutcome[CallToolResult]`. Use `list_tools_raw`,
+`call_tool_raw`, or the general `request` method only when an extension needs
+access to fields outside the core result model.
+
+```mbt nocheck
+let listed = client.list_tools()
+for tool in listed.tools {
+  println(tool.name)
+}
+match client.call_tool(name="greet", arguments={ "name": "MoonBit" }) {
+  Complete(result) => println(result.content.length().to_string())
+  InputRequired(pending) => handle_input(pending)
+  ExtensionResult(kind, value) => handle_extension(kind, value)
+}
+```
+
+Authorization is optional and configured with `AuthorizationOptions`. When it
+is enabled, every request path—including notifications and subscription
+streams—handles Bearer challenges with bounded retries. The client discovers
+Protected Resource and Authorization Server metadata, selects pre-registration,
+Client ID Metadata Documents, or Dynamic Client Registration, runs PKCE S256,
+and stores credentials by issuer and tokens by issuer plus resource. An
+`insufficient_scope` challenge preserves prior scopes while adding the required
+scope; an `invalid_token` challenge uses a bound refresh token before reopening
+the authorization interaction.
+
+A 401 response may omit `WWW-Authenticate`; discovery then starts at the RFC
+9728 well-known locations. A 403 response triggers authorization only for a
+Bearer `insufficient_scope` challenge, so unrelated authorization failures are
+returned unchanged.
+
+`@auth.AuthorizationProvider` is the host boundary for authorization HTTP,
+opening the authorization URL, cryptographic entropy, and destination policy.
+Its default policy requires public HTTPS destinations. Native conformance and
+local development can explicitly set `allow_insecure_loopback=true`; private
+network access remains denied unless the host supplies an explicit
+`validate_destination` policy. HTTP implementations used by the provider must
+apply the same policy after every redirect and after DNS resolution.
+
+Bearer access tokens are attached only through the `Authorization` header of
+the configured MCP resource endpoint. They are never placed in MCP request
+bodies, endpoint queries, discovery URLs, or authorization URL queries.
+`AuthorizationOptions(resource_uri=...)` preserves an explicitly significant
+resource identifier, including a trailing slash, across metadata validation,
+token audience parameters, and cache keys. Without it, the endpoint-derived
+canonical resource identifier is used.
+
+JSON metadata and token responses must declare `application/json` (parameters
+and header-name casing are accepted). A successful body with another media type
+is rejected before parsing.
+
+The conformance-client integration supplies:
+
+- `send_request`: sends `@auth.HttpRequest` and returns raw status, headers, and
+  body as `@auth.HttpResponse`;
+- `open_authorization_url`: completes user-agent interaction and returns the
+  complete callback URI;
+- `random_bytes`: cryptographically secure entropy;
+- either issuer-keyed `pre_registered` credentials, a
+  `client_id_metadata_url`, or a server supporting dynamic registration.
 
 ```mbt check
 ///|

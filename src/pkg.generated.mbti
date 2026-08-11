@@ -12,6 +12,24 @@ pub fn cancelled_notification(request_id~ : Json, reason? : String) -> Json rais
 
 pub fn complete_result(Json, server_info? : Implementation, meta? : Map[String, Json]) -> Json raise McpError
 
+pub fn decode_call_tool_result(Json) -> CallToolResult raise McpError
+
+pub fn decode_complete_result(Json) -> CompleteResult raise McpError
+
+pub fn decode_content_block(Json) -> ContentBlock raise McpError
+
+pub fn decode_get_prompt_result(Json) -> GetPromptResult raise McpError
+
+pub fn decode_list_prompts_result(Json) -> ListPromptsResult raise McpError
+
+pub fn decode_list_resource_templates_result(Json) -> ListResourceTemplatesResult raise McpError
+
+pub fn decode_list_resources_result(Json) -> ListResourcesResult raise McpError
+
+pub fn decode_list_tools_result(Json) -> ListToolsResult raise McpError
+
+pub fn decode_read_resource_result(Json) -> ReadResourceResult raise McpError
+
 pub fn[T : @json.FromJson] decode_structured_content(Json) -> T raise McpError
 
 pub let latest_protocol_version : String
@@ -54,6 +72,7 @@ pub(all) suberror McpError {
   InvalidRequest(String)
   MethodNotFound(String)
   InvalidParams(String)
+  InvalidParamsWithData(String, Json)
   InternalError(String)
   HeaderMismatch(String)
   MissingRequiredClientCapability(String, ClientCapabilities)
@@ -95,6 +114,7 @@ pub(all) struct CallToolResult {
   content : Array[ContentBlock]
   structured_content : Json?
   is_error : Bool
+  meta : ResultMeta?
 } derive(Eq, @debug.Debug)
 pub fn CallToolResult::error_text(String, annotations? : Annotations, meta? : Json) -> Self
 pub fn CallToolResult::json(Json) -> Self
@@ -139,6 +159,7 @@ pub(all) struct CompleteResult {
   values : Array[String]
   total : Int?
   has_more : Bool
+  meta : ResultMeta?
 } derive(Eq, @debug.Debug)
 pub fn CompleteResult::CompleteResult(values~ : Array[String], total? : Int, has_more? : Bool) -> Self raise McpError
 pub impl ToJson for CompleteResult
@@ -200,6 +221,7 @@ pub impl ToJson for ElicitationCapability
 pub(all) struct GetPromptResult {
   description : String?
   messages : Array[PromptMessage]
+  meta : ResultMeta?
 } derive(Eq, @debug.Debug)
 pub fn GetPromptResult::user(String, description? : String) -> Self
 pub impl ToJson for GetPromptResult
@@ -267,6 +289,34 @@ pub fn InputResponse::InputResponse(Json) -> Self
 pub fn InputResponse::result(Self) -> Json
 pub impl ToJson for InputResponse
 
+pub(all) struct ListPromptsResult {
+  prompts : Array[Prompt]
+  next_cursor : String?
+  cache_policy : CachePolicy
+  meta : ResultMeta?
+} derive(Eq, @debug.Debug)
+
+pub(all) struct ListResourceTemplatesResult {
+  resource_templates : Array[ResourceTemplate]
+  next_cursor : String?
+  cache_policy : CachePolicy
+  meta : ResultMeta?
+} derive(Eq, @debug.Debug)
+
+pub(all) struct ListResourcesResult {
+  resources : Array[Resource]
+  next_cursor : String?
+  cache_policy : CachePolicy
+  meta : ResultMeta?
+} derive(Eq, @debug.Debug)
+
+pub(all) struct ListToolsResult {
+  tools : Array[Tool]
+  next_cursor : String?
+  cache_policy : CachePolicy
+  meta : ResultMeta?
+} derive(Eq, @debug.Debug)
+
 pub(all) enum LoggingLevel {
   Debug
   Info
@@ -319,6 +369,8 @@ pub impl ToJson for PromptsCapability
 
 pub(all) struct ReadResourceResult {
   contents : Array[ResourceContent]
+  cache_policy : CachePolicy?
+  meta : ResultMeta?
 } derive(Eq, @debug.Debug)
 pub fn ReadResourceResult::text(uri~ : String, text~ : String, mime_type? : String) -> Self
 pub impl ToJson for ReadResourceResult

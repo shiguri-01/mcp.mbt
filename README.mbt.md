@@ -81,8 +81,11 @@ expressions, so every advertised template is readable.
 - `shiguri-01/mcp`: protocol types, typed server dispatch, modern client
   request builders, discovery, and response decoding.
 - `shiguri-01/mcp/schema`: JSON Schema builders for typed tool inputs.
+- `shiguri-01/mcp/auth`: native MCP Authorization discovery, PKCE,
+  registration, token, issuer, scope, and resource-binding primitives.
 - `shiguri-01/mcp/stdio`: native newline-delimited JSON-RPC transport.
-- `shiguri-01/mcp/http`: native Streamable HTTP transport.
+- `shiguri-01/mcp/http`: native Streamable HTTP transport with optional MCP
+  Authorization orchestration.
 
 Transport clients return these canonical root-package types from their normal
 verbs: `ListToolsResult`, `ListResourcesResult`,

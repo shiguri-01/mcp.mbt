@@ -30,9 +30,7 @@ async fn dispatch(
   protocol_version : String,
 ) -> Unit raise @mcp.McpError {
   if scenario.has_prefix("auth/"[:]) {
-    abort(
-      "Auth conformance scenario '\{scenario}' requires an @auth-enabled driver configuration.",
-    )
+    return run_auth_scenario(scenario, endpoint, protocol_version)
   }
   let client = make_client(endpoint, protocol_version)
   match scenario {
@@ -63,5 +61,7 @@ async fn main {
     Some(value) => value
     None => abort("Usage: conformance-client <server-url>")
   }
-  try! dispatch(scenario, endpoint, protocol_version)
+  dispatch(scenario, endpoint, protocol_version) catch {
+    error => abort("\{Repr(error)}")
+  }
 }
