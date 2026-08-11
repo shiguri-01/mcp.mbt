@@ -1,0 +1,11 @@
+import {
+  "moonbitlang/async",
+  "moonbitlang/core/env",
+  "moonbitlang/core/json",
+  "shiguri-01/mcp",
+  "shiguri-01/mcp/http" @mcp_http,
+}
+
+supported_targets = "+native"
+
+pkgtype(kind: "executable")
