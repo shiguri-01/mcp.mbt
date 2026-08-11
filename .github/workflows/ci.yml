@@ -38,3 +38,20 @@ jobs:
           moon build --target native src/integration/http-roundtrip
           executable="$PWD/_build/native/debug/build/integration/http-roundtrip/http-roundtrip"
           timeout 30s env MCP_HTTP_INTEGRATION_SERVER="$executable" "$executable"
+      - name: Verify frozen MCP 2026-07-28 server requirements
+        run: |
+          moon build --target native src/integration/conformance-server
+          executable="$PWD/_build/native/debug/build/integration/conformance-server/conformance-server"
+          "$executable" >conformance-server.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --silent --output /dev/null http://127.0.0.1:8080/mcp; then
+              break
+            fi
+            sleep 0.1
+          done
+          npx --yes @modelcontextprotocol/conformance@0.2.0-alpha.10 \
+            server \
+            --url http://127.0.0.1:8080/mcp \
+            --requirements 2026-07-28
