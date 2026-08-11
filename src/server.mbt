@@ -872,7 +872,10 @@ async fn Server::read_resource(
           }
         }
       }
-      raise InvalidParams("resource not found: \{uri}")
+      raise InvalidParamsWithData(
+        "resource not found: \{uri}",
+        Json::object({ "uri": Json::string(uri) }),
+      )
     }
   }
 }

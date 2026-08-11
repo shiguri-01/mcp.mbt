@@ -6,6 +6,7 @@ pub(all) suberror McpError {
   InvalidRequest(String)
   MethodNotFound(String)
   InvalidParams(String)
+  InvalidParamsWithData(String, Json)
   InternalError(String)
   HeaderMismatch(String)
   MissingRequiredClientCapability(String, ClientCapabilities)
@@ -20,6 +21,7 @@ pub fn McpError::code(self : McpError) -> Int {
     InvalidRequest(_) => -32600
     MethodNotFound(_) => -32601
     InvalidParams(_) => -32602
+    InvalidParamsWithData(_, _) => -32602
     InternalError(_) => -32603
     HeaderMismatch(_) => -32020
     MissingRequiredClientCapability(_, _) => -32021
@@ -35,6 +37,7 @@ pub fn McpError::message(self : McpError) -> String {
     InvalidRequest(message) => message
     MethodNotFound(method_name) => "Method not found: \{method_name}"
     InvalidParams(message) => message
+    InvalidParamsWithData(message, _) => message
     InternalError(message) => message
     HeaderMismatch(message) => message
     MissingRequiredClientCapability(message, _) => message
@@ -55,6 +58,7 @@ pub fn McpError::data(self : McpError) -> Json? {
           "requested": Json::string(requested),
         }),
       )
+    InvalidParamsWithData(_, data) => Some(data)
     RemoteError(data~, ..) => data
     _ => None
   }
@@ -117,7 +121,11 @@ pub fn McpError::from_rpc_parts(
     -32700 => ParseError(message)
     -32600 => InvalidRequest(message)
     -32601 => MethodNotFound(message)
-    -32602 => InvalidParams(message)
+    -32602 =>
+      match data {
+        Some(data) => InvalidParamsWithData(message, data)
+        None => InvalidParams(message)
+      }
     -32603 => InternalError(message)
     -32020 => HeaderMismatch(message)
     -32021 =>

@@ -143,3 +143,17 @@ test "unknown remote errors retain code message and data" {
   }
   assert_eq(round_tripped, data)
 }
+
+///|
+test "invalid resource parameters preserve the requested URI" {
+  let error = try! @mcp.McpError::from_rpc_parts(
+    -32602,
+    "resource not found",
+    data=Json::object({ "uri": Json::string("test://missing") }),
+  )
+  assert_eq(error.code(), -32602)
+  assert_eq(
+    error.data(),
+    Some(Json::object({ "uri": Json::string("test://missing") })),
+  )
+}
