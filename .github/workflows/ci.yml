@@ -51,7 +51,7 @@ jobs:
             fi
             sleep 0.1
           done
-          npx --yes @modelcontextprotocol/conformance@0.2.0-alpha.10 \
+          npx --yes @modelcontextprotocol/conformance@0.2.0-alpha.11 \
             server \
             --url http://127.0.0.1:8080/mcp \
             --requirements 2026-07-28
