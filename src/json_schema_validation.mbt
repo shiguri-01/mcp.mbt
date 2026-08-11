@@ -20,6 +20,33 @@ priv struct JsonSchemaEvalContext {
 }
 
 ///|
+priv struct JsonSchemaEvaluation {
+  error : String?
+  evaluated_properties : Map[String, Bool]
+  evaluated_items : Map[Int, Bool]
+}
+
+///|
+fn merge_evaluated_properties(
+  target : Map[String, Bool],
+  source : Map[String, Bool],
+) -> Unit {
+  for property, _ in source {
+    target[property] = true
+  }
+}
+
+///|
+fn merge_evaluated_items(
+  target : Map[Int, Bool],
+  source : Map[Int, Bool],
+) -> Unit {
+  for index, _ in source {
+    target[index] = true
+  }
+}
+
+///|
 priv struct ResolvedSchemaReference {
   schema : Json
   resource : String
@@ -32,6 +59,206 @@ fn json_schema_error(path : String, message : String) -> String {
     message
   } else {
     "\{path}: \{message}"
+  }
+}
+
+///|
+priv struct ExactJsonDecimal {
+  coefficient : BigInt
+  exponent : Int
+}
+
+///|
+fn parse_decimal_exponent(value : String) -> Int? {
+  if value.is_empty() {
+    return None
+  }
+  let chars = value.to_array()
+  let mut index = 0
+  let mut sign = 1
+  if chars[0] == '-' {
+    sign = -1
+    index = 1
+  } else if chars[0] == '+' {
+    index = 1
+  }
+  if index == chars.length() {
+    return None
+  }
+  let mut result = 0
+  while index < chars.length() {
+    let char = chars[index]
+    if !(char is ('0'..='9')) {
+      return None
+    }
+    let digit = char.to_int() - '0'.to_int()
+    if result > (2147483647 - digit) / 10 {
+      return None
+    }
+    result = result * 10 + digit
+    index += 1
+  }
+  Some(sign * result)
+}
+
+///|
+fn exact_json_decimal(value : Json) -> ExactJsonDecimal? {
+  guard value is Number(number, repr~) else { return None }
+  let text = match repr {
+    Some(text) => text
+    None => Json::number(number).stringify()
+  }
+  let (mantissa, explicit_exponent) = match text.split_once("e") {
+    Some((mantissa, exponent)) =>
+      (mantissa.to_owned(), parse_decimal_exponent(exponent.to_owned()))
+    None =>
+      match text.split_once("E") {
+        Some((mantissa, exponent)) =>
+          (mantissa.to_owned(), parse_decimal_exponent(exponent.to_owned()))
+        None => (text, Some(0))
+      }
+  }
+  guard explicit_exponent is Some(explicit_exponent) else { return None }
+  let digits = StringBuilder()
+  let mut negative = false
+  let mut seen_dot = false
+  let mut fractional_digits = 0
+  for index, char in mantissa.to_array() {
+    if index == 0 && char == '-' {
+      negative = true
+    } else if index == 0 && char == '+' {
+      ()
+    } else if char == '.' && !seen_dot {
+      seen_dot = true
+    } else if char is ('0'..='9') {
+      digits.write_char(char)
+      if seen_dot {
+        fractional_digits += 1
+      }
+    } else {
+      return None
+    }
+  }
+  if digits.is_empty() {
+    return None
+  }
+  let coefficient_text = if negative {
+    "-" + digits.to_string()
+  } else {
+    digits.to_string()
+  }
+  let mut coefficient = BigInt::from_string(coefficient_text)
+  let mut exponent = explicit_exponent - fractional_digits
+  let ten = BigInt::from_int(10)
+  if coefficient.is_zero() {
+    return Some({ coefficient, exponent: 0 })
+  }
+  while coefficient.mod(ten).is_zero() {
+    coefficient = coefficient.div(ten)
+    exponent += 1
+  }
+  Some({ coefficient, exponent })
+}
+
+///|
+fn ExactJsonDecimal::compare(
+  self : ExactJsonDecimal,
+  other : ExactJsonDecimal,
+) -> Int {
+  let self_sign = self.coefficient.compare_int(0)
+  let other_sign = other.coefficient.compare_int(0)
+  if self_sign != other_sign {
+    return self_sign.compare(other_sign)
+  }
+  if self_sign == 0 {
+    return 0
+  }
+  let self_digits = self.coefficient.to_string().length() -
+    (if self_sign < 0 { 1 } else { 0 })
+  let other_digits = other.coefficient.to_string().length() -
+    (if other_sign < 0 { 1 } else { 0 })
+  let self_magnitude = self_digits.to_int64() + self.exponent.to_int64()
+  let other_magnitude = other_digits.to_int64() + other.exponent.to_int64()
+  if self_magnitude != other_magnitude {
+    let magnitude_order = self_magnitude.compare(other_magnitude)
+    return if self_sign > 0 { magnitude_order } else { -magnitude_order }
+  }
+  if self.exponent > other.exponent {
+    let left = self.coefficient *
+      BigInt::from_int(10).pow(BigInt::from_int(other_digits - self_digits))
+    left.compare(other.coefficient)
+  } else if self.exponent < other.exponent {
+    let right = other.coefficient *
+      BigInt::from_int(10).pow(BigInt::from_int(self_digits - other_digits))
+    self.coefficient.compare(right)
+  } else {
+    self.coefficient.compare(other.coefficient)
+  }
+}
+
+///|
+fn ExactJsonDecimal::is_integer(self : ExactJsonDecimal) -> Bool {
+  self.coefficient.is_zero() || self.exponent >= 0
+}
+
+///|
+fn ExactJsonDecimal::is_multiple_of(
+  self : ExactJsonDecimal,
+  divisor : ExactJsonDecimal,
+) -> Bool {
+  if divisor.coefficient.compare_int(0) <= 0 {
+    return false
+  }
+  if self.coefficient.is_zero() {
+    return true
+  }
+  if self.exponent < divisor.exponent {
+    return false
+  }
+  if divisor.coefficient.compare_int(1) == 0 {
+    return true
+  }
+  let power = BigInt::from_int(10).pow(
+    BigInt::from_int(self.exponent - divisor.exponent),
+    modulus=divisor.coefficient,
+  )
+  (self.coefficient.mod(divisor.coefficient) * power)
+  .mod(divisor.coefficient)
+  .is_zero()
+}
+
+///|
+fn json_schema_values_equal(left : Json, right : Json) -> Bool {
+  match (left, right) {
+    (Number(_, ..), Number(_, ..)) =>
+      match (exact_json_decimal(left), exact_json_decimal(right)) {
+        (Some(left), Some(right)) => left.compare(right) == 0
+        _ => left == right
+      }
+    (Array(left), Array(right)) => {
+      if left.length() != right.length() {
+        return false
+      }
+      for index, value in left {
+        if !json_schema_values_equal(value, right[index]) {
+          return false
+        }
+      }
+      true
+    }
+    (Object(left), Object(right)) => {
+      if left.length() != right.length() {
+        return false
+      }
+      for key, value in left {
+        guard right.get(key) is Some(other) &&
+          json_schema_values_equal(value, other) else {
+          return false
+        }
+      }
+      true
+    }
+    _ => left == right
   }
 }
 
@@ -199,7 +426,9 @@ fn validate_schema_shape(
       ignore(schema_number(fields, "exclusiveMinimum"))
       ignore(schema_number(fields, "exclusiveMaximum"))
       ignore(schema_number(fields, "multipleOf"))
-      if schema_number(fields, "multipleOf") is Some(value) && value <= 0.0 {
+      if fields.get("multipleOf") is Some(value) &&
+        exact_json_decimal(value) is Some(value) &&
+        value.coefficient.compare_int(0) <= 0 {
         raise InvalidParams("JSON Schema multipleOf must be greater than zero")
       }
       for keyword in ["uniqueItems"] {
@@ -769,7 +998,10 @@ fn schema_type_matches(expected : String, value : Json) -> Bool {
     "array" => value is Array(_)
     "string" => value is String(_)
     "number" => value is Number(_)
-    "integer" => value is Number(number, ..) && number == number.floor()
+    "integer" =>
+      value is Number(_, ..) &&
+      exact_json_decimal(value) is Some(number) &&
+      number.is_integer()
     _ => false
   }
 }
@@ -801,6 +1033,7 @@ fn collect_evaluated_object_properties(
   object : Map[String, Json],
   evaluated : Map[String, Bool],
   depth : Int,
+  include_unevaluated? : Bool = true,
 ) -> Unit {
   if depth > 64 {
     return
@@ -815,13 +1048,16 @@ fn collect_evaluated_object_properties(
         resolve_schema_reference(context.compiled, context.resource, reference)
       }
       if target is Some(target) {
-        collect_evaluated_object_properties(
+        let evaluation = evaluate_json_schema(
           target.schema,
           reference_eval_context(context, target.resource),
-          object,
-          evaluated,
+          Json::object(object),
+          "$",
           depth + 1,
         )
+        if evaluation.error is None {
+          merge_evaluated_properties(evaluated, evaluation.evaluated_properties)
+        }
       }
     }
   }
@@ -862,41 +1098,32 @@ fn collect_evaluated_object_properties(
   for keyword in ["allOf", "anyOf", "oneOf"] {
     if fields.get(keyword) is Some(Array(children)) {
       for child in children {
-        if validate_json_schema(
-            child,
-            context,
-            Json::object(object),
-            "$",
-            depth + 1,
-          )
-          is None {
-          collect_evaluated_object_properties(
-            child,
-            context,
-            object,
-            evaluated,
-            depth + 1,
-          )
+        let evaluation = evaluate_json_schema(
+          child,
+          context,
+          Json::object(object),
+          "$",
+          depth + 1,
+        )
+        if evaluation.error is None {
+          merge_evaluated_properties(evaluated, evaluation.evaluated_properties)
         }
       }
     }
   }
   if fields.get("if") is Some(condition) {
-    let condition_matches = validate_json_schema(
-        condition,
-        context,
-        Json::object(object),
-        "$",
-        depth + 1,
-      )
-      is None
+    let condition_evaluation = evaluate_json_schema(
+      condition,
+      context,
+      Json::object(object),
+      "$",
+      depth + 1,
+    )
+    let condition_matches = condition_evaluation.error is None
     if condition_matches {
-      collect_evaluated_object_properties(
-        condition,
-        context,
-        object,
+      merge_evaluated_properties(
         evaluated,
-        depth + 1,
+        condition_evaluation.evaluated_properties,
       )
     }
     let branch = if condition_matches {
@@ -905,33 +1132,45 @@ fn collect_evaluated_object_properties(
       fields.get("else")
     }
     if branch is Some(child) {
-      collect_evaluated_object_properties(
+      let branch_evaluation = evaluate_json_schema(
         child,
         context,
-        object,
-        evaluated,
+        Json::object(object),
+        "$",
         depth + 1,
       )
+      if branch_evaluation.error is None {
+        merge_evaluated_properties(
+          evaluated,
+          branch_evaluation.evaluated_properties,
+        )
+      }
     }
   }
   if fields.get("dependentSchemas") is Some(Object(dependencies)) {
     for key, child in dependencies {
-      if object.contains(key) &&
-        validate_json_schema(
+      if object.contains(key) {
+        let evaluation = evaluate_json_schema(
           child,
           context,
           Json::object(object),
           "$",
           depth + 1,
         )
+        if evaluation.error is None {
+          merge_evaluated_properties(evaluated, evaluation.evaluated_properties)
+        }
+      }
+    }
+  }
+  if include_unevaluated &&
+    fields.get("unevaluatedProperties") is Some(child) &&
+    !root_uses_draft_07(context.compiled.schema) {
+    for key, child_value in object {
+      if !evaluated.contains(key) &&
+        validate_json_schema(child, context, child_value, "$.\{key}", depth + 1)
         is None {
-        collect_evaluated_object_properties(
-          child,
-          context,
-          object,
-          evaluated,
-          depth + 1,
-        )
+        evaluated[key] = true
       }
     }
   }
@@ -944,6 +1183,7 @@ fn collect_evaluated_array_items(
   values : Array[Json],
   evaluated : Map[Int, Bool],
   depth : Int,
+  include_unevaluated? : Bool = true,
 ) -> Unit {
   if depth > 64 {
     return
@@ -958,13 +1198,16 @@ fn collect_evaluated_array_items(
         resolve_schema_reference(context.compiled, context.resource, reference)
       }
       if target is Some(target) {
-        collect_evaluated_array_items(
+        let evaluation = evaluate_json_schema(
           target.schema,
           reference_eval_context(context, target.resource),
-          values,
-          evaluated,
+          Json::array(values),
+          "$",
           depth + 1,
         )
+        if evaluation.error is None {
+          merge_evaluated_items(evaluated, evaluation.evaluated_items)
+        }
       }
     }
   }
@@ -1006,42 +1249,30 @@ fn collect_evaluated_array_items(
   for keyword in ["allOf", "anyOf", "oneOf"] {
     if fields.get(keyword) is Some(Array(children)) {
       for child in children {
-        if validate_json_schema(
-            child,
-            context,
-            Json::array(values),
-            "$",
-            depth + 1,
-          )
-          is None {
-          collect_evaluated_array_items(
-            child,
-            context,
-            values,
-            evaluated,
-            depth + 1,
-          )
+        let evaluation = evaluate_json_schema(
+          child,
+          context,
+          Json::array(values),
+          "$",
+          depth + 1,
+        )
+        if evaluation.error is None {
+          merge_evaluated_items(evaluated, evaluation.evaluated_items)
         }
       }
     }
   }
   if fields.get("if") is Some(condition) {
-    let condition_matches = validate_json_schema(
-        condition,
-        context,
-        Json::array(values),
-        "$",
-        depth + 1,
-      )
-      is None
+    let condition_evaluation = evaluate_json_schema(
+      condition,
+      context,
+      Json::array(values),
+      "$",
+      depth + 1,
+    )
+    let condition_matches = condition_evaluation.error is None
     if condition_matches {
-      collect_evaluated_array_items(
-        condition,
-        context,
-        values,
-        evaluated,
-        depth + 1,
-      )
+      merge_evaluated_items(evaluated, condition_evaluation.evaluated_items)
     }
     let branch = if condition_matches {
       fields.get("then")
@@ -1049,13 +1280,27 @@ fn collect_evaluated_array_items(
       fields.get("else")
     }
     if branch is Some(child) {
-      collect_evaluated_array_items(
+      let branch_evaluation = evaluate_json_schema(
         child,
         context,
-        values,
-        evaluated,
+        Json::array(values),
+        "$",
         depth + 1,
       )
+      if branch_evaluation.error is None {
+        merge_evaluated_items(evaluated, branch_evaluation.evaluated_items)
+      }
+    }
+  }
+  if include_unevaluated &&
+    fields.get("unevaluatedItems") is Some(child) &&
+    !root_uses_draft_07(context.compiled.schema) {
+    for index, item in values {
+      if !evaluated.contains(index) &&
+        validate_json_schema(child, context, item, "$[\{index}]", depth + 1)
+        is None {
+        evaluated[index] = true
+      }
     }
   }
 }
@@ -1119,10 +1364,12 @@ fn validate_json_schema(
           return referenced
         }
       }
-      if fields.get("enum") is Some(Array(values)) && !values.contains(value) {
+      if fields.get("enum") is Some(Array(values)) &&
+        !values.any(expected => json_schema_values_equal(expected, value)) {
         return Some(json_schema_error(path, "value is not in enum"))
       }
-      if fields.get("const") is Some(expected) && expected != value {
+      if fields.get("const") is Some(expected) &&
+        !json_schema_values_equal(expected, value) {
         return Some(json_schema_error(path, "value does not equal const"))
       }
       match fields.get("type") {
@@ -1396,6 +1643,7 @@ fn validate_json_schema(
               object,
               evaluated,
               depth + 1,
+              include_unevaluated=false,
             )
             for key, child_value in object {
               if !evaluated.contains(key) &&
@@ -1424,7 +1672,7 @@ fn validate_json_schema(
           if fields.get("uniqueItems") is Some(True) {
             for index, item in values {
               for previous = 0; previous < index; previous = previous + 1 {
-                if values[previous] == item {
+                if json_schema_values_equal(values[previous], item) {
                   return Some(
                     json_schema_error(path, "array items are not unique"),
                   )
@@ -1552,6 +1800,7 @@ fn validate_json_schema(
               values,
               evaluated,
               depth + 1,
+              include_unevaluated=false,
             )
             for index, item in values {
               if !evaluated.contains(index) &&
@@ -1596,32 +1845,37 @@ fn validate_json_schema(
             }
           }
         }
-        Number(number, ..) => {
-          if fields.get("minimum") is Some(Number(minimum, ..)) &&
-            number < minimum {
+        Number(_, ..) => {
+          guard exact_json_decimal(value) is Some(number) else {
+            return Some(json_schema_error(path, "number cannot be represented"))
+          }
+          if fields.get("minimum") is Some(minimum) &&
+            exact_json_decimal(minimum) is Some(minimum) &&
+            number.compare(minimum) < 0 {
             return Some(json_schema_error(path, "number is below minimum"))
           }
-          if fields.get("maximum") is Some(Number(maximum, ..)) &&
-            number > maximum {
+          if fields.get("maximum") is Some(maximum) &&
+            exact_json_decimal(maximum) is Some(maximum) &&
+            number.compare(maximum) > 0 {
             return Some(json_schema_error(path, "number is above maximum"))
           }
-          if fields.get("exclusiveMinimum") is Some(Number(minimum, ..)) &&
-            number <= minimum {
+          if fields.get("exclusiveMinimum") is Some(minimum) &&
+            exact_json_decimal(minimum) is Some(minimum) &&
+            number.compare(minimum) <= 0 {
             return Some(
               json_schema_error(path, "number is not above exclusiveMinimum"),
             )
           }
-          if fields.get("exclusiveMaximum") is Some(Number(maximum, ..)) &&
-            number >= maximum {
+          if fields.get("exclusiveMaximum") is Some(maximum) &&
+            exact_json_decimal(maximum) is Some(maximum) &&
+            number.compare(maximum) >= 0 {
             return Some(
               json_schema_error(path, "number is not below exclusiveMaximum"),
             )
           }
-          if fields.get("multipleOf") is Some(Number(divisor, ..)) {
-            let quotient = number / divisor
-            let scale = if quotient.abs() > 1.0 { quotient.abs() } else { 1.0 }
-            if divisor <= 0.0 ||
-              (quotient - quotient.round()).abs() > 1.0e-12 * scale {
+          if fields.get("multipleOf") is Some(divisor) &&
+            exact_json_decimal(divisor) is Some(divisor) {
+            if !number.is_multiple_of(divisor) {
               return Some(
                 json_schema_error(path, "number is not a multipleOf value"),
               )
@@ -1637,9 +1891,36 @@ fn validate_json_schema(
 }
 
 ///|
+fn evaluate_json_schema(
+  schema : Json,
+  context : JsonSchemaEvalContext,
+  value : Json,
+  path : String,
+  depth : Int,
+) -> JsonSchemaEvaluation {
+  let error = validate_json_schema(schema, context, value, path, depth)
+  let evaluated_properties : Map[String, Bool] = Map([])
+  let evaluated_items : Map[Int, Bool] = Map([])
+  if error is None {
+    match value {
+      Object(object) =>
+        collect_evaluated_object_properties(
+          schema, context, object, evaluated_properties, depth,
+        )
+      Array(items) =>
+        collect_evaluated_array_items(
+          schema, context, items, evaluated_items, depth,
+        )
+      _ => ()
+    }
+  }
+  { error, evaluated_properties, evaluated_items }
+}
+
+///|
 fn CompiledJsonSchema::validate(
   self : CompiledJsonSchema,
   value : Json,
 ) -> String? {
-  validate_json_schema(self.schema, schema_eval_context(self), value, "$", 0)
+  evaluate_json_schema(self.schema, schema_eval_context(self), value, "$", 0).error
 }

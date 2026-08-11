@@ -176,6 +176,153 @@ test "2020-12 unevaluated items include successful applicators" {
 }
 
 ///|
+test "2020-12 nested unevaluatedProperties contributes evaluated names" {
+  let validator = compile_json_schema(
+    Json::object({
+      "$schema": Json::string("https://json-schema.org/draft/2020-12/schema"),
+      "properties": Json::object({
+        "foo": Json::object({ "type": Json::string("string") }),
+      }),
+      "allOf": [Json::object({ "unevaluatedProperties": Json::boolean(true) })],
+      "unevaluatedProperties": Json::object({
+        "type": Json::string("string"),
+        "maxLength": Json::number(2.0),
+      }),
+    }),
+  )
+  assert_eq(
+    validator.validate(
+      Json::object({ "foo": Json::string("foo"), "bar": Json::string("bar") }),
+    ),
+    None,
+  )
+}
+
+///|
+test "2020-12 nested unevaluatedItems contributes evaluated positions" {
+  let validator = compile_json_schema(
+    Json::object({
+      "$schema": Json::string("https://json-schema.org/draft/2020-12/schema"),
+      "allOf": [
+        Json::object({
+          "prefixItems": [Json::object({ "type": Json::string("string") })],
+        }),
+        Json::object({ "unevaluatedItems": Json::boolean(true) }),
+      ],
+      "unevaluatedItems": Json::boolean(false),
+    }),
+  )
+  assert_eq(
+    validator.validate(
+      Json::array([
+        Json::string("head"),
+        Json::number(42.0),
+        Json::boolean(true),
+      ]),
+    ),
+    None,
+  )
+}
+
+///|
+test "2020-12 a failed if does not contribute evaluated properties" {
+  let validator = compile_json_schema(
+    Json::object({
+      "$schema": Json::string("https://json-schema.org/draft/2020-12/schema"),
+      "if": Json::object({
+        "properties": Json::object({
+          "foo": Json::object({ "const": Json::string("then") }),
+        }),
+        "required": [Json::string("foo")],
+      }),
+      "else": Json::object({
+        "properties": Json::object({
+          "baz": Json::object({ "type": Json::string("string") }),
+        }),
+      }),
+      "unevaluatedProperties": Json::boolean(false),
+    }),
+  )
+  assert_true(
+    validator.validate(
+      Json::object({ "foo": Json::string("else"), "baz": Json::string("baz") }),
+    )
+    is Some(_),
+  )
+}
+
+///|
+test "2020-12 unevaluatedProperties applies through a cyclic reference" {
+  let validator = compile_json_schema(
+    Json::object({
+      "$schema": Json::string("https://json-schema.org/draft/2020-12/schema"),
+      "properties": Json::object({
+        "x": Json::object({ "$ref": Json::string("#") }),
+      }),
+      "unevaluatedProperties": Json::boolean(false),
+    }),
+  )
+  assert_eq(
+    validator.validate(
+      Json::object({ "x": Json::object({ "x": Json::empty_object() }) }),
+    ),
+    None,
+  )
+  assert_true(
+    validator.validate(
+      Json::object({
+        "x": Json::object({
+          "x": Json::empty_object(),
+          "y": Json::empty_object(),
+        }),
+      }),
+    )
+    is Some(_),
+  )
+}
+
+///|
+test "JSON numbers retain exact decimal identity and ordering" {
+  let distinct = compile_json_schema(
+    try! @json.parse("{\"type\":\"array\",\"uniqueItems\":true}"),
+  )
+  assert_eq(
+    distinct.validate(try! @json.parse("[9007199254740992,9007199254740993]")),
+    None,
+  )
+  let constant = compile_json_schema(
+    try! @json.parse("{\"const\":9007199254740992}"),
+  )
+  assert_true(
+    constant.validate(try! @json.parse("9007199254740993")) is Some(_),
+  )
+  let enumeration = compile_json_schema(
+    try! @json.parse("{\"enum\":[9007199254740992]}"),
+  )
+  assert_true(
+    enumeration.validate(try! @json.parse("9007199254740993")) is Some(_),
+  )
+  let bounded = compile_json_schema(
+    try! @json.parse("{\"maximum\":9007199254740992}"),
+  )
+  assert_true(bounded.validate(try! @json.parse("9007199254740993")) is Some(_))
+  let even = compile_json_schema(try! @json.parse("{\"multipleOf\":2}"))
+  assert_true(even.validate(try! @json.parse("9007199254740993")) is Some(_))
+  let overflow_safe = compile_json_schema(
+    try! @json.parse("{\"type\":\"integer\",\"multipleOf\":0.123456789}"),
+  )
+  assert_true(overflow_safe.validate(try! @json.parse("1e308")) is Some(_))
+  let small_divisor = compile_json_schema(
+    try! @json.parse("{\"type\":\"integer\",\"multipleOf\":1e-8}"),
+  )
+  assert_eq(small_divisor.validate(try! @json.parse("12391239123")), None)
+  let huge_exponent = compile_json_schema(
+    try! @json.parse("{\"minimum\":9e2147483646,\"multipleOf\":2}"),
+  )
+  assert_eq(huge_exponent.validate(try! @json.parse("1e2147483647")), None)
+}
+
+///|
 test "2020-12 dynamic references resolve local dynamic anchors" {
   let validator = compile_json_schema(
     Json::object({
