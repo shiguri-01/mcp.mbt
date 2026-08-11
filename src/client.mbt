@@ -40,8 +40,8 @@ pub fn Client::Client(
       icons~,
       website_url?,
     ),
-    capabilities,
-    extension_result_types,
+    capabilities: capabilities.copy(),
+    extension_result_types: extension_result_types.copy(),
     protocol_version,
     next_request_id: 1,
   }
@@ -54,12 +54,12 @@ pub fn Client::protocol_version(self : Client) -> String {
 
 ///|
 pub fn Client::capabilities(self : Client) -> ClientCapabilities {
-  self.capabilities
+  self.capabilities.copy()
 }
 
 ///|
 pub fn Client::info(self : Client) -> Implementation {
-  self.info
+  self.info.copy()
 }
 
 ///|

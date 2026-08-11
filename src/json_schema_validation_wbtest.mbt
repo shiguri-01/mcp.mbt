@@ -398,6 +398,158 @@ test "fragment references use the current embedded resource root" {
 }
 
 ///|
+test "URI fragment octets are decoded before JSON Pointer evaluation" {
+  let validator = compile_json_schema(
+    Json::object({
+      "$defs": Json::object({
+        "c%d": Json::object({ "type": Json::string("string") }),
+      }),
+      "$ref": Json::string("#%2F$defs%2Fc%25d"),
+    }),
+  )
+  assert_eq(validator.validate(Json::string("mcp")), None)
+  assert_true(validator.validate(Json::number(1.0)) is Some(_))
+  let unicode = compile_json_schema(
+    Json::object({
+      "$defs": Json::object({
+        "値": Json::object({ "const": Json::string("ok") }),
+      }),
+      "$ref": Json::string("#/$defs/%E5%80%A4"),
+    }),
+  )
+  assert_eq(unicode.validate(Json::string("ok")), None)
+}
+
+///|
+test "fixed-width ECMA-262 lookahead assertions are zero-width" {
+  let anchored = compile_json_schema(
+    Json::object({ "type": Json::string("string"), "pattern": "^(?=a)a$" }),
+  )
+  assert_eq(anchored.validate(Json::string("a")), None)
+  assert_true(anchored.validate(Json::string("b")) is Some(_))
+  let negative = compile_json_schema(
+    Json::object({ "type": Json::string("string"), "pattern": "^(?!a)b$" }),
+  )
+  assert_eq(negative.validate(Json::string("b")), None)
+  assert_true(negative.validate(Json::string("a")) is Some(_))
+  for pattern in ["(?=a).", ".*(?=a).", ".*(?!b)."] {
+    try
+      ignore(
+        compile_json_schema(
+          Json::object({ "type": Json::string("string"), "pattern": pattern }),
+        ),
+      )
+    catch {
+      InvalidParams(_) => ()
+      _ => fail("expected InvalidParams for ambiguous lookahead")
+    } noraise {
+      _ => fail("ambiguous lookahead was accepted")
+    }
+  }
+  let property_name = compile_json_schema(
+    Json::object({
+      "type": "object",
+      "patternProperties": Json::object({ "^(?=a)a$": false }),
+    }),
+  )
+  assert_true(
+    property_name.validate(Json::object({ "a": Json::number(1.0) })) is Some(_),
+  )
+  assert_eq(
+    property_name.validate(Json::object({ "b": Json::number(1.0) })),
+    None,
+  )
+}
+
+///|
+test "vocabulary requirements apply only when a resource is a meta-schema" {
+  let declaration = Json::object({
+    "https://json-schema.org/draft/2020-12/vocab/core": true,
+    "https://example.com/vocab/optional": false,
+  })
+  let ordinary = compile_json_schema(
+    Json::object({
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$vocabulary": Json::object({ "https://example.com/vocab/required": true }),
+      "type": "string",
+    }),
+  )
+  assert_eq(ordinary.validate(Json::string("mcp")), None)
+  let compound = Json::object({
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://example.com/root",
+    "$defs": Json::object({
+      "meta": Json::object({
+        "$id": "https://example.com/meta",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$vocabulary": declaration,
+      }),
+      "value": Json::object({
+        "$id": "https://example.com/value",
+        "$schema": "https://example.com/meta",
+        "type": "string",
+      }),
+    }),
+    "$ref": "https://example.com/value",
+  })
+  let validator = compile_json_schema(compound)
+  assert_eq(validator.validate(Json::string("mcp")), None)
+  guard compound is Object(root) &&
+    root.get("$defs") is Some(Object(definitions)) &&
+    definitions.get("meta") is Some(Object(meta)) else {
+    fail("expected compound schema resources")
+  }
+  meta["$vocabulary"] = Json::object({
+    "https://json-schema.org/draft/2020-12/vocab/core": true,
+    "https://example.com/vocab/required": true,
+  })
+  try compile_json_schema(compound) catch {
+    InvalidParams(_) => ()
+    _ => fail("expected InvalidParams")
+  } noraise {
+    _ => fail("an unknown required vocabulary must refuse schema processing")
+  }
+}
+
+///|
+test "embedded resources cannot silently change the processing dialect" {
+  try
+    compile_json_schema(
+      Json::object({
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$defs": Json::object({
+          "legacy": Json::object({
+            "$id": "https://example.com/legacy",
+            "$schema": "http://json-schema.org/draft-07/schema#",
+          }),
+        }),
+      }),
+    )
+  catch {
+    InvalidParams(_) => ()
+    _ => fail("expected InvalidParams")
+  } noraise {
+    _ => fail("mixed embedded dialects require an implementation for both")
+  }
+  try
+    compile_json_schema(
+      Json::object({
+        "properties": Json::object({
+          "value": Json::object({
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+          }),
+        }),
+      }),
+    )
+  catch {
+    InvalidParams(_) => ()
+    _ => fail("expected InvalidParams")
+  } noraise {
+    _ => fail("$schema is only valid at a schema resource root")
+  }
+}
+
+///|
 test "2020-12 $dynamicRef selects the outermost dynamic scope" {
   let validator = compile_json_schema(
     Json::object({
@@ -456,6 +608,18 @@ test "schema compilation enforces structural and reference constraints" {
       Json::object({ "$anchor": Json::string("1invalid") }),
       Json::object({ "$id": Json::number(1) }),
       Json::object({ "$id": Json::string("https://example.com/schema#part") }),
+      Json::object({
+        "$defs": Json::object({ "bad~2escape": Json::boolean(true) }),
+        "$ref": Json::string("#/$defs/bad~2escape"),
+      }),
+      Json::object({
+        "$defs": Json::object({ "value": Json::boolean(true) }),
+        "$ref": Json::string("#/$defs/%ZZ"),
+      }),
+      Json::object({
+        "prefixItems": [Json::boolean(true), Json::boolean(true)],
+        "$ref": Json::string("#/prefixItems/01"),
+      }),
       Json::object({ "multipleOf": Json::number(0.0) }),
       Json::object({
         "patternProperties": Json::object({

@@ -18,6 +18,22 @@ pub fn PromptArgument::PromptArgument(
 }
 
 ///|
+fn validate_prompt_argument_names(
+  arguments : Array[PromptArgument],
+  context : String,
+) -> Unit raise McpError {
+  let names : Map[String, Unit] = Map([])
+  for argument in arguments {
+    if names.contains(argument.name) {
+      raise InvalidParams(
+        "\{context} contains duplicate argument name: \{argument.name}",
+      )
+    }
+    names[argument.name] = ()
+  }
+}
+
+///|
 pub impl ToJson for PromptArgument with fn to_json(self : PromptArgument) -> Json {
   let fields : Map[String, Json] = { "name": Json::string(self.name) }
   put_optional_string(fields, "title", self.title)
@@ -47,7 +63,14 @@ pub fn Prompt::Prompt(
   icons? : Array[Icon] = [],
   meta? : Json,
 ) -> Prompt {
-  { name, title, description, arguments, icons, meta }
+  {
+    name,
+    title,
+    description,
+    arguments: arguments.copy(),
+    icons: icons.map(icon => icon.copy()),
+    meta: copy_optional_json(meta),
+  }
 }
 
 ///|

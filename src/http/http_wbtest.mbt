@@ -89,7 +89,7 @@ test "standard header names ignore case but values do not" {
 
 ///|
 test "unsupported protocol version is distinct from header mismatch" {
-  let old = Json::object({
+  let unsupported_request = Json::object({
     "jsonrpc": Json::string("2.0"),
     "id": Json::number(1.0, repr="1"),
     "method": Json::string("ping"),
@@ -104,7 +104,7 @@ test "unsupported protocol version is distinct from header mismatch" {
     "Mcp-Method": "ping",
   })
   assert_true(
-    standard_validation_error(request, old)
+    standard_validation_error(request, unsupported_request)
     is Some(@mcp.UnsupportedProtocolVersion(..)),
   )
 }
@@ -538,7 +538,7 @@ test "HTTP notifications carry standard headers and accept only empty 202" {
     "method": Json::string("notifications/cancelled"),
     "params": Json::object({
       "_meta": Json::object({
-        "io.modelcontextprotocol/protocolVersion": Json::string("old"),
+        "io.modelcontextprotocol/protocolVersion": Json::string("1900-01-01"),
         "com.example/trace": Json::string("kept"),
       }),
     }),
@@ -700,6 +700,99 @@ test "subscription SSE starts with acknowledgement and ends with response" {
 test "request response streaming is opt-in" {
   assert_true(!ServerOptions().stream_responses)
   assert_true(ServerOptions(stream_responses=true).stream_responses)
+}
+
+///|
+test "HTTP body limits are positive and have safe defaults" {
+  assert_eq(
+    ServerOptions().max_request_body_bytes,
+    default_max_request_body_bytes,
+  )
+  ignore(try! Client("http://127.0.0.1:8080/mcp"))
+  try ignore(ServerOptions(max_request_body_bytes=0)) catch {
+    @mcp.InvalidParams(_) => ()
+    _ => fail("expected an invalid request body limit")
+  } noraise {
+    _ => fail("accepted a zero request body limit")
+  }
+  try
+    ignore(Client("http://127.0.0.1:8080/mcp", max_response_body_bytes=0))
+  catch {
+    @mcp.InvalidParams(_) => ()
+    _ => fail("expected an invalid response body limit")
+  } noraise {
+    _ => fail("accepted a zero response body limit")
+  }
+  try ignore(Client("http://127.0.0.1:8080/mcp", max_sse_event_bytes=0)) catch {
+    @mcp.InvalidParams(_) => ()
+    _ => fail("expected an invalid SSE event limit")
+  } noraise {
+    _ => fail("accepted a zero SSE event limit")
+  }
+  assert_true(decimal_header_exceeds("4194305", 4194304))
+  assert_true(!decimal_header_exceeds("4194304", 4194304))
+  assert_true(decimal_header_exceeds("999999999999999999999", 4194304))
+  assert_true(!decimal_header_exceeds("not-a-length", 4194304))
+}
+
+///|
+async test "HTTP JSON body limit counts UTF-8 octets during the read" {
+  let (reader, writer) = @io.pipe()
+  defer reader.close()
+  defer writer.close()
+  @async.with_task_group(group => {
+    let producer = group.spawn(
+      async fn() {
+        writer.write("世界")
+        writer.close()
+      },
+      allow_failure=true,
+    )
+    let rejected = try {
+      ignore(read_bounded_text(reader, 5, "test body"))
+      false
+    } catch {
+      BodyTooLarge(subject="test body", limit=5) => true
+      _ => false
+    }
+    assert_true(rejected)
+    producer.wait()
+  })
+}
+
+///|
+async test "SSE limit applies independently to every event" {
+  let (reader, writer) = @io.pipe()
+  defer reader.close()
+  defer writer.close()
+  @async.with_task_group(group => {
+    let producer = group.spawn(
+      async fn() { writer.write("data: first\n\ndata: second\n\n") },
+      allow_failure=true,
+    )
+    let state = SseReadState::new()
+    assert_eq(try! read_sse_data(reader, state, 14), Some("first"))
+    assert_eq(try! read_sse_data(reader, state, 14), Some("second"))
+    producer.wait()
+  })
+  let (oversized_reader, oversized_writer) = @io.pipe()
+  defer oversized_reader.close()
+  defer oversized_writer.close()
+  @async.with_task_group(group => {
+    let producer = group.spawn(
+      async fn() { oversized_writer.write("data: too-large\n\n") },
+      allow_failure=true,
+    )
+    let rejected = try {
+      ignore(read_sse_data(oversized_reader, SseReadState::new(), 10))
+      false
+    } catch {
+      BodyTooLarge(subject="MCP SSE event", limit=10) => true
+      _ => false
+    }
+    assert_true(rejected)
+    producer.wait()
+  })
 }
 
 ///|

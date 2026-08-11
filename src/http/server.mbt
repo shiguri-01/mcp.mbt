@@ -439,7 +439,46 @@ async fn handle_post(
   body : &@io.Reader,
   conn : @async_http.ServerConnection,
 ) -> Unit {
-  let text = body.read_all().text()
+  if header(request.headers, "Content-Length") is Some(content_length) &&
+    decimal_header_exceeds(content_length, options.max_request_body_bytes) {
+    send_mcp_error(
+      conn,
+      413,
+      "Content Too Large",
+      Json::null(),
+      @mcp.InvalidRequest(
+        "MCP HTTP request body exceeds the configured limit of \{options.max_request_body_bytes} bytes",
+      ),
+    )
+    return
+  }
+  let text = read_bounded_text(
+    body,
+    options.max_request_body_bytes,
+    "MCP HTTP request body",
+  ) catch {
+    BodyTooLarge(..) as error => {
+      send_mcp_error(
+        conn,
+        413,
+        "Content Too Large",
+        Json::null(),
+        body_read_error_to_mcp(error),
+      )
+      return
+    }
+    BodyInvalidUtf8(..) as error => {
+      send_mcp_error(
+        conn,
+        400,
+        "Bad Request",
+        Json::null(),
+        body_read_error_to_mcp(error),
+      )
+      return
+    }
+    BodyReadFailed(..) => return
+  }
   let message = @json.parse(text) catch {
     error => {
       send_mcp_error(
@@ -537,8 +576,9 @@ async fn handle_request(
 /// Serve a stateless MCP 2026-07-28 registry at one POST endpoint.
 ///
 /// GET streams, DELETE session termination, and `MCP-Session-Id` are not part
-/// of this protocol revision. Request-scoped SSE may still be returned by a
-/// custom HTTP integration; this built-in server returns JSON responses.
+/// of this protocol revision. Ordinary responses are JSON unless
+/// `ServerOptions(stream_responses=true)` is selected; that mode sends
+/// request-scoped progress notifications and the final response over SSE.
 pub async fn serve(
   http_server : @async_http.Server,
   server : @mcp.Server,

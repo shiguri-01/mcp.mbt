@@ -147,7 +147,10 @@ pub fn CompleteResult::CompleteResult(
   if values.length() > 100 {
     raise InvalidParams("completion values must not exceed 100 items")
   }
-  { values, total, has_more, meta: None }
+  if total is Some(value) && value < 0 {
+    raise InvalidParams("completion total must be non-negative")
+  }
+  { values: values.copy(), total, has_more, meta: None }
 }
 
 ///|

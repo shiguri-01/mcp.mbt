@@ -650,6 +650,7 @@ fn decode_prompt(value : Json, context : String) -> Prompt raise McpError {
       }
     Some(_) => raise InvalidParams("\{context}.arguments must be an array")
   }
+  validate_prompt_argument_names(arguments, "\{context}.arguments")
   Prompt(
     name=get_string(fields, "name", context),
     title?=get_optional_string(fields, "title", context),

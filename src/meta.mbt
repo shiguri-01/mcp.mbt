@@ -71,18 +71,18 @@ pub fn RequestMeta::RequestMeta(
   validate_meta_map(extra)
   {
     protocol_version,
-    client_info,
-    client_capabilities,
-    progress_token,
+    client_info: client_info.map(value => value.copy()),
+    client_capabilities: client_capabilities.copy(),
+    progress_token: copy_optional_json(progress_token),
     log_level,
-    extra,
+    extra: copy_json_map(extra),
   }
 }
 
 ///|
 pub impl ToJson for RequestMeta with fn to_json(self : RequestMeta) -> Json {
   // Vendor metadata is inserted first so protocol-reserved keys always win.
-  let fields = self.extra.copy()
+  let fields = copy_json_map(self.extra)
   put_optional_json(fields, "progressToken", self.progress_token)
   fields["io.modelcontextprotocol/protocolVersion"] = Json::string(
     self.protocol_version,

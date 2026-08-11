@@ -73,8 +73,12 @@ async test "each request carries the client context used by the server" {
 ///|
 async test "unsupported protocol versions return -32022" {
   let server = try! @mcp.Server(name="server", version="1")
-  let old = @mcp.Client(name="old", version="1", protocol_version="1900-01-01")
-  guard server.handle_jsonrpc(old.discover_request())
+  let unsupported = @mcp.Client(
+    name="unsupported",
+    version="1",
+    protocol_version="1900-01-01",
+  )
+  guard server.handle_jsonrpc(unsupported.discover_request())
     is Some(
       Object(
         {

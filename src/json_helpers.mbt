@@ -38,8 +38,32 @@ fn put_optional_json(
   value : Json?,
 ) -> Unit {
   if value is Some(value) {
-    fields[key] = value
+    fields[key] = copy_json(value)
   }
+}
+
+///|
+/// Copy a JSON value recursively before retaining caller-owned protocol data.
+fn copy_json(value : Json) -> Json {
+  match value {
+    Object(fields) => Json::object(copy_json_map(fields))
+    Array(values) => Json::array(values.map(copy_json))
+    _ => value
+  }
+}
+
+///|
+fn copy_json_map(values : Map[String, Json]) -> Map[String, Json] {
+  let copied : Map[String, Json] = Map([])
+  for key, value in values {
+    copied[key] = copy_json(value)
+  }
+  copied
+}
+
+///|
+fn copy_optional_json(value : Json?) -> Json? {
+  value.map(copy_json)
 }
 
 ///|

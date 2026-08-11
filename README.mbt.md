@@ -73,6 +73,12 @@ For a standalone native server, register the same tool and pass the server to
 Tool schemas are compiled when registered. Calls are checked against
 `inputSchema` before the handler runs, and successful structured results are
 checked against `outputSchema`; remote `$ref` fetching is deliberately disabled.
+Compound schemas use one processing dialect; a resource that selects a different
+dialect fails registration. Patterns accepted by MoonBit's portable regular
+expression engine are supported, as is one top-level positive or negative
+lookahead after an anchored fixed-width prefix and before a fixed-width suffix.
+Other non-portable ECMA-262 constructs fail registration instead of being
+evaluated approximately.
 Resource templates require a handler and expose captured simple `{variable}`
 expressions, so every advertised template is readable.
 

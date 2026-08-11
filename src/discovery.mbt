@@ -19,7 +19,13 @@ pub fn DiscoverResult::DiscoverResult(
   if supported_versions.is_empty() {
     raise InvalidParams("supportedVersions must not be empty")
   }
-  { supported_versions, capabilities, instructions, cache_policy, meta }
+  {
+    supported_versions: supported_versions.copy(),
+    capabilities: capabilities.copy(),
+    instructions,
+    cache_policy,
+    meta,
+  }
 }
 
 ///|

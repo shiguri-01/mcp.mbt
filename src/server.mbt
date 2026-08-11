@@ -34,7 +34,7 @@ struct RegisteredTool {
 /// outside the JSON-RPC body while keeping the server registry authoritative.
 pub fn Server::tool_input_schema(self : Server, name : String) -> Json? {
   match self.tools.get(name) {
-    Some(registered) => Some(registered.tool.input_schema)
+    Some(registered) => Some(copy_json(registered.tool.input_schema))
     None => None
   }
 }
@@ -177,7 +177,7 @@ pub fn Server::Server(
     ),
     instructions,
     cache_policy: cache_policy.unwrap_or(CachePolicy(ttl_ms=0L, scope=Private)),
-    supported_versions,
+    supported_versions: supported_versions.copy(),
     registry_frozen: false,
     tools: Map([]),
     resources: Map([]),
@@ -189,9 +189,9 @@ pub fn Server::Server(
     resource_list_changed,
     prompt_list_changed,
     resource_subscriptions,
-    extensions,
-    extension_result_types,
-    experimental,
+    extensions: copy_json_map(extensions),
+    extension_result_types: extension_result_types.copy(),
+    experimental: copy_json_map(experimental),
   }
 }
 
@@ -471,6 +471,7 @@ pub fn Server::prompt(
   if self.prompts.contains(name) {
     raise InvalidParams("prompt already registered: \{name}")
   }
+  validate_prompt_argument_names(arguments, "prompt \{name}")
   self.prompts[name] = {
     prompt: Prompt(name~, title?, description?, arguments~, icons~, meta?),
     handler,
@@ -910,12 +911,21 @@ async fn Server::get_prompt(
   }
   let name = get_string(fields, "name", "prompts/get params")
   match self.prompts.get(name) {
-    Some(registered) =>
+    Some(registered) => {
+      let arguments = get_prompt_arguments(fields)
+      for argument in registered.prompt.arguments {
+        if argument.required && !arguments.contains(argument.name) {
+          raise InvalidParams(
+            "prompts/get required argument is missing: \{argument.name}",
+          )
+        }
+      }
       self.outcome_json(
         context,
         "prompts/get",
-        (registered.handler)(context, get_prompt_arguments(fields)),
+        (registered.handler)(context, arguments),
       )
+    }
     None => raise InvalidParams("unknown prompt: \{name}")
   }
 }

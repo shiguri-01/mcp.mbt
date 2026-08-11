@@ -38,8 +38,24 @@ pub fn Annotations::Annotations(
   audience? : Array[Role] = [],
   priority? : Double,
   last_modified? : String,
-) -> Annotations {
-  { audience, priority, last_modified }
+) -> Annotations raise McpError {
+  if priority is Some(value) &&
+    (value.is_nan() || value.is_inf() || value < 0.0 || value > 1.0) {
+    raise InvalidParams(
+      "annotation priority must be finite and between 0 and 1",
+    )
+  }
+  { audience: audience.copy(), priority, last_modified }
+}
+
+///|
+fn Annotations::copy(self : Annotations) -> Annotations {
+  { ..self, audience: self.audience.copy() }
+}
+
+///|
+fn copy_optional_annotations(value : Annotations?) -> Annotations? {
+  value.map(annotation => annotation.copy())
 }
 
 ///|
@@ -85,8 +101,21 @@ pub fn ResourceLink::ResourceLink(
   annotations? : Annotations,
   size? : Int64,
   meta? : Json,
-) -> ResourceLink {
-  { uri, name, title, description, mime_type, icons, annotations, size, meta }
+) -> ResourceLink raise McpError {
+  if size is Some(value) && value < 0L {
+    raise InvalidParams("resource link size must be non-negative")
+  }
+  {
+    uri,
+    name,
+    title,
+    description,
+    mime_type,
+    icons: icons.map(icon => icon.copy()),
+    annotations: copy_optional_annotations(annotations),
+    size,
+    meta: copy_optional_json(meta),
+  }
 }
 
 ///|
@@ -113,8 +142,7 @@ pub impl ToJson for ResourceLink with fn to_json(self : ResourceLink) -> Json {
 ///|
 /// Content payload accepted by MCP prompts and tool results.
 ///
-/// This enum intentionally tracks the official content union instead of
-/// accepting arbitrary JSON. Add new protocol variants here as typed cases.
+/// This enum contains exactly the content variants defined by MCP 2026-07-28.
 pub(all) enum ContentBlock {
   TextContent(text~ : String, annotations~ : Annotations?, meta~ : Json?)
   ImageContent(
@@ -197,7 +225,11 @@ pub fn ContentBlock::text(
   annotations? : Annotations,
   meta? : Json,
 ) -> ContentBlock {
-  TextContent(text~, annotations~, meta~)
+  TextContent(
+    text~,
+    annotations=copy_optional_annotations(annotations),
+    meta=copy_optional_json(meta),
+  )
 }
 
 ///|
@@ -208,7 +240,12 @@ pub fn ContentBlock::image(
   annotations? : Annotations,
   meta? : Json,
 ) -> ContentBlock {
-  ImageContent(data~, mime_type~, annotations~, meta~)
+  ImageContent(
+    data~,
+    mime_type~,
+    annotations=copy_optional_annotations(annotations),
+    meta=copy_optional_json(meta),
+  )
 }
 
 ///|
@@ -219,7 +256,12 @@ pub fn ContentBlock::audio(
   annotations? : Annotations,
   meta? : Json,
 ) -> ContentBlock {
-  AudioContent(data~, mime_type~, annotations~, meta~)
+  AudioContent(
+    data~,
+    mime_type~,
+    annotations=copy_optional_annotations(annotations),
+    meta=copy_optional_json(meta),
+  )
 }
 
 ///|
@@ -229,7 +271,11 @@ pub fn ContentBlock::embedded_resource(
   annotations? : Annotations,
   meta? : Json,
 ) -> ContentBlock {
-  EmbeddedResource(resource~, annotations~, meta~)
+  EmbeddedResource(
+    resource~,
+    annotations=copy_optional_annotations(annotations),
+    meta=copy_optional_json(meta),
+  )
 }
 
 ///|

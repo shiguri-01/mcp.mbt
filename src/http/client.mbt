@@ -13,6 +13,8 @@ pub struct Client {
   priv mut authorization_issuer : String?
   priv authorization_resource : String
   priv authorization_resource_exact : Bool
+  priv max_response_body_bytes : Int
+  priv max_sse_event_bytes : Int
 }
 
 ///|
@@ -75,7 +77,15 @@ pub fn Client::Client(
   extension_result_types? : Map[String, String] = Map([]),
   supported_protocol_versions? : Array[String] = [@mcp.latest_protocol_version],
   authorization? : AuthorizationOptions,
+  max_response_body_bytes? : Int = default_max_response_body_bytes,
+  max_sse_event_bytes? : Int = default_max_sse_event_bytes,
 ) -> Client raise @mcp.McpError {
+  if max_response_body_bytes <= 0 {
+    raise @mcp.InvalidParams("max_response_body_bytes must be positive")
+  }
+  if max_sse_event_bytes <= 0 {
+    raise @mcp.InvalidParams("max_sse_event_bytes must be positive")
+  }
   guard supported_protocol_versions is [protocol_version, ..] else {
     raise @mcp.InvalidParams("supported_protocol_versions must not be empty")
   }
@@ -134,6 +144,8 @@ pub fn Client::Client(
     authorization_issuer: None,
     authorization_resource,
     authorization_resource_exact,
+    max_response_body_bytes,
+    max_sse_event_bytes,
   }
 }
 
@@ -202,6 +214,24 @@ fn response_requires_authorization(response : @async_http.Response) -> Bool {
       }
     }
     None => false
+  }
+}
+
+///|
+async fn Client::read_response_text(
+  self : Client,
+  stream : @async_http.Client,
+  response : @async_http.Response,
+  subject? : String = "MCP HTTP response body",
+) -> String raise @mcp.McpError {
+  if header(response.headers, "Content-Length") is Some(content_length) &&
+    decimal_header_exceeds(content_length, self.max_response_body_bytes) {
+    raise @mcp.InvalidRequest(
+      "\{subject} exceeds the configured limit of \{self.max_response_body_bytes} bytes",
+    )
+  }
+  read_bounded_text(stream, self.max_response_body_bytes, subject) catch {
+    error => raise body_read_error_to_mcp(error)
   }
 }
 
@@ -768,9 +798,7 @@ async fn Client::send_response_once_with_notifications(
     error => raise @mcp.InternalError(error.to_string())
   }
   if response_requires_authorization(response) && self.authorization is Some(_) {
-    ignore(stream.read_all()) catch {
-      error => raise @mcp.InternalError(error.to_string())
-    }
+    ignore(self.read_response_text(stream, response))
     self.authorize_challenge(response, request_operation(request))
     return self.send_response_once_with_notifications(
       request,
@@ -779,9 +807,7 @@ async fn Client::send_response_once_with_notifications(
     )
   }
   guard response.code is (200..<300) else {
-    let body = stream.read_all().text() catch {
-        error => raise @mcp.InternalError(error.to_string())
-      }
+    let body = self.read_response_text(stream, response)
     raise http_error_to_mcp(response, body)
   }
   self.retry_policy.clear(
@@ -793,9 +819,7 @@ async fn Client::send_response_once_with_notifications(
     None => raise @mcp.InvalidRequest("MCP HTTP response omitted Content-Type")
   }
   if has_media_type(content_type, "application/json") {
-    let body = stream.read_all().text() catch {
-        error => raise @mcp.InternalError(error.to_string())
-      }
+    let body = self.read_response_text(stream, response)
     guard parse_http_messages(response, body) is [message] else {
       raise @mcp.InvalidRequest("HTTP JSON response must contain one message")
     }
@@ -805,39 +829,21 @@ async fn Client::send_response_once_with_notifications(
   guard has_media_type(content_type, "text/event-stream") else {
     raise @mcp.InvalidRequest("unsupported MCP HTTP response Content-Type")
   }
-  let mut data_lines : Array[String] = []
+  let sse = SseReadState::new()
   while true {
-    let next_line = stream.read_until("\n") catch {
-      error => raise @mcp.InternalError(error.to_string())
+    let data = read_sse_data(stream, sse, self.max_sse_event_bytes) catch {
+      error => raise body_read_error_to_mcp(error)
     }
-    guard next_line is Some(raw_line) else { break }
-    let line = raw_line.trim_end(chars="\r")
-    if line == "" {
-      if !data_lines.is_empty() {
-        let data = data_lines.join("\n")
-        data_lines = []
-        if data != "" {
-          let message : Json = @json.parse(data) catch {
-            error => raise @mcp.ParseError(error.to_string())
-          }
-          if is_jsonrpc_response(message) {
-            validate_response_id(message, expected_id, "HTTP")
-            return message
-          }
-          if is_jsonrpc_notification(message) {
-            on_notification(message)
-          }
-        }
-      }
-    } else if line.has_prefix("data:"[:]) {
-      let value = line[5:]
-      data_lines.push(
-        if value.has_prefix(" "[:]) {
-          value[1:].to_owned()
-        } else {
-          value.to_owned()
-        },
-      )
+    guard data is Some(data) else { break }
+    let message : Json = @json.parse(data) catch {
+      error => raise @mcp.ParseError(error.to_string())
+    }
+    if is_jsonrpc_response(message) {
+      validate_response_id(message, expected_id, "HTTP")
+      return message
+    }
+    if is_jsonrpc_notification(message) {
+      on_notification(message)
     }
   }
   raise @mcp.InvalidRequest("HTTP request did not return a JSON-RPC response")
@@ -932,9 +938,7 @@ async fn Client::send_notification_once(
   let response = stream.end_request() catch {
     error => raise @mcp.InternalError(error.to_string())
   }
-  let body = stream.read_all().text() catch {
-      error => raise @mcp.InternalError(error.to_string())
-    }
+  let body = self.read_response_text(stream, response)
   if response_requires_authorization(response) && self.authorization is Some(_) {
     self.authorize_challenge(response, request_operation(notification))
     return self.send_notification_once(notification)
@@ -1313,16 +1317,12 @@ async fn Client::listen_once(
     error => raise @mcp.InternalError(error.to_string())
   }
   if response_requires_authorization(response) && self.authorization is Some(_) {
-    ignore(stream.read_all()) catch {
-      error => raise @mcp.InternalError(error.to_string())
-    }
+    ignore(self.read_response_text(stream, response))
     self.authorize_challenge(response, request_operation(request))
     return self.listen_once(request, notifications~, on_notification~)
   }
   guard response.code is (200..<300) else {
-    let body = stream.read_all().text() catch {
-        error => raise @mcp.InternalError(error.to_string())
-      }
+    let body = self.read_response_text(stream, response)
     raise http_error_to_mcp(response, body)
   }
   self.retry_policy.clear(
@@ -1334,9 +1334,7 @@ async fn Client::listen_once(
     None => raise @mcp.InvalidRequest("MCP HTTP response omitted Content-Type")
   }
   if has_media_type(content_type, "application/json") {
-    let body = stream.read_all().text() catch {
-        error => raise @mcp.InternalError(error.to_string())
-      }
+    let body = self.read_response_text(stream, response)
     let message : Json = @json.parse(body) catch {
       error => raise @mcp.ParseError(error.to_string())
     }
@@ -1352,58 +1350,23 @@ async fn Client::listen_once(
     )
   }
   let state = SubscriptionStreamState::new(expected_id, notifications)
-  let mut data_lines : Array[String] = []
+  let sse = SseReadState::new()
   while true {
-    let next_line = stream.read_until("\n") catch {
-      error => raise @mcp.InternalError(error.to_string())
+    let data = read_sse_data(stream, sse, self.max_sse_event_bytes) catch {
+      error => raise body_read_error_to_mcp(error)
     }
-    guard next_line is Some(raw_line) else { break }
-    let line = raw_line.trim_end(chars="\r")
-    if line == "" {
-      if !data_lines.is_empty() {
-        let data = data_lines.join("\n")
-        data_lines = []
-        if data != "" {
-          let message : Json = @json.parse(data) catch {
-            error => raise @mcp.ParseError(error.to_string())
-          }
-          match state.consume(message) {
-            Acknowledged => ()
-            Notification(notification) => on_notification(notification)
-            Final(response) =>
-              return require_complete(
-                self.core.decode_response(response),
-                "subscriptions/listen",
-              )
-          }
-        }
-      }
-    } else if line.has_prefix("data:"[:]) {
-      let value = line[5:]
-      data_lines.push(
-        if value.has_prefix(" "[:]) {
-          value[1:].to_owned()
-        } else {
-          value.to_owned()
-        },
-      )
+    guard data is Some(data) else { break }
+    let message : Json = @json.parse(data) catch {
+      error => raise @mcp.ParseError(error.to_string())
     }
-  }
-  if !data_lines.is_empty() {
-    let data = data_lines.join("\n")
-    if data != "" {
-      let message : Json = @json.parse(data) catch {
-        error => raise @mcp.ParseError(error.to_string())
-      }
-      match state.consume(message) {
-        Acknowledged => ()
-        Notification(notification) => on_notification(notification)
-        Final(response) =>
-          return require_complete(
-            self.core.decode_response(response),
-            "subscriptions/listen",
-          )
-      }
+    match state.consume(message) {
+      Acknowledged => ()
+      Notification(notification) => on_notification(notification)
+      Final(response) =>
+        return require_complete(
+          self.core.decode_response(response),
+          "subscriptions/listen",
+        )
     }
   }
   raise @mcp.InvalidRequest(

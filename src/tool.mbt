@@ -48,11 +48,11 @@ pub fn Tool::Tool(
     name,
     title,
     description,
-    input_schema,
-    output_schema,
+    input_schema: copy_json(input_schema),
+    output_schema: copy_optional_json(output_schema),
     annotations,
-    icons,
-    meta,
+    icons: icons.map(icon => icon.copy()),
+    meta: copy_optional_json(meta),
   }
 }
 
@@ -70,7 +70,7 @@ fn validate_tool_input_schema(schema : Json) -> Unit raise McpError {
 pub impl ToJson for Tool with fn to_json(self : Tool) -> Json {
   let fields : Map[String, Json] = {
     "name": Json::string(self.name),
-    "inputSchema": self.input_schema,
+    "inputSchema": copy_json(self.input_schema),
   }
   put_optional_string(fields, "title", self.title)
   put_optional_string(fields, "description", self.description)

@@ -13,8 +13,7 @@ moon run --target native src/integration/conformance-server
 ```
 
 Then run the official frozen server suite against
-`http://127.0.0.1:8080/mcp`. Fixture names and payloads are protocol contracts;
-they are not a record of implementation history.
+`http://127.0.0.1:8080/mcp`. Fixture names and payloads are protocol contracts.
 
 The fixture deliberately does not advertise list-change notifications. The
 stateless scenario therefore treats those checks as not applicable. The

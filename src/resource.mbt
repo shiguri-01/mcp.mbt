@@ -27,8 +27,21 @@ pub fn Resource::Resource(
   annotations? : Annotations,
   size? : Int64,
   meta? : Json,
-) -> Resource {
-  { uri, name, title, description, mime_type, icons, annotations, size, meta }
+) -> Resource raise McpError {
+  if size is Some(value) && value < 0L {
+    raise InvalidParams("resource size must be non-negative")
+  }
+  {
+    uri,
+    name,
+    title,
+    description,
+    mime_type,
+    icons: icons.map(icon => icon.copy()),
+    annotations: copy_optional_annotations(annotations),
+    size,
+    meta: copy_optional_json(meta),
+  }
 }
 
 ///|
@@ -61,18 +74,8 @@ pub fn Resource::text(
   mime_type? : String = "text/plain",
   annotations? : Annotations,
   size? : Int64,
-) -> Resource {
-  {
-    uri,
-    name,
-    title,
-    description,
-    mime_type: Some(mime_type),
-    icons: [],
-    annotations,
-    size,
-    meta: None,
-  }
+) -> Resource raise McpError {
+  Resource(uri~, name~, title?, description?, mime_type~, annotations?, size?)
 }
 
 ///|
@@ -104,9 +107,9 @@ pub fn ResourceTemplate::ResourceTemplate(
     title,
     description,
     mime_type,
-    icons,
-    annotations,
-    meta,
+    icons: icons.map(icon => icon.copy()),
+    annotations: copy_optional_annotations(annotations),
+    meta: copy_optional_json(meta),
   }
 }
 

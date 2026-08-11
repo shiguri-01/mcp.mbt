@@ -91,7 +91,7 @@ pub(all) struct Annotations {
   priority : Double?
   last_modified : String?
 } derive(Eq, @debug.Debug)
-pub fn Annotations::Annotations(audience? : Array[Role], priority? : Double, last_modified? : String) -> Self
+pub fn Annotations::Annotations(audience? : Array[Role], priority? : Double, last_modified? : String) -> Self raise McpError
 pub impl ToJson for Annotations
 
 pub struct CachePolicy {
@@ -439,8 +439,8 @@ pub(all) struct Resource {
   size : Int64?
   meta : Json?
 } derive(Eq, @debug.Debug)
-pub fn Resource::Resource(uri~ : String, name~ : String, title? : String, description? : String, mime_type? : String, icons? : Array[Icon], annotations? : Annotations, size? : Int64, meta? : Json) -> Self
-pub fn Resource::text(uri~ : String, name~ : String, title? : String, description? : String, mime_type? : String, annotations? : Annotations, size? : Int64) -> Self
+pub fn Resource::Resource(uri~ : String, name~ : String, title? : String, description? : String, mime_type? : String, icons? : Array[Icon], annotations? : Annotations, size? : Int64, meta? : Json) -> Self raise McpError
+pub fn Resource::text(uri~ : String, name~ : String, title? : String, description? : String, mime_type? : String, annotations? : Annotations, size? : Int64) -> Self raise McpError
 pub impl ToJson for Resource
 
 pub(all) enum ResourceContent {
@@ -462,7 +462,7 @@ pub(all) struct ResourceLink {
   size : Int64?
   meta : Json?
 } derive(Eq, @debug.Debug)
-pub fn ResourceLink::ResourceLink(uri~ : String, name~ : String, title? : String, description? : String, mime_type? : String, icons? : Array[Icon], annotations? : Annotations, size? : Int64, meta? : Json) -> Self
+pub fn ResourceLink::ResourceLink(uri~ : String, name~ : String, title? : String, description? : String, mime_type? : String, icons? : Array[Icon], annotations? : Annotations, size? : Int64, meta? : Json) -> Self raise McpError
 pub impl ToJson for ResourceLink
 
 pub(all) struct ResourceTemplate {

@@ -40,7 +40,7 @@ fn register_stateless_diagnostics(server : @mcp.Server) -> Unit {
   )
   try! server.json_tool(
     name="test_logging_tool",
-    description="Return without logging unless a future fixture explicitly requests it.",
+    description="Return without logging when the request omits logLevel.",
     input_schema=empty_object_schema(),
     fn(_context, _arguments) {
       @mcp.Complete(@mcp.CallToolResult::text("logging test completed"))

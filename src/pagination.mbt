@@ -20,13 +20,20 @@ fn parse_cursor(cursor : String?, total : Int) -> Int raise McpError {
       if cursor.length() == 0 {
         return 0
       }
+      if cursor.length() > 20 {
+        raise InvalidParams("cursor exceeds the supported length")
+      }
       for c in cursor {
         if c < '0' || c > '9' {
           raise InvalidParams(
             "cursor must be an opaque cursor returned by the server",
           )
         }
-        offset = offset * 10 + (c.to_int() - '0'.to_int())
+        let digit = c.to_int() - '0'.to_int()
+        if digit > total || offset > (total - digit) / 10 {
+          raise InvalidParams("cursor is out of range")
+        }
+        offset = offset * 10 + digit
       }
       if offset < 0 || offset > total {
         raise InvalidParams("cursor is out of range")

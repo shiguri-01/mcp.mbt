@@ -21,7 +21,7 @@ pub fn SubscriptionFilter::SubscriptionFilter(
     tools_list_changed,
     prompts_list_changed,
     resources_list_changed,
-    resource_subscriptions,
+    resource_subscriptions: resource_subscriptions.copy(),
   }
 }
 
@@ -133,12 +133,15 @@ pub struct Subscription {
 
 ///|
 pub fn Subscription::id(self : Subscription) -> Json {
-  self.id
+  copy_json(self.id)
 }
 
 ///|
 pub fn Subscription::notifications(self : Subscription) -> SubscriptionFilter {
-  self.notifications
+  {
+    ..self.notifications,
+    resource_subscriptions: self.notifications.resource_subscriptions.copy(),
+  }
 }
 
 ///|

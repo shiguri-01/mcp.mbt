@@ -97,14 +97,16 @@ test "deprecated and unknown client capabilities round trip" {
       "io.modelcontextprotocol/clientCapabilities": Json::object({
         "roots": Json::object({ "listChanged": Json::boolean(true) }),
         "sampling": Json::object({}),
-        "com.example/future": Json::object({ "enabled": Json::boolean(true) }),
+        "com.example/customCapability": Json::object({
+          "enabled": Json::boolean(true),
+        }),
       }),
     }),
   )
   guard meta.client_capabilities
     is {
       deprecated: Some({ roots: Some(Object(_)), sampling: Some(Object(_)) }),
-      extra: { "com.example/future": Object(_), .. },
+      extra: { "com.example/customCapability": Object(_), .. },
       ..,
     } else {
     fail("expected wire-compatible capabilities")
@@ -114,7 +116,7 @@ test "deprecated and unknown client capabilities round trip" {
       {
         "roots": Object(_),
         "sampling": Object(_),
-        "com.example/future": Object(_),
+        "com.example/customCapability": Object(_),
         ..
       }
     ) else {

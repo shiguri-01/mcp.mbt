@@ -10,7 +10,14 @@ pub fn ElicitationCapability::ElicitationCapability(
   form? : Json,
   url? : Json,
 ) -> ElicitationCapability {
-  { form, url }
+  { form: copy_optional_json(form), url: copy_optional_json(url) }
+}
+
+///|
+fn ElicitationCapability::copy(
+  self : ElicitationCapability,
+) -> ElicitationCapability {
+  ElicitationCapability(form?=self.form, url?=self.url)
 }
 
 ///|
@@ -36,7 +43,14 @@ pub fn DeprecatedClientCapabilities::DeprecatedClientCapabilities(
   roots? : Json,
   sampling? : Json,
 ) -> DeprecatedClientCapabilities {
-  { roots, sampling }
+  { roots: copy_optional_json(roots), sampling: copy_optional_json(sampling) }
+}
+
+///|
+fn DeprecatedClientCapabilities::copy(
+  self : DeprecatedClientCapabilities,
+) -> DeprecatedClientCapabilities {
+  DeprecatedClientCapabilities(roots?=self.roots, sampling?=self.sampling)
 }
 
 ///|
@@ -57,7 +71,24 @@ pub fn ClientCapabilities::ClientCapabilities(
   experimental? : Map[String, Json] = {},
   extra? : Map[String, Json] = {},
 ) -> ClientCapabilities {
-  { elicitation, deprecated, extensions, experimental, extra }
+  {
+    elicitation,
+    deprecated,
+    extensions: copy_json_map(extensions),
+    experimental: copy_json_map(experimental),
+    extra: copy_json_map(extra),
+  }
+}
+
+///|
+fn ClientCapabilities::copy(self : ClientCapabilities) -> ClientCapabilities {
+  ClientCapabilities(
+    elicitation?=self.elicitation.map(value => value.copy()),
+    deprecated?=self.deprecated.map(value => value.copy()),
+    extensions=self.extensions,
+    experimental=self.experimental,
+    extra=self.extra,
+  )
 }
 
 ///|
@@ -121,7 +152,7 @@ fn put_capability_map(
   values : Map[String, Json],
 ) -> Unit {
   if !values.is_empty() {
-    fields[key] = Json::object(values.copy())
+    fields[key] = Json::object(copy_json_map(values))
   }
 }
 
@@ -129,7 +160,7 @@ fn put_capability_map(
 pub impl ToJson for ClientCapabilities with fn to_json(
   self : ClientCapabilities,
 ) -> Json {
-  let fields = self.extra.copy()
+  let fields = copy_json_map(self.extra)
   fields.remove("elicitation")
   fields.remove("roots")
   fields.remove("sampling")
@@ -306,7 +337,28 @@ pub fn ServerCapabilities::ServerCapabilities(
   experimental? : Map[String, Json] = {},
   extra? : Map[String, Json] = {},
 ) -> ServerCapabilities {
-  { tools, resources, prompts, completions, extensions, experimental, extra }
+  {
+    tools,
+    resources,
+    prompts,
+    completions,
+    extensions: copy_json_map(extensions),
+    experimental: copy_json_map(experimental),
+    extra: copy_json_map(extra),
+  }
+}
+
+///|
+fn ServerCapabilities::copy(self : ServerCapabilities) -> ServerCapabilities {
+  ServerCapabilities(
+    tools?=self.tools,
+    resources?=self.resources,
+    prompts?=self.prompts,
+    completions=self.completions,
+    extensions=self.extensions,
+    experimental=self.experimental,
+    extra=self.extra,
+  )
 }
 
 ///|
@@ -318,7 +370,7 @@ pub fn ServerCapabilities::empty() -> ServerCapabilities {
 pub impl ToJson for ServerCapabilities with fn to_json(
   self : ServerCapabilities,
 ) -> Json {
-  let fields = self.extra.copy()
+  let fields = copy_json_map(self.extra)
   for
     key in [
       "tools", "resources", "prompts", "completions", "extensions", "experimental",

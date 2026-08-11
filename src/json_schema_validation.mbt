@@ -1,9 +1,10 @@
 ///|
 /// A compiled, bounded JSON Schema validator used at tool boundaries.
 ///
-/// Schemas remain JSON on the public API. Compilation rejects unsupported
-/// dialects and remote references; validation supports the validation keywords
-/// used by MCP tool schemas without performing network access.
+/// Schemas remain JSON on the public API. Compilation processes draft 2020-12
+/// and draft-07 without network access. A compound document may use a local
+/// 2020-12 meta-schema when every required vocabulary is supported, but all of
+/// its instance schemas use one processing dialect.
 priv struct CompiledJsonSchema {
   schema : Json
   root_resource : String
@@ -356,11 +357,195 @@ fn valid_schema_anchor(value : String) -> Bool {
 }
 
 ///|
+priv struct JsonSchemaLookaheadPattern {
+  prefix : String
+  assertion : String
+  suffix : String
+  positive : Bool
+}
+
+///|
+fn parse_json_schema_lookahead(pattern : String) -> JsonSchemaLookaheadPattern? {
+  let chars = pattern.to_array()
+  let mut escaped = false
+  let mut in_class = false
+  let mut start = -1
+  let mut positive = true
+  for index in 0..<chars.length() {
+    let char = chars[index]
+    if escaped {
+      escaped = false
+      continue
+    }
+    if char == '\\' {
+      escaped = true
+      continue
+    }
+    if char == '[' {
+      in_class = true
+      continue
+    }
+    if char == ']' && in_class {
+      in_class = false
+      continue
+    }
+    if !in_class &&
+      index + 2 < chars.length() &&
+      char == '(' &&
+      chars[index + 1] == '?' &&
+      (chars[index + 2] == '=' || chars[index + 2] == '!') {
+      if start >= 0 {
+        return None
+      }
+      start = index
+      positive = chars[index + 2] == '='
+    }
+  }
+  guard start >= 0 else { return None }
+  let mut depth = 1
+  escaped = false
+  in_class = false
+  let mut finish = -1
+  for index in (start + 3)..<chars.length() {
+    let char = chars[index]
+    if escaped {
+      escaped = false
+      continue
+    }
+    if char == '\\' {
+      escaped = true
+      continue
+    }
+    if char == '[' {
+      in_class = true
+      continue
+    }
+    if char == ']' && in_class {
+      in_class = false
+      continue
+    }
+    if !in_class {
+      if char == '(' {
+        depth += 1
+      } else if char == ')' {
+        depth -= 1
+        if depth == 0 {
+          finish = index
+          break
+        }
+      }
+    }
+  }
+  guard finish >= 0 else { return None }
+  let prefix = String::from_array(chars[:start])
+  let assertion = String::from_array(chars[start + 3:finish])
+  let suffix = String::from_array(chars[finish + 1:])
+  guard !assertion.is_empty() &&
+    parse_json_schema_lookahead(prefix) is None &&
+    parse_json_schema_lookahead(assertion) is None &&
+    parse_json_schema_lookahead(suffix) is None else {
+    return None
+  }
+  Some({ prefix, assertion, suffix, positive })
+}
+
+///|
+fn json_schema_fixed_pattern_width(pattern : String) -> Int? {
+  let chars = pattern.to_array()
+  let mut width = 0
+  let mut index = 0
+  while index < chars.length() {
+    match chars[index] {
+      '^' | '$' => index += 1
+      '*' | '+' | '?' | '{' | '}' | '|' | '(' | ')' => return None
+      '\\' => {
+        guard index + 1 < chars.length() else { return None }
+        let escaped = chars[index + 1]
+        if escaped is ('0'..='9') ||
+          escaped == 'k' ||
+          escaped == 'p' ||
+          escaped == 'P' ||
+          escaped == 'u' ||
+          escaped == 'x' {
+          return None
+        }
+        if escaped != 'b' && escaped != 'B' {
+          width += 1
+        }
+        index += 2
+      }
+      '[' => {
+        index += 1
+        let mut closed = false
+        while index < chars.length() {
+          if chars[index] == '\\' {
+            index += 2
+          } else if chars[index] == ']' {
+            closed = true
+            index += 1
+            break
+          } else {
+            index += 1
+          }
+        }
+        guard closed else { return None }
+        width += 1
+      }
+      _ => {
+        width += 1
+        index += 1
+      }
+    }
+  }
+  Some(width)
+}
+
+///|
+fn json_schema_pattern_is_supported(pattern : String) -> Bool {
+  let regular = try Regex(pattern) catch {
+    _ => false
+  } noraise {
+    _ => true
+  }
+  if regular {
+    true
+  } else {
+    match parse_json_schema_lookahead(pattern) {
+      Some(parsed) => {
+        guard parsed.prefix.has_prefix("^"[:]) &&
+          json_schema_fixed_pattern_width(parsed.prefix) is Some(prefix_width) &&
+          json_schema_fixed_pattern_width(parsed.suffix) is Some(suffix_width) &&
+          prefix_width + suffix_width > 0 else {
+          return false
+        }
+        (try Regex("(" + parsed.prefix + ")(" + parsed.suffix + ")") catch {
+          _ => false
+        } noraise {
+          _ => true
+        }) &&
+        (try Regex("^(" + parsed.assertion + ")") catch {
+          _ => false
+        } noraise {
+          _ => true
+        })
+      }
+      None => false
+    }
+  }
+}
+
+///|
+fn schema_declares_resource(schema : Json) -> Bool {
+  schema is Object({ "$id": String(_), .. })
+}
+
+///|
 fn validate_schema_shape(
   schema : Json,
   depth : Int,
   count : Ref[Int],
   draft7 : Bool,
+  resource_root? : Bool = true,
 ) -> Unit raise McpError {
   if depth > 64 {
     raise InvalidParams("JSON Schema nesting exceeds 64 levels")
@@ -373,14 +558,14 @@ fn validate_schema_shape(
     True | False => ()
     Object(fields) => {
       validate_schema_type_keyword(fields)
+      if !resource_root && fields.contains("$schema") {
+        raise InvalidParams(
+          "JSON Schema $schema may only appear at a schema resource root",
+        )
+      }
       match fields.get("$schema") {
         None => ()
-        Some(String("https://json-schema.org/draft/2020-12/schema"))
-        | Some(String("https://json-schema.org/draft/2020-12/schema#"))
-        | Some(String("http://json-schema.org/draft-07/schema#"))
-        | Some(String("https://json-schema.org/draft-07/schema#")) => ()
-        Some(String(dialect)) =>
-          raise InvalidParams("unsupported JSON Schema dialect: \{dialect}")
+        Some(String(_)) => ()
         Some(_) => raise InvalidParams("JSON Schema $schema must be a string")
       }
       match fields.get("$ref") {
@@ -457,16 +642,19 @@ fn validate_schema_shape(
           Some(Object(children)) =>
             for name, child in children {
               if key == "patternProperties" {
-                ignore(
-                  Regex(name) catch {
-                    _ =>
-                      raise InvalidParams(
-                        "JSON Schema patternProperties key is not a valid regular expression",
-                      )
-                  },
-                )
+                if !json_schema_pattern_is_supported(name) {
+                  raise InvalidParams(
+                    "JSON Schema patternProperties key is not a supported regular expression",
+                  )
+                }
               }
-              validate_schema_shape(child, depth + 1, count, draft7)
+              validate_schema_shape(
+                child,
+                depth + 1,
+                count,
+                draft7,
+                resource_root=schema_declares_resource(child),
+              )
             }
           Some(_) => raise InvalidParams("JSON Schema \{key} must be an object")
         }
@@ -485,7 +673,14 @@ fn validate_schema_shape(
       for key in schema_keywords {
         match fields.get(key) {
           None => ()
-          Some(child) => validate_schema_shape(child, depth + 1, count, draft7)
+          Some(child) =>
+            validate_schema_shape(
+              child,
+              depth + 1,
+              count,
+              draft7,
+              resource_root=schema_declares_resource(child),
+            )
         }
       }
       match fields.get("items") {
@@ -497,10 +692,23 @@ fn validate_schema_shape(
             )
           }
           for child in children {
-            validate_schema_shape(child, depth + 1, count, draft7)
+            validate_schema_shape(
+              child,
+              depth + 1,
+              count,
+              draft7,
+              resource_root=schema_declares_resource(child),
+            )
           }
         }
-        Some(child) => validate_schema_shape(child, depth + 1, count, draft7)
+        Some(child) =>
+          validate_schema_shape(
+            child,
+            depth + 1,
+            count,
+            draft7,
+            resource_root=schema_declares_resource(child),
+          )
       }
       let array_keywords = if draft7 {
         ["allOf", "anyOf", "oneOf"]
@@ -515,7 +723,13 @@ fn validate_schema_shape(
               raise InvalidParams("JSON Schema \{key} must not be empty")
             }
             for child in children {
-              validate_schema_shape(child, depth + 1, count, draft7)
+              validate_schema_shape(
+                child,
+                depth + 1,
+                count,
+                draft7,
+                resource_root=schema_declares_resource(child),
+              )
             }
           }
           Some(_) => raise InvalidParams("JSON Schema \{key} must be an array")
@@ -554,7 +768,14 @@ fn validate_schema_shape(
                       )
                     }
                   }
-                child => validate_schema_shape(child, depth + 1, count, draft7)
+                child =>
+                  validate_schema_shape(
+                    child,
+                    depth + 1,
+                    count,
+                    draft7,
+                    resource_root=schema_declares_resource(child),
+                  )
               }
             }
           Some(_) =>
@@ -563,14 +784,11 @@ fn validate_schema_shape(
       }
       match fields.get("pattern") {
         Some(String(pattern)) =>
-          ignore(
-            Regex(pattern) catch {
-              _ =>
-                raise InvalidParams(
-                  "JSON Schema pattern is not a valid regular expression",
-                )
-            },
-          )
+          if !json_schema_pattern_is_supported(pattern) {
+            raise InvalidParams(
+              "JSON Schema pattern is not a supported regular expression",
+            )
+          }
         Some(_) => raise InvalidParams("JSON Schema pattern must be a string")
         None => ()
       }
@@ -609,6 +827,72 @@ fn split_uri_fragment(uri : String) -> (String, String?) {
       (resource.to_owned(), Some(fragment.to_owned()))
     None => (uri, None)
   }
+}
+
+///|
+fn hex_digit_value(char : Char) -> Int? {
+  match char {
+    '0'..='9' => Some(char.to_int() - '0'.to_int())
+    'a'..='f' => Some(char.to_int() - 'a'.to_int() + 10)
+    'A'..='F' => Some(char.to_int() - 'A'.to_int() + 10)
+    _ => None
+  }
+}
+
+///|
+fn percent_encoded_byte(chars : Array[Char], index : Int) -> Byte? {
+  guard index + 2 < chars.length() && chars[index] == '%' else { return None }
+  guard hex_digit_value(chars[index + 1]) is Some(high) &&
+    hex_digit_value(chars[index + 2]) is Some(low) else {
+    return None
+  }
+  Some((high * 16 + low).to_byte())
+}
+
+///|
+fn decode_uri_fragment(fragment : String) -> String? {
+  let chars = fragment.to_array()
+  let decoded : Array[Char] = []
+  let mut index = 0
+  while index < chars.length() {
+    if chars[index] != '%' {
+      decoded.push(chars[index])
+      index += 1
+      continue
+    }
+    guard percent_encoded_byte(chars, index) is Some(first) else { return None }
+    let first = first.to_int()
+    let (length, initial, minimum) = if first < 0x80 {
+      (1, first, 0)
+    } else if first >= 0xc2 && first <= 0xdf {
+      (2, first - 0xc0, 0x80)
+    } else if first >= 0xe0 && first <= 0xef {
+      (3, first - 0xe0, 0x800)
+    } else if first >= 0xf0 && first <= 0xf4 {
+      (4, first - 0xf0, 0x10000)
+    } else {
+      return None
+    }
+    let mut codepoint = initial
+    for offset in 1..<length {
+      let byte_index = index + offset * 3
+      guard percent_encoded_byte(chars, byte_index) is Some(byte) else {
+        return None
+      }
+      let byte = byte.to_int()
+      guard byte >= 0x80 && byte <= 0xbf else { return None }
+      codepoint = codepoint * 64 + byte - 0x80
+    }
+    guard codepoint >= minimum &&
+      codepoint <= 0x10ffff &&
+      !(codepoint >= 0xd800 && codepoint <= 0xdfff) &&
+      codepoint.to_char() is Some(char) else {
+      return None
+    }
+    decoded.push(char)
+    index += length * 3
+  }
+  Some(String::from_array(decoded))
 }
 
 ///|
@@ -804,13 +1088,32 @@ fn index_schema_resources(
 }
 
 ///|
-fn decode_pointer_segment(segment : String) -> String {
-  segment.replace(old="~1", new="/").replace(old="~0", new="~")
+fn decode_pointer_segment(segment : String) -> String? {
+  let chars = segment.to_array()
+  let decoded : Array[Char] = []
+  let mut index = 0
+  while index < chars.length() {
+    if chars[index] != '~' {
+      decoded.push(chars[index])
+      index += 1
+      continue
+    }
+    guard index + 1 < chars.length() else { return None }
+    match chars[index + 1] {
+      '0' => decoded.push('~')
+      '1' => decoded.push('/')
+      _ => return None
+    }
+    index += 2
+  }
+  Some(String::from_array(decoded))
 }
 
 ///|
 fn parse_pointer_index(value : String) -> Int? {
-  if value.is_empty() {
+  if value.is_empty() ||
+    value.length() > 10 ||
+    (value.length() > 1 && value.has_prefix("0")) {
     return None
   }
   let mut result = 0
@@ -818,7 +1121,11 @@ fn parse_pointer_index(value : String) -> Int? {
     if !(char is ('0'..='9')) {
       return None
     }
-    result = result * 10 + char.to_int() - '0'.to_int()
+    let digit = char.to_int() - '0'.to_int()
+    if result > 214748364 || (result == 214748364 && digit > 7) {
+      return None
+    }
+    result = result * 10 + digit
   }
   Some(result)
 }
@@ -831,7 +1138,9 @@ fn resolve_schema_pointer(root : Json, pointer : String) -> Json? {
   guard pointer.has_prefix("/") else { return None }
   let mut current = root
   for raw in pointer[1:].split("/") {
-    let key = decode_pointer_segment(raw.to_owned())
+    guard decode_pointer_segment(raw.to_owned()) is Some(key) else {
+      return None
+    }
     match current {
       Object(fields) =>
         match fields.get(key) {
@@ -863,15 +1172,21 @@ fn resolve_schema_reference(
   guard compiled.resources.get(target_resource) is Some(resource_root) else {
     return None
   }
+  let decoded_fragment = match fragment {
+    Some(fragment) => decode_uri_fragment(fragment)
+    None => Some("")
+  }
+  guard decoded_fragment is Some(fragment) else { return None }
   let target = match fragment {
-    None | Some("") => Some(resource_root)
-    Some(fragment) if fragment.has_prefix("/") =>
+    "" => Some(resource_root)
+    fragment if fragment.has_prefix("/") =>
       resolve_schema_pointer(resource_root, fragment)
-    Some(anchor) => compiled.anchors.get(target_resource + "#" + anchor)
+    anchor => compiled.anchors.get(target_resource + "#" + anchor)
   }
   guard target is Some(schema) else { return None }
   let dynamic_anchor = match fragment {
-    Some(anchor) if !anchor.has_prefix("/") &&
+    anchor if !anchor.is_empty() &&
+      !anchor.has_prefix("/") &&
       compiled.dynamic_anchors.contains(target_resource + "#" + anchor) =>
       Some(anchor)
     _ => None
@@ -905,6 +1220,107 @@ fn validate_schema_references(
 }
 
 ///|
+fn standard_schema_dialect(uri : String) -> Int {
+  match uri {
+    "https://json-schema.org/draft/2020-12/schema"
+    | "https://json-schema.org/draft/2020-12/schema#" => 202012
+    "http://json-schema.org/draft-07/schema#"
+    | "https://json-schema.org/draft-07/schema#" => 7
+    _ => 0
+  }
+}
+
+///|
+fn supported_2020_12_vocabulary(uri : String) -> Bool {
+  match uri {
+    "https://json-schema.org/draft/2020-12/vocab/core"
+    | "https://json-schema.org/draft/2020-12/vocab/applicator"
+    | "https://json-schema.org/draft/2020-12/vocab/unevaluated"
+    | "https://json-schema.org/draft/2020-12/vocab/validation"
+    | "https://json-schema.org/draft/2020-12/vocab/meta-data"
+    | "https://json-schema.org/draft/2020-12/vocab/format-annotation"
+    | "https://json-schema.org/draft/2020-12/vocab/content" => true
+    _ => false
+  }
+}
+
+///|
+fn validate_meta_schema_vocabularies(
+  uri : String,
+  meta_schema : Json,
+) -> Unit raise McpError {
+  guard meta_schema is Object(fields) else {
+    raise InvalidParams("JSON Schema meta-schema must be an object: \{uri}")
+  }
+  match fields.get("$vocabulary") {
+    None => ()
+    Some(Object(vocabularies)) => {
+      let core = "https://json-schema.org/draft/2020-12/vocab/core"
+      guard vocabularies.get(core) is Some(True) else {
+        raise InvalidParams(
+          "JSON Schema meta-schema must require the core vocabulary: \{uri}",
+        )
+      }
+      for vocabulary, required in vocabularies {
+        if !uri_has_scheme(vocabulary) {
+          raise InvalidParams(
+            "JSON Schema vocabulary identifier must be an absolute URI: \{vocabulary}",
+          )
+        }
+        guard required is True || required is False else {
+          raise InvalidParams(
+            "JSON Schema $vocabulary values must be booleans: \{uri}",
+          )
+        }
+        if required is True && !supported_2020_12_vocabulary(vocabulary) {
+          raise InvalidParams(
+            "unsupported required JSON Schema vocabulary: \{vocabulary}",
+          )
+        }
+      }
+    }
+    Some(_) =>
+      raise InvalidParams("JSON Schema $vocabulary must be an object: \{uri}")
+  }
+}
+
+///|
+fn validate_schema_dialects(
+  compiled : CompiledJsonSchema,
+) -> Unit raise McpError {
+  let root_dialect = if root_uses_draft_07(compiled.schema) {
+    7
+  } else {
+    202012
+  }
+  for resource, schema in compiled.resources {
+    guard schema is Object(fields) && fields.get("$schema") is Some(String(uri)) else {
+      continue
+    }
+    if !uri_has_scheme(uri) {
+      raise InvalidParams("JSON Schema $schema must be an absolute URI: \{uri}")
+    }
+    let dialect = standard_schema_dialect(uri)
+    if dialect != 0 {
+      if dialect != root_dialect {
+        raise InvalidParams(
+          "mixed JSON Schema dialects are not supported in one compound document",
+        )
+      }
+      continue
+    }
+    if root_dialect == 7 {
+      raise InvalidParams("unsupported JSON Schema dialect: \{uri}")
+    }
+    let meta_uri = split_uri_fragment(resolve_schema_uri(resource, uri)).0
+    guard compiled.resources.get(meta_uri) is Some(meta_schema) else {
+      raise InvalidParams("unsupported JSON Schema dialect: \{uri}")
+    }
+    validate_meta_schema_vocabularies(meta_uri, meta_schema)
+  }
+}
+
+///|
 fn compile_json_schema(schema : Json) -> CompiledJsonSchema raise McpError {
   let count = Ref(0)
   let draft7 = root_uses_draft_07(schema)
@@ -918,6 +1334,7 @@ fn compile_json_schema(schema : Json) -> CompiledJsonSchema raise McpError {
     schema, synthetic_root, resources, anchors, dynamic_anchors, draft7, 0,
   )
   let compiled = { schema, root_resource, resources, anchors, dynamic_anchors }
+  validate_schema_dialects(compiled)
   validate_schema_references(schema, compiled, synthetic_root, draft7, 0)
   compiled
 }
@@ -1022,8 +1439,33 @@ fn root_uses_draft_07(root : Json) -> Bool {
 
 ///|
 fn json_schema_pattern_matches(pattern : String, value : String) -> Bool {
-  // Patterns are compiled during schema registration.
-  Regex::unsafe_from_string(pattern).execute(value) is Some(_)
+  let regular : Regex? = try Regex(pattern) catch {
+    _ => None
+  } noraise {
+    regex => Some(regex)
+  }
+  match regular {
+    Some(regex) => regex.execute(value) is Some(_)
+    None => {
+      guard parse_json_schema_lookahead(pattern) is Some(parsed) else {
+        return false
+      }
+      let main = Regex::unsafe_from_string(
+        "(" + parsed.prefix + ")(" + parsed.suffix + ")",
+      )
+      let assertion = Regex::unsafe_from_string("^(" + parsed.assertion + ")")
+      for matched in main.find(value) {
+        guard matched.group(1) is Some(prefix) else { continue }
+        let offset = matched.before().length() + prefix.length()
+        let remainder = value[offset:]
+        let asserted = assertion.execute(remainder) is Some(_)
+        if asserted == parsed.positive {
+          return true
+        }
+      }
+      false
+    }
+  }
 }
 
 ///|
@@ -1832,13 +2274,7 @@ fn validate_json_schema(
             )
           }
           if fields.get("pattern") is Some(String(pattern)) {
-            let regex = Regex(pattern) catch {
-              _ =>
-                return Some(
-                  json_schema_error(path, "invalid pattern in schema"),
-                )
-            }
-            if regex.execute(text) is None {
+            if !json_schema_pattern_matches(pattern, text) {
               return Some(
                 json_schema_error(path, "string does not match pattern"),
               )

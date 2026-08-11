@@ -33,7 +33,12 @@ pub fn Icon::Icon(
   sizes? : Array[String] = [],
   theme? : IconTheme,
 ) -> Icon {
-  { src, mime_type, sizes, theme }
+  { src, mime_type, sizes: sizes.copy(), theme }
+}
+
+///|
+fn Icon::copy(self : Icon) -> Icon {
+  { ..self, sizes: self.sizes.copy() }
 }
 
 ///|
@@ -101,7 +106,19 @@ pub fn Implementation::Implementation(
   icons? : Array[Icon] = [],
   website_url? : String,
 ) -> Implementation {
-  { name, title, version, description, icons, website_url }
+  {
+    name,
+    title,
+    version,
+    description,
+    icons: icons.map(icon => icon.copy()),
+    website_url,
+  }
+}
+
+///|
+fn Implementation::copy(self : Implementation) -> Implementation {
+  { ..self, icons: self.icons.map(icon => icon.copy()) }
 }
 
 ///|
