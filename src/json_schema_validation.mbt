@@ -6,6 +6,24 @@
 /// used by MCP tool schemas without performing network access.
 priv struct CompiledJsonSchema {
   schema : Json
+  root_resource : String
+  resources : Map[String, Json]
+  anchors : Map[String, Json]
+  dynamic_anchors : Map[String, Json]
+}
+
+///|
+priv struct JsonSchemaEvalContext {
+  compiled : CompiledJsonSchema
+  resource : String
+  dynamic_scope : Array[String]
+}
+
+///|
+priv struct ResolvedSchemaReference {
+  schema : Json
+  resource : String
+  dynamic_anchor : String?
 }
 
 ///|
@@ -140,10 +158,7 @@ fn validate_schema_shape(
       }
       match fields.get("$ref") {
         None => ()
-        Some(String(reference)) =>
-          if !reference.has_prefix("#") {
-            raise InvalidParams("remote JSON Schema $ref is disabled")
-          }
+        Some(String(_)) => ()
         Some(_) => raise InvalidParams("JSON Schema $ref must be a string")
       }
       match fields.get("$id") {
@@ -152,10 +167,7 @@ fn validate_schema_shape(
       }
       match fields.get("$dynamicRef") {
         None => ()
-        Some(String(reference)) =>
-          if !reference.has_prefix("#") {
-            raise InvalidParams("remote JSON Schema $dynamicRef is disabled")
-          }
+        Some(String(_)) => ()
         Some(_) =>
           raise InvalidParams("JSON Schema $dynamicRef must be a string")
       }
@@ -339,10 +351,227 @@ fn validate_schema_shape(
 }
 
 ///|
-fn compile_json_schema(schema : Json) -> CompiledJsonSchema raise McpError {
-  let count = Ref(0)
-  validate_schema_shape(schema, 0, count, root_uses_draft_07(schema))
-  { schema, }
+fn uri_has_scheme(uri : String) -> Bool {
+  let chars = uri.to_array()
+  guard chars is [first, .. rest] &&
+    (first is ('A'..='Z') || first is ('a'..='z')) else {
+    return false
+  }
+  for char in rest {
+    if char == ':' {
+      return true
+    }
+    if !(char is ('A'..='Z') ||
+      char is ('a'..='z') ||
+      char is ('0'..='9') ||
+      char == '+' ||
+      char == '-' ||
+      char == '.') {
+      return false
+    }
+  }
+  false
+}
+
+///|
+fn split_uri_fragment(uri : String) -> (String, String?) {
+  match uri.split_once("#") {
+    Some((resource, fragment)) =>
+      (resource.to_owned(), Some(fragment.to_owned()))
+    None => (uri, None)
+  }
+}
+
+///|
+fn strip_uri_query(uri : String) -> String {
+  match uri.split_once("?") {
+    Some((path, _)) => path.to_owned()
+    None => uri
+  }
+}
+
+///|
+fn normalize_uri_path(path : String) -> String {
+  let absolute = path.has_prefix("/")
+  let trailing = path.has_suffix("/")
+  let segments : Array[String] = []
+  for raw in path.split("/") {
+    let segment = raw.to_owned()
+    if segment.is_empty() || segment == "." {
+      continue
+    }
+    if segment == ".." {
+      ignore(segments.pop())
+    } else {
+      segments.push(segment)
+    }
+  }
+  let body = segments.join("/")
+  let prefix = if absolute { "/" } else { "" }
+  let suffix = if trailing && !body.is_empty() { "/" } else { "" }
+  prefix + body + suffix
+}
+
+///|
+fn resolve_schema_uri(base : String, reference : String) -> String {
+  let (reference_resource, fragment) = split_uri_fragment(reference)
+  let resolved_resource = if reference_resource.is_empty() {
+    split_uri_fragment(base).0
+  } else if uri_has_scheme(reference_resource) {
+    reference_resource
+  } else {
+    let base_resource = strip_uri_query(split_uri_fragment(base).0)
+    match base_resource.split_once("://") {
+      Some((scheme, authority_and_path)) => {
+        let authority_and_path = authority_and_path.to_owned()
+        let (authority, base_path) = match authority_and_path.split_once("/") {
+          Some((authority, path)) =>
+            (authority.to_owned(), "/" + path.to_owned())
+          None => (authority_and_path, "/")
+        }
+        let path = if reference_resource.has_prefix("/") {
+          reference_resource
+        } else {
+          let directory = match base_path.rev_split_once("/") {
+            Some((directory, _)) => directory.to_owned() + "/"
+            None => "/"
+          }
+          directory + reference_resource
+        }
+        scheme.to_owned() + "://" + authority + normalize_uri_path(path)
+      }
+      None => reference_resource
+    }
+  }
+  match fragment {
+    Some(fragment) => resolved_resource + "#" + fragment
+    None => resolved_resource
+  }
+}
+
+///|
+fn schema_resource_uri(
+  schema : Json,
+  inherited : String,
+) -> String raise McpError {
+  guard schema is Object(fields) else { return inherited }
+  match fields.get("$id") {
+    Some(String(identifier)) => {
+      let (resource, fragment) = split_uri_fragment(
+        resolve_schema_uri(inherited, identifier),
+      )
+      if fragment is Some(value) && !value.is_empty() {
+        raise InvalidParams("JSON Schema $id must not contain a fragment")
+      }
+      resource
+    }
+    _ => inherited
+  }
+}
+
+///|
+fn schema_children(schema : Json, draft7 : Bool) -> Array[Json] {
+  let children : Array[Json] = []
+  guard schema is Object(fields) else { return children }
+  let object_keywords = if draft7 {
+    ["properties", "definitions", "patternProperties", "dependencies"]
+  } else {
+    ["properties", "$defs", "dependentSchemas", "patternProperties"]
+  }
+  for keyword in object_keywords {
+    if fields.get(keyword) is Some(Object(entries)) {
+      for _, child in entries {
+        if child is Object(_) || child is True || child is False {
+          children.push(child)
+        }
+      }
+    }
+  }
+  let schema_keywords = if draft7 {
+    [
+      "contains", "additionalProperties", "additionalItems", "propertyNames", "not",
+      "if", "then", "else",
+    ]
+  } else {
+    [
+      "contains", "additionalProperties", "propertyNames", "not", "if", "then", "else",
+      "unevaluatedProperties", "unevaluatedItems", "contentSchema",
+    ]
+  }
+  for keyword in schema_keywords {
+    if fields.get(keyword) is Some(child) {
+      children.push(child)
+    }
+  }
+  match fields.get("items") {
+    Some(Array(items)) =>
+      for child in items {
+        children.push(child)
+      }
+    Some(child) => children.push(child)
+    None => ()
+  }
+  let array_keywords = if draft7 {
+    ["allOf", "anyOf", "oneOf"]
+  } else {
+    ["allOf", "anyOf", "oneOf", "prefixItems"]
+  }
+  for keyword in array_keywords {
+    if fields.get(keyword) is Some(Array(items)) {
+      for child in items {
+        children.push(child)
+      }
+    }
+  }
+  children
+}
+
+///|
+fn index_schema_resources(
+  schema : Json,
+  inherited_resource : String,
+  resources : Map[String, Json],
+  anchors : Map[String, Json],
+  dynamic_anchors : Map[String, Json],
+  draft7 : Bool,
+  depth : Int,
+) -> Unit raise McpError {
+  if depth > 64 {
+    raise InvalidParams("JSON Schema resource nesting exceeds 64 levels")
+  }
+  let resource = schema_resource_uri(schema, inherited_resource)
+  if resource != inherited_resource || depth == 0 {
+    match resources.get(resource) {
+      Some(existing) if existing != schema =>
+        raise InvalidParams("duplicate JSON Schema resource URI: \{resource}")
+      _ => resources[resource] = schema
+    }
+  }
+  if schema is Object(fields) {
+    for keyword in ["$anchor", "$dynamicAnchor"] {
+      if fields.get(keyword) is Some(String(anchor)) {
+        let target = resource + "#" + anchor
+        if anchors.contains(target) {
+          raise InvalidParams("duplicate JSON Schema anchor: \{target}")
+        }
+        anchors[target] = schema
+        if keyword == "$dynamicAnchor" {
+          dynamic_anchors[target] = schema
+        }
+      }
+    }
+  }
+  for child in schema_children(schema, draft7) {
+    index_schema_resources(
+      child,
+      resource,
+      resources,
+      anchors,
+      dynamic_anchors,
+      draft7,
+      depth + 1,
+    )
+  }
 }
 
 ///|
@@ -351,56 +580,28 @@ fn decode_pointer_segment(segment : String) -> String {
 }
 
 ///|
-fn find_schema_anchor(
-  schema : Json,
-  anchor : String,
-  dynamic : Bool,
-  depth : Int,
-) -> Json? {
-  if depth > 64 {
+fn parse_pointer_index(value : String) -> Int? {
+  if value.is_empty() {
     return None
   }
-  match schema {
-    Object(fields) => {
-      let keyword = if dynamic { "$dynamicAnchor" } else { "$anchor" }
-      if fields.get(keyword) is Some(String(value)) && value == anchor {
-        return Some(schema)
-      }
-      for _, child in fields {
-        match child {
-          Object(_) | Array(_) =>
-            if find_schema_anchor(child, anchor, dynamic, depth + 1)
-              is Some(found) {
-              return Some(found)
-            }
-          _ => ()
-        }
-      }
-      None
+  let mut result = 0
+  for char in value {
+    if !(char is ('0'..='9')) {
+      return None
     }
-    Array(children) => {
-      for child in children {
-        if find_schema_anchor(child, anchor, dynamic, depth + 1) is Some(found) {
-          return Some(found)
-        }
-      }
-      None
-    }
-    _ => None
+    result = result * 10 + char.to_int() - '0'.to_int()
   }
+  Some(result)
 }
 
 ///|
-fn resolve_local_ref(root : Json, reference : String) -> Json? {
-  if reference == "#" {
+fn resolve_schema_pointer(root : Json, pointer : String) -> Json? {
+  if pointer.is_empty() {
     return Some(root)
   }
-  if reference.has_prefix("#") && !reference.has_prefix("#/") {
-    return find_schema_anchor(root, reference[1:].to_owned(), false, 0)
-  }
-  guard reference.has_prefix("#/") else { return None }
+  guard pointer.has_prefix("/") else { return None }
   let mut current = root
-  for raw in reference[2:].split("/") {
+  for raw in pointer[1:].split("/") {
     let key = decode_pointer_segment(raw.to_owned())
     match current {
       Object(fields) =>
@@ -408,6 +609,14 @@ fn resolve_local_ref(root : Json, reference : String) -> Json? {
           Some(value) => current = value
           None => return None
         }
+      Array(values) => {
+        guard parse_pointer_index(key) is Some(index) &&
+          index >= 0 &&
+          index < values.length() else {
+          return None
+        }
+        current = values[index]
+      }
       _ => return None
     }
   }
@@ -415,16 +624,140 @@ fn resolve_local_ref(root : Json, reference : String) -> Json? {
 }
 
 ///|
-fn resolve_local_dynamic_ref(root : Json, reference : String) -> Json? {
-  if reference == "#" || reference.has_prefix("#/") {
-    return resolve_local_ref(root, reference)
+fn resolve_schema_reference(
+  compiled : CompiledJsonSchema,
+  resource : String,
+  reference : String,
+) -> ResolvedSchemaReference? {
+  let absolute = resolve_schema_uri(resource, reference)
+  let (target_resource, fragment) = split_uri_fragment(absolute)
+  guard compiled.resources.get(target_resource) is Some(resource_root) else {
+    return None
   }
-  guard reference.has_prefix("#") else { return None }
-  let anchor = reference[1:].to_owned()
-  match find_schema_anchor(root, anchor, true, 0) {
-    Some(schema) => Some(schema)
-    None => find_schema_anchor(root, anchor, false, 0)
+  let target = match fragment {
+    None | Some("") => Some(resource_root)
+    Some(fragment) if fragment.has_prefix("/") =>
+      resolve_schema_pointer(resource_root, fragment)
+    Some(anchor) => compiled.anchors.get(target_resource + "#" + anchor)
   }
+  guard target is Some(schema) else { return None }
+  let dynamic_anchor = match fragment {
+    Some(anchor) if !anchor.has_prefix("/") &&
+      compiled.dynamic_anchors.contains(target_resource + "#" + anchor) =>
+      Some(anchor)
+    _ => None
+  }
+  Some({ schema, resource: target_resource, dynamic_anchor })
+}
+
+///|
+fn validate_schema_references(
+  schema : Json,
+  compiled : CompiledJsonSchema,
+  inherited_resource : String,
+  draft7 : Bool,
+  depth : Int,
+) -> Unit raise McpError {
+  if depth > 64 {
+    raise InvalidParams("JSON Schema reference nesting exceeds 64 levels")
+  }
+  let resource = schema_resource_uri(schema, inherited_resource)
+  if schema is Object(fields) {
+    for keyword in ["$ref", "$dynamicRef"] {
+      if fields.get(keyword) is Some(String(reference)) &&
+        resolve_schema_reference(compiled, resource, reference) is None {
+        raise InvalidParams("unresolved JSON Schema \{keyword}: \{reference}")
+      }
+    }
+  }
+  for child in schema_children(schema, draft7) {
+    validate_schema_references(child, compiled, resource, draft7, depth + 1)
+  }
+}
+
+///|
+fn compile_json_schema(schema : Json) -> CompiledJsonSchema raise McpError {
+  let count = Ref(0)
+  let draft7 = root_uses_draft_07(schema)
+  validate_schema_shape(schema, 0, count, draft7)
+  let synthetic_root = "mcp-schema://local/root"
+  let root_resource = schema_resource_uri(schema, synthetic_root)
+  let resources : Map[String, Json] = Map([])
+  let anchors : Map[String, Json] = Map([])
+  let dynamic_anchors : Map[String, Json] = Map([])
+  index_schema_resources(
+    schema, synthetic_root, resources, anchors, dynamic_anchors, draft7, 0,
+  )
+  let compiled = { schema, root_resource, resources, anchors, dynamic_anchors }
+  validate_schema_references(schema, compiled, synthetic_root, draft7, 0)
+  compiled
+}
+
+///|
+fn schema_eval_context(compiled : CompiledJsonSchema) -> JsonSchemaEvalContext {
+  {
+    compiled,
+    resource: compiled.root_resource,
+    dynamic_scope: [compiled.root_resource],
+  }
+}
+
+///|
+fn enter_schema_resource(
+  context : JsonSchemaEvalContext,
+  schema : Json,
+) -> JsonSchemaEvalContext {
+  let resource = match context.compiled.resources.get(context.resource) {
+    Some(root) if root == schema => context.resource
+    _ =>
+      schema_resource_uri(schema, context.resource) catch {
+        _ => context.resource
+      }
+  }
+  if resource == context.resource {
+    context
+  } else {
+    {
+      compiled: context.compiled,
+      resource,
+      dynamic_scope: context.dynamic_scope + [resource],
+    }
+  }
+}
+
+///|
+fn reference_eval_context(
+  context : JsonSchemaEvalContext,
+  resource : String,
+) -> JsonSchemaEvalContext {
+  if context.dynamic_scope.last() is Some(last) && last == resource {
+    { ..context, resource, }
+  } else {
+    {
+      compiled: context.compiled,
+      resource,
+      dynamic_scope: context.dynamic_scope + [resource],
+    }
+  }
+}
+
+///|
+fn resolve_dynamic_schema_reference(
+  context : JsonSchemaEvalContext,
+  reference : String,
+) -> ResolvedSchemaReference? {
+  guard resolve_schema_reference(context.compiled, context.resource, reference)
+    is Some(initial) else {
+    return None
+  }
+  guard initial.dynamic_anchor is Some(anchor) else { return Some(initial) }
+  for resource in context.dynamic_scope {
+    let target = resource + "#" + anchor
+    if context.compiled.dynamic_anchors.get(target) is Some(schema) {
+      return Some({ schema, resource, dynamic_anchor: Some(anchor) })
+    }
+  }
+  Some(initial)
 }
 
 ///|
@@ -464,7 +797,7 @@ fn json_schema_pattern_matches(pattern : String, value : String) -> Bool {
 ///|
 fn collect_evaluated_object_properties(
   schema : Json,
-  root : Json,
+  context : JsonSchemaEvalContext,
   object : Map[String, Json],
   evaluated : Map[String, Bool],
   depth : Int,
@@ -472,18 +805,19 @@ fn collect_evaluated_object_properties(
   if depth > 64 {
     return
   }
+  let context = enter_schema_resource(context, schema)
   guard schema is Object(fields) else { return }
   for keyword in ["$ref", "$dynamicRef"] {
     if fields.get(keyword) is Some(String(reference)) {
       let target = if keyword == "$dynamicRef" {
-        resolve_local_dynamic_ref(root, reference)
+        resolve_dynamic_schema_reference(context, reference)
       } else {
-        resolve_local_ref(root, reference)
+        resolve_schema_reference(context.compiled, context.resource, reference)
       }
-      if target is Some(child) {
+      if target is Some(target) {
         collect_evaluated_object_properties(
-          child,
-          root,
+          target.schema,
+          reference_eval_context(context, target.resource),
           object,
           evaluated,
           depth + 1,
@@ -530,7 +864,7 @@ fn collect_evaluated_object_properties(
       for child in children {
         if validate_json_schema(
             child,
-            root,
+            context,
             Json::object(object),
             "$",
             depth + 1,
@@ -538,7 +872,7 @@ fn collect_evaluated_object_properties(
           is None {
           collect_evaluated_object_properties(
             child,
-            root,
+            context,
             object,
             evaluated,
             depth + 1,
@@ -548,21 +882,24 @@ fn collect_evaluated_object_properties(
     }
   }
   if fields.get("if") is Some(condition) {
-    collect_evaluated_object_properties(
-      condition,
-      root,
-      object,
-      evaluated,
-      depth + 1,
-    )
-    let branch = if validate_json_schema(
+    let condition_matches = validate_json_schema(
         condition,
-        root,
+        context,
         Json::object(object),
         "$",
         depth + 1,
       )
-      is None {
+      is None
+    if condition_matches {
+      collect_evaluated_object_properties(
+        condition,
+        context,
+        object,
+        evaluated,
+        depth + 1,
+      )
+    }
+    let branch = if condition_matches {
       fields.get("then")
     } else {
       fields.get("else")
@@ -570,7 +907,7 @@ fn collect_evaluated_object_properties(
     if branch is Some(child) {
       collect_evaluated_object_properties(
         child,
-        root,
+        context,
         object,
         evaluated,
         depth + 1,
@@ -580,11 +917,17 @@ fn collect_evaluated_object_properties(
   if fields.get("dependentSchemas") is Some(Object(dependencies)) {
     for key, child in dependencies {
       if object.contains(key) &&
-        validate_json_schema(child, root, Json::object(object), "$", depth + 1)
+        validate_json_schema(
+          child,
+          context,
+          Json::object(object),
+          "$",
+          depth + 1,
+        )
         is None {
         collect_evaluated_object_properties(
           child,
-          root,
+          context,
           object,
           evaluated,
           depth + 1,
@@ -597,7 +940,7 @@ fn collect_evaluated_object_properties(
 ///|
 fn collect_evaluated_array_items(
   schema : Json,
-  root : Json,
+  context : JsonSchemaEvalContext,
   values : Array[Json],
   evaluated : Map[Int, Bool],
   depth : Int,
@@ -605,20 +948,27 @@ fn collect_evaluated_array_items(
   if depth > 64 {
     return
   }
+  let context = enter_schema_resource(context, schema)
   guard schema is Object(fields) else { return }
   for keyword in ["$ref", "$dynamicRef"] {
     if fields.get(keyword) is Some(String(reference)) {
       let target = if keyword == "$dynamicRef" {
-        resolve_local_dynamic_ref(root, reference)
+        resolve_dynamic_schema_reference(context, reference)
       } else {
-        resolve_local_ref(root, reference)
+        resolve_schema_reference(context.compiled, context.resource, reference)
       }
-      if target is Some(child) {
-        collect_evaluated_array_items(child, root, values, evaluated, depth + 1)
+      if target is Some(target) {
+        collect_evaluated_array_items(
+          target.schema,
+          reference_eval_context(context, target.resource),
+          values,
+          evaluated,
+          depth + 1,
+        )
       }
     }
   }
-  if !root_uses_draft_07(root) &&
+  if !root_uses_draft_07(context.compiled.schema) &&
     fields.get("prefixItems") is Some(Array(items)) {
     for index, _ in items {
       if index < values.length() {
@@ -635,7 +985,8 @@ fn collect_evaluated_array_items(
       }
     Some(_) => {
       let start = match fields.get("prefixItems") {
-        Some(Array(items)) if !root_uses_draft_07(root) => items.length()
+        Some(Array(items)) if !root_uses_draft_07(context.compiled.schema) =>
+          items.length()
         _ => 0
       }
       for index = start; index < values.length(); index = index + 1 {
@@ -646,7 +997,7 @@ fn collect_evaluated_array_items(
   }
   if fields.get("contains") is Some(contains) {
     for index, item in values {
-      if validate_json_schema(contains, root, item, "$[\{index}]", depth + 1)
+      if validate_json_schema(contains, context, item, "$[\{index}]", depth + 1)
         is None {
         evaluated[index] = true
       }
@@ -657,7 +1008,7 @@ fn collect_evaluated_array_items(
       for child in children {
         if validate_json_schema(
             child,
-            root,
+            context,
             Json::array(values),
             "$",
             depth + 1,
@@ -665,7 +1016,7 @@ fn collect_evaluated_array_items(
           is None {
           collect_evaluated_array_items(
             child,
-            root,
+            context,
             values,
             evaluated,
             depth + 1,
@@ -675,21 +1026,36 @@ fn collect_evaluated_array_items(
     }
   }
   if fields.get("if") is Some(condition) {
-    collect_evaluated_array_items(condition, root, values, evaluated, depth + 1)
-    let branch = if validate_json_schema(
+    let condition_matches = validate_json_schema(
         condition,
-        root,
+        context,
         Json::array(values),
         "$",
         depth + 1,
       )
-      is None {
+      is None
+    if condition_matches {
+      collect_evaluated_array_items(
+        condition,
+        context,
+        values,
+        evaluated,
+        depth + 1,
+      )
+    }
+    let branch = if condition_matches {
       fields.get("then")
     } else {
       fields.get("else")
     }
     if branch is Some(child) {
-      collect_evaluated_array_items(child, root, values, evaluated, depth + 1)
+      collect_evaluated_array_items(
+        child,
+        context,
+        values,
+        evaluated,
+        depth + 1,
+      )
     }
   }
 }
@@ -697,7 +1063,7 @@ fn collect_evaluated_array_items(
 ///|
 fn validate_json_schema(
   schema : Json,
-  root : Json,
+  root : JsonSchemaEvalContext,
   value : Json,
   path : String,
   depth : Int,
@@ -705,27 +1071,42 @@ fn validate_json_schema(
   if depth > 128 {
     return Some(json_schema_error(path, "validation depth exceeded"))
   }
+  let root = enter_schema_resource(root, schema)
   match schema {
     True => None
     False => Some(json_schema_error(path, "value is rejected by false schema"))
     Object(fields) => {
       if fields.get("$ref") is Some(String(reference)) {
-        let referenced = match resolve_local_ref(root, reference) {
+        let referenced = match
+          resolve_schema_reference(root.compiled, root.resource, reference) {
           Some(target) =>
-            validate_json_schema(target, root, value, path, depth + 1)
+            validate_json_schema(
+              target.schema,
+              reference_eval_context(root, target.resource),
+              value,
+              path,
+              depth + 1,
+            )
           None =>
             return Some(
               json_schema_error(path, "unresolved local $ref \{reference}"),
             )
         }
-        if referenced is Some(_) || root_uses_draft_07(root) {
+        if referenced is Some(_) || root_uses_draft_07(root.compiled.schema) {
           return referenced
         }
       }
       if fields.get("$dynamicRef") is Some(String(reference)) {
-        let referenced = match resolve_local_dynamic_ref(root, reference) {
+        let referenced = match
+          resolve_dynamic_schema_reference(root, reference) {
           Some(target) =>
-            validate_json_schema(target, root, value, path, depth + 1)
+            validate_json_schema(
+              target.schema,
+              reference_eval_context(root, target.resource),
+              value,
+              path,
+              depth + 1,
+            )
           None =>
             return Some(
               json_schema_error(
@@ -894,7 +1275,7 @@ fn validate_json_schema(
               }
             }
           }
-          if !root_uses_draft_07(root) {
+          if !root_uses_draft_07(root.compiled.schema) {
             match fields.get("dependentRequired") {
               Some(Object(dependencies)) =>
                 for key, dependency in dependencies {
@@ -914,7 +1295,7 @@ fn validate_json_schema(
               _ => ()
             }
           }
-          if !root_uses_draft_07(root) {
+          if !root_uses_draft_07(root.compiled.schema) {
             match fields.get("dependentSchemas") {
               Some(Object(dependencies)) =>
                 for key, dependency in dependencies {
@@ -933,7 +1314,7 @@ fn validate_json_schema(
               _ => ()
             }
           }
-          if root_uses_draft_07(root) {
+          if root_uses_draft_07(root.compiled.schema) {
             match fields.get("dependencies") {
               Some(Object(dependencies)) =>
                 for key, dependency in dependencies {
@@ -1007,7 +1388,7 @@ fn validate_json_schema(
             }
           }
           if fields.get("unevaluatedProperties") is Some(child) &&
-            !root_uses_draft_07(root) {
+            !root_uses_draft_07(root.compiled.schema) {
             let evaluated : Map[String, Bool] = Map([])
             collect_evaluated_object_properties(
               schema,
@@ -1051,7 +1432,7 @@ fn validate_json_schema(
               }
             }
           }
-          let prefix_items = if root_uses_draft_07(root) {
+          let prefix_items = if root_uses_draft_07(root.compiled.schema) {
             []
           } else {
             match fields.get("prefixItems") {
@@ -1140,7 +1521,7 @@ fn validate_json_schema(
                 matches += 1
               }
             }
-            let minimum = if root_uses_draft_07(root) {
+            let minimum = if root_uses_draft_07(root.compiled.schema) {
               1
             } else {
               match fields.get("minContains") {
@@ -1148,7 +1529,7 @@ fn validate_json_schema(
                 _ => 1
               }
             }
-            let maximum = if root_uses_draft_07(root) {
+            let maximum = if root_uses_draft_07(root.compiled.schema) {
               None
             } else {
               match fields.get("maxContains") {
@@ -1163,7 +1544,7 @@ fn validate_json_schema(
             }
           }
           if fields.get("unevaluatedItems") is Some(child) &&
-            !root_uses_draft_07(root) {
+            !root_uses_draft_07(root.compiled.schema) {
             let evaluated : Map[Int, Bool] = Map([])
             collect_evaluated_array_items(
               Json::object(fields),
@@ -1260,5 +1641,5 @@ fn CompiledJsonSchema::validate(
   self : CompiledJsonSchema,
   value : Json,
 ) -> String? {
-  validate_json_schema(self.schema, self.schema, value, "$", 0)
+  validate_json_schema(self.schema, schema_eval_context(self), value, "$", 0)
 }

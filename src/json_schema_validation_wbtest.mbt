@@ -194,6 +194,89 @@ test "2020-12 dynamic references resolve local dynamic anchors" {
 }
 
 ///|
+test "2020-12 $ref treats a $dynamicAnchor as a static anchor" {
+  let validator = compile_json_schema(
+    Json::object({
+      "$defs": Json::object({
+        "value": Json::object({
+          "$dynamicAnchor": Json::string("value"),
+          "type": Json::string("string"),
+        }),
+      }),
+      "$ref": Json::string("#value"),
+    }),
+  )
+  assert_eq(validator.validate(Json::string("mcp")), None)
+  assert_true(validator.validate(Json::number(1.0)) is Some(_))
+}
+
+///|
+test "2020-12 resolves relative references to embedded schema resources" {
+  let validator = compile_json_schema(
+    Json::object({
+      "$id": Json::string("https://example.com/schemas/root"),
+      "$defs": Json::object({
+        "value": Json::object({
+          "$id": Json::string("value"),
+          "type": Json::string("string"),
+        }),
+      }),
+      "$ref": Json::string("value"),
+    }),
+  )
+  assert_eq(validator.validate(Json::string("mcp")), None)
+  assert_true(validator.validate(Json::number(1.0)) is Some(_))
+}
+
+///|
+test "fragment references use the current embedded resource root" {
+  let validator = compile_json_schema(
+    Json::object({
+      "$id": Json::string("https://example.com/schemas/root"),
+      "$defs": Json::object({
+        "local": Json::object({ "type": Json::string("number") }),
+        "child": Json::object({
+          "$id": Json::string("child"),
+          "$defs": Json::object({
+            "local": Json::object({ "type": Json::string("string") }),
+          }),
+          "$ref": Json::string("#/$defs/local"),
+        }),
+      }),
+      "$ref": Json::string("child"),
+    }),
+  )
+  assert_eq(validator.validate(Json::string("mcp")), None)
+  assert_true(validator.validate(Json::number(1.0)) is Some(_))
+}
+
+///|
+test "2020-12 $dynamicRef selects the outermost dynamic scope" {
+  let validator = compile_json_schema(
+    Json::object({
+      "$id": Json::string("https://example.com/dynamic/root"),
+      "$ref": Json::string("list"),
+      "$defs": Json::object({
+        "item": Json::object({
+          "$dynamicAnchor": Json::string("items"),
+          "type": Json::string("string"),
+        }),
+        "list": Json::object({
+          "$id": Json::string("list"),
+          "type": Json::string("array"),
+          "items": Json::object({ "$dynamicRef": Json::string("#items") }),
+          "$defs": Json::object({
+            "bookend": Json::object({ "$dynamicAnchor": Json::string("items") }),
+          }),
+        }),
+      }),
+    }),
+  )
+  assert_eq(validator.validate(Json::array([Json::string("mcp")])), None)
+  assert_true(validator.validate(Json::array([Json::number(1.0)])) is Some(_))
+}
+
+///|
 test "2020-12 anchors use the specification name grammar" {
   ignore(
     compile_json_schema(
@@ -225,6 +308,7 @@ test "schema compilation enforces structural and reference constraints" {
       Json::object({ "prefixItems": Json::array([]) }),
       Json::object({ "$anchor": Json::string("1invalid") }),
       Json::object({ "$id": Json::number(1) }),
+      Json::object({ "$id": Json::string("https://example.com/schema#part") }),
       Json::object({ "multipleOf": Json::number(0.0) }),
       Json::object({
         "patternProperties": Json::object({
