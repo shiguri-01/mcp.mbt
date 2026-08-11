@@ -6,7 +6,9 @@ Native Streamable HTTP transport for `shiguri-01/mcp`, following the
 The transport carries the protocol version, client identity, and client
 capabilities on every request. Applications expose typed async tools through a
 transport-neutral `@mcp.Server`; clients start with `server/discover` and call
-only features advertised by the server.
+only features advertised by the server. Clients may list supported protocol
+versions in preference order; an `UnsupportedProtocolVersion` response is
+retried once with the first mutually supported version and a fresh JSON-RPC ID.
 
 This revision is modern-only: it has no initialization handshake, transport
 session IDs, GET stream endpoint, or DELETE session lifecycle. Every JSON-RPC
@@ -16,7 +18,9 @@ The client provides discovery, tools, resources, prompts, completion, bounded
 MRTR helpers, and an incremental `subscriptions/listen` SSE reader. The server
 can opt into request-scoped progress SSE with
 `ServerOptions(stream_responses=true)` and publish validated subscription
-notifications through `on_subscription`.
+notifications through `on_subscription`. Client notifications are sent with
+`Client::notify` and require the specified HTTP 202 response with an empty
+body.
 
 Authorization is intentionally not approximated by a boolean callback. Put an
 OAuth 2.1 / MCP Authorization-aware middleware in front of this adapter when

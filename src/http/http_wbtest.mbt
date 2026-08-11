@@ -449,6 +449,157 @@ test "client derives standard and tool parameter headers" {
 }
 
 ///|
+test "protocol negotiation rewrites metadata and uses a fresh request id" {
+  let client = try! Client("http://127.0.0.1:8080/mcp", supported_protocol_versions=[
+    "2026-07-28", "2026-01-01",
+  ])
+  let request = client.core.list_tools_request()
+  let rewritten = try! request_with_protocol_version(
+    request, "2026-01-01", true,
+  )
+  guard request
+    is Object(
+      {
+        "id": original_id,
+        "params": Object(
+          {
+            "_meta": Object(
+              {
+                "io.modelcontextprotocol/protocolVersion": String("2026-07-28"),
+                ..
+              }
+            ),
+            ..
+          }
+        ),
+        ..
+      }
+    ) &&
+    rewritten
+    is Object(
+      {
+        "id": retry_id,
+        "params": Object(
+          {
+            "_meta": Object(
+              {
+                "io.modelcontextprotocol/protocolVersion": String("2026-01-01"),
+                "io.modelcontextprotocol/clientCapabilities": Object(_),
+                ..
+              }
+            ),
+            ..
+          }
+        ),
+        ..
+      }
+    ) else {
+    fail("expected rewritten protocol metadata")
+  }
+  assert_true(original_id != retry_id)
+  assert_eq(
+    client.mutually_supported_protocol_version([
+      "2025-11-25", "2026-01-01", "2026-07-28",
+    ]),
+    Some("2026-07-28"),
+  )
+  assert_eq(client.mutually_supported_protocol_version(["2025-11-25"]), None)
+}
+
+///|
+test "HTTP clients require at least one supported protocol version" {
+  let rejected = try
+    Client("http://127.0.0.1:8080/mcp", supported_protocol_versions=[])
+  catch {
+    @mcp.InvalidParams(_) => true
+    _ => false
+  } noraise {
+    _ => false
+  }
+  assert_true(rejected)
+}
+
+///|
+test "HTTP notifications carry standard headers and accept only empty 202" {
+  let client = try! Client("http://127.0.0.1:8080/mcp")
+  let notification = Json::object({
+    "jsonrpc": Json::string("2.0"),
+    "method": Json::string("notifications/cancelled"),
+    "params": Json::object({}),
+  })
+  let prepared = try! notification_with_protocol_version(
+    notification, @mcp.latest_protocol_version,
+  )
+  let headers = try! client.headers(prepared)
+  assert_eq(headers["MCP-Protocol-Version"], @mcp.latest_protocol_version)
+  assert_eq(headers["Mcp-Method"], "notifications/cancelled")
+  let notification_with_meta = Json::object({
+    "jsonrpc": Json::string("2.0"),
+    "method": Json::string("notifications/cancelled"),
+    "params": Json::object({
+      "_meta": Json::object({
+        "io.modelcontextprotocol/protocolVersion": Json::string("old"),
+        "com.example/trace": Json::string("kept"),
+      }),
+    }),
+  })
+  assert_true(
+    (try! notification_with_protocol_version(
+      notification_with_meta, @mcp.latest_protocol_version,
+    ))
+    is Object(
+      {
+        "id"? : None,
+        "params": Object(
+          {
+            "_meta": Object(
+              {
+                "io.modelcontextprotocol/protocolVersion": String("2026-07-28"),
+                "com.example/trace": String("kept"),
+                ..
+              }
+            ),
+            ..
+          }
+        ),
+        ..
+      }
+    ),
+  )
+  let accepted_response : @async_http.Response = {
+    code: 202,
+    reason: "Accepted",
+    headers: {},
+    cookies: [],
+  }
+  try! validate_notification_response(accepted_response, "")
+  let body_rejected = try
+    validate_notification_response(accepted_response, "{}")
+  catch {
+    @mcp.InvalidRequest(_) => true
+    _ => false
+  } noraise {
+    _ => false
+  }
+  assert_true(body_rejected)
+  let wrong_status : @async_http.Response = {
+    code: 200,
+    reason: "OK",
+    headers: {},
+    cookies: [],
+  }
+  let status_rejected = try
+    validate_notification_response(wrong_status, "")
+  catch {
+    @mcp.InvalidRequest(_) => true
+    _ => false
+  } noraise {
+    _ => false
+  }
+  assert_true(status_rejected)
+}
+
+///|
 test "JSON and request-scoped SSE response bodies are parsed" {
   let json = parse_http_messages(
     {

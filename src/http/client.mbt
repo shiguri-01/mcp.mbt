@@ -3,22 +3,46 @@
 pub struct Client {
   priv core : @mcp.Client
   priv endpoint : String
+  priv supported_protocol_versions : Array[String]
+  priv mut protocol_version : String
   priv tool_schemas : Map[String, Json]
 }
 
 ///|
 /// Create a modern MCP HTTP client. Every request carries a fresh copy of the
-/// protocol version, client information, and client capabilities.
+/// protocol version, client information, and client capabilities. Protocol
+/// versions are listed in client preference order; an unsupported-version
+/// response is retried once with the first version also supported by the
+/// server.
 pub fn Client::Client(
   endpoint : String,
   name? : String = "moonbit-http-client",
   version? : String = "0.2.0",
   capabilities? : @mcp.ClientCapabilities = @mcp.ClientCapabilities::empty(),
   extension_result_types? : Map[String, String] = Map([]),
+  supported_protocol_versions? : Array[String] = [@mcp.latest_protocol_version],
 ) -> Client raise @mcp.McpError {
+  guard supported_protocol_versions is [protocol_version, ..] else {
+    raise @mcp.InvalidParams("supported_protocol_versions must not be empty")
+  }
+  for version in supported_protocol_versions {
+    if version.is_empty() {
+      raise @mcp.InvalidParams(
+        "supported_protocol_versions must contain non-empty strings",
+      )
+    }
+  }
   {
-    core: @mcp.Client(name~, version~, capabilities~, extension_result_types~),
+    core: @mcp.Client(
+      name~,
+      version~,
+      capabilities~,
+      extension_result_types~,
+      protocol_version~,
+    ),
     endpoint,
+    supported_protocol_versions: supported_protocol_versions.copy(),
+    protocol_version,
     tool_schemas: Map([]),
   }
 }
@@ -33,11 +57,7 @@ fn Client::headers(
     "Accept": "application/json, text/event-stream",
     "Content-Type": "application/json",
   }
-  for
-    name, value in standard_request_headers(
-      request,
-      self.core.protocol_version(),
-    ) {
+  for name, value in standard_request_headers(request, self.protocol_version) {
     headers[name] = value
   }
   if input_schema is Some(schema) &&
@@ -54,6 +74,82 @@ fn Client::headers(
     }
   }
   headers
+}
+
+///|
+fn request_with_protocol_version(
+  request : Json,
+  protocol_version : String,
+  fresh_id : Bool,
+) -> Json raise @mcp.McpError {
+  guard request is Object(request_fields) else {
+    raise @mcp.InvalidRequest("HTTP request must be a JSON object")
+  }
+  guard request_fields.get("id") is Some(original_id) else {
+    raise @mcp.InvalidRequest("HTTP request is missing its JSON-RPC id")
+  }
+  guard request_fields.get("params") is Some(Object(param_fields)) else {
+    raise @mcp.InvalidRequest("HTTP request params must be an object")
+  }
+  guard param_fields.get("_meta") is Some(Object(meta_fields)) else {
+    raise @mcp.InvalidRequest("HTTP request params._meta must be an object")
+  }
+  let rewritten_request = request_fields.copy()
+  let rewritten_params = param_fields.copy()
+  let rewritten_meta = meta_fields.copy()
+  rewritten_meta["io.modelcontextprotocol/protocolVersion"] = Json::string(
+    protocol_version,
+  )
+  rewritten_params["_meta"] = Json::object(rewritten_meta)
+  rewritten_request["params"] = Json::object(rewritten_params)
+  if fresh_id {
+    rewritten_request["id"] = Json::string(
+      "mcp-version-retry:" + original_id.stringify(),
+    )
+  }
+  Json::object(rewritten_request)
+}
+
+///|
+fn notification_with_protocol_version(
+  notification : Json,
+  protocol_version : String,
+) -> Json raise @mcp.McpError {
+  guard is_jsonrpc_notification(notification) else {
+    raise @mcp.InvalidRequest(
+      "HTTP notification must be a JSON-RPC notification",
+    )
+  }
+  guard notification is Object(notification_fields) else {
+    raise @mcp.InvalidRequest("HTTP notification must be a JSON object")
+  }
+  let rewritten_notification = notification_fields.copy()
+  if notification_fields.get("params") is Some(Object(param_fields)) &&
+    param_fields.get("_meta") is Some(Object(meta_fields)) {
+    let rewritten_params = param_fields.copy()
+    let rewritten_meta = meta_fields.copy()
+    rewritten_meta["io.modelcontextprotocol/protocolVersion"] = Json::string(
+      protocol_version,
+    )
+    rewritten_params["_meta"] = Json::object(rewritten_meta)
+    rewritten_notification["params"] = Json::object(rewritten_params)
+  }
+  Json::object(rewritten_notification)
+}
+
+///|
+fn Client::mutually_supported_protocol_version(
+  self : Client,
+  server_versions : Array[String],
+) -> String? {
+  for client_version in self.supported_protocol_versions {
+    for server_version in server_versions {
+      if client_version == server_version {
+        return Some(client_version)
+      }
+    }
+  }
+  None
 }
 
 ///|
@@ -336,7 +432,7 @@ fn validate_response_id(
 }
 
 ///|
-async fn Client::send_response_with_notifications(
+async fn Client::send_response_once_with_notifications(
   self : Client,
   request : Json,
   input_schema? : Json,
@@ -424,6 +520,40 @@ async fn Client::send_response_with_notifications(
 }
 
 ///|
+async fn Client::send_response_with_notifications(
+  self : Client,
+  request : Json,
+  input_schema? : Json,
+  on_notification~ : (Json) -> Unit,
+) -> Json raise @mcp.McpError {
+  let initial = request_with_protocol_version(
+    request,
+    self.protocol_version,
+    false,
+  )
+  self.send_response_once_with_notifications(
+    initial,
+    input_schema?,
+    on_notification~,
+  ) catch {
+    @mcp.UnsupportedProtocolVersion(supported~, ..) as version_error => {
+      guard self.mutually_supported_protocol_version(supported)
+        is Some(protocol_version) else {
+        raise version_error
+      }
+      self.protocol_version = protocol_version
+      let retry = request_with_protocol_version(request, protocol_version, true)
+      self.send_response_once_with_notifications(
+        retry,
+        input_schema?,
+        on_notification~,
+      )
+    }
+    error => raise error
+  }
+}
+
+///|
 async fn Client::send_response(
   self : Client,
   request : Json,
@@ -434,6 +564,80 @@ async fn Client::send_response(
   ) {
 
   })
+}
+
+///|
+fn validate_notification_response(
+  response : @async_http.Response,
+  body : String,
+) -> Unit raise @mcp.McpError {
+  if response.code != 202 {
+    if response.code is (200..<300) {
+      raise @mcp.InvalidRequest(
+        "HTTP notification response must use status 202",
+      )
+    }
+    raise http_error_to_mcp(response, body)
+  }
+  if !body.is_empty() {
+    raise @mcp.InvalidRequest(
+      "HTTP notification response must have an empty body",
+    )
+  }
+}
+
+///|
+async fn Client::send_notification_once(
+  self : Client,
+  notification : Json,
+) -> Unit raise @mcp.McpError {
+  let headers = self.headers(notification) catch {
+    InvalidHeaderSchema(message)
+    | InvalidHeaderValue(message)
+    | HeaderMismatch(message) => raise @mcp.InvalidRequest(message)
+  }
+  let request_bytes = @utf8.encode(notification.stringify())
+  headers["Content-Length"] = request_bytes.length().to_string()
+  let stream = @async_http.post_stream(self.endpoint, headers~) catch {
+    error => raise @mcp.InternalError(error.to_string())
+  }
+  defer stream.close()
+  stream.write(request_bytes) catch {
+    error => raise @mcp.InternalError(error.to_string())
+  }
+  let response = stream.end_request() catch {
+    error => raise @mcp.InternalError(error.to_string())
+  }
+  let body = stream.read_all().text() catch {
+      error => raise @mcp.InternalError(error.to_string())
+    }
+  validate_notification_response(response, body)
+}
+
+///|
+/// Send one JSON-RPC notification over Streamable HTTP. A conforming server
+/// acknowledges it with HTTP 202 and no response body.
+pub async fn Client::notify(
+  self : Client,
+  notification : Json,
+) -> Unit raise @mcp.McpError {
+  let initial = notification_with_protocol_version(
+    notification,
+    self.protocol_version,
+  )
+  self.send_notification_once(initial) catch {
+    @mcp.UnsupportedProtocolVersion(supported~, ..) as version_error => {
+      guard self.mutually_supported_protocol_version(supported)
+        is Some(protocol_version) else {
+        raise version_error
+      }
+      self.protocol_version = protocol_version
+      self.send_notification_once(
+        notification_with_protocol_version(notification, protocol_version),
+      )
+    }
+    error => raise error
+  }
 }
 
 ///|
@@ -647,16 +851,12 @@ pub async fn Client::complete(
 }
 
 ///|
-/// Listen for subscribed notifications and invoke `on_notification` as each
-/// complete SSE data event arrives. Closing the underlying stream cancels the
-/// request at the transport layer.
-pub async fn Client::listen(
+async fn Client::listen_once(
   self : Client,
+  request : Json,
   notifications~ : @mcp.SubscriptionFilter,
   on_notification~ : (Json) -> Unit,
-  options? : @mcp.RequestOptions = @mcp.RequestOptions(),
 ) -> Json raise @mcp.McpError {
-  let request = self.core.listen_request(notifications~, options~)
   guard request_id(request) is Some(expected_id) else {
     raise @mcp.InvalidRequest("subscriptions/listen request is missing its id")
   }
@@ -763,6 +963,39 @@ pub async fn Client::listen(
   raise @mcp.InvalidRequest(
     "subscription stream ended without a final JSON-RPC response",
   )
+}
+
+///|
+/// Listen for subscribed notifications and invoke `on_notification` as each
+/// complete SSE data event arrives. Closing the underlying stream cancels the
+/// request at the transport layer.
+pub async fn Client::listen(
+  self : Client,
+  notifications~ : @mcp.SubscriptionFilter,
+  on_notification~ : (Json) -> Unit,
+  options? : @mcp.RequestOptions = @mcp.RequestOptions(),
+) -> Json raise @mcp.McpError {
+  let request = self.core.listen_request(notifications~, options~)
+  let initial = request_with_protocol_version(
+    request,
+    self.protocol_version,
+    false,
+  )
+  self.listen_once(initial, notifications~, on_notification~) catch {
+    @mcp.UnsupportedProtocolVersion(supported~, ..) as version_error => {
+      guard self.mutually_supported_protocol_version(supported)
+        is Some(protocol_version) else {
+        raise version_error
+      }
+      self.protocol_version = protocol_version
+      self.listen_once(
+        request_with_protocol_version(request, protocol_version, true),
+        notifications~,
+        on_notification~,
+      )
+    }
+    error => raise error
+  }
 }
 
 ///|
