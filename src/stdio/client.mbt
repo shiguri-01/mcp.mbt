@@ -748,7 +748,7 @@ fn validate_max_rounds(max_rounds : Int) -> Unit raise @mcp.McpError {
 ///|
 /// Resolve bounded multi round-trip input requests for a tool call. Every
 /// retry has a fresh JSON-RPC id and preserves opaque server request state.
-pub async fn Client::call_tool_resolving(
+pub async fn Client::call_tool_resolving_raw(
   self : Client,
   name~ : String,
   arguments? : Json = Json::object({}),
@@ -769,7 +769,30 @@ pub async fn Client::call_tool_resolving(
 }
 
 ///|
-pub async fn Client::read_resource_resolving(
+pub async fn Client::call_tool_resolving(
+  self : Client,
+  name~ : String,
+  arguments? : Json = Json::object({}),
+  options? : @mcp.RequestOptions = RequestOptions(),
+  max_rounds? : Int = 8,
+  resolve~ : async (Map[String, @mcp.InputRequest]) -> Map[
+    String,
+    @mcp.InputResponse,
+  ] raise @mcp.McpError,
+) -> @mcp.CallToolResult raise @mcp.McpError {
+  @mcp.decode_call_tool_result(
+    self.call_tool_resolving_raw(
+      name~,
+      arguments~,
+      options~,
+      max_rounds~,
+      resolve~,
+    ),
+  )
+}
+
+///|
+pub async fn Client::read_resource_resolving_raw(
   self : Client,
   uri~ : String,
   options? : @mcp.RequestOptions = RequestOptions(),
@@ -789,7 +812,23 @@ pub async fn Client::read_resource_resolving(
 }
 
 ///|
-pub async fn Client::get_prompt_resolving(
+pub async fn Client::read_resource_resolving(
+  self : Client,
+  uri~ : String,
+  options? : @mcp.RequestOptions = RequestOptions(),
+  max_rounds? : Int = 8,
+  resolve~ : async (Map[String, @mcp.InputRequest]) -> Map[
+    String,
+    @mcp.InputResponse,
+  ] raise @mcp.McpError,
+) -> @mcp.ReadResourceResult raise @mcp.McpError {
+  @mcp.decode_read_resource_result(
+    self.read_resource_resolving_raw(uri~, options~, max_rounds~, resolve~),
+  )
+}
+
+///|
+pub async fn Client::get_prompt_resolving_raw(
   self : Client,
   name~ : String,
   arguments? : Json = Json::object({}),
@@ -806,5 +845,28 @@ pub async fn Client::get_prompt_resolving(
     resolve,
     options,
     max_rounds,
+  )
+}
+
+///|
+pub async fn Client::get_prompt_resolving(
+  self : Client,
+  name~ : String,
+  arguments? : Json = Json::object({}),
+  options? : @mcp.RequestOptions = RequestOptions(),
+  max_rounds? : Int = 8,
+  resolve~ : async (Map[String, @mcp.InputRequest]) -> Map[
+    String,
+    @mcp.InputResponse,
+  ] raise @mcp.McpError,
+) -> @mcp.GetPromptResult raise @mcp.McpError {
+  @mcp.decode_get_prompt_result(
+    self.get_prompt_resolving_raw(
+      name~,
+      arguments~,
+      options~,
+      max_rounds~,
+      resolve~,
+    ),
   )
 }
