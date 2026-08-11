@@ -103,6 +103,7 @@ pub impl ToJson for PromptMessage with fn to_json(self : PromptMessage) -> Json 
 pub(all) struct GetPromptResult {
   description : String?
   messages : Array[PromptMessage]
+  meta : ResultMeta?
 } derive(Debug, Eq)
 
 ///|
@@ -111,6 +112,9 @@ pub impl ToJson for GetPromptResult with fn to_json(self : GetPromptResult) -> J
     "messages": self.messages.map(fn(message) { message.to_json() }).to_json(),
   }
   put_optional_string(fields, "description", self.description)
+  if self.meta is Some(meta) {
+    fields["_meta"] = meta.to_json()
+  }
   Json::object(fields)
 }
 
@@ -120,5 +124,5 @@ pub fn GetPromptResult::user(
   text : String,
   description? : String,
 ) -> GetPromptResult {
-  { description, messages: [PromptMessage::user(text)] }
+  { description, messages: [PromptMessage::user(text)], meta: None }
 }

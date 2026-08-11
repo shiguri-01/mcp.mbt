@@ -56,11 +56,11 @@ async test "discover and call a typed tool" {
     fail("tools/call returned no response")
   }
   guard (try! client.decode_response(call_response))
-    is @mcp.HandlerOutcome::Complete(result) else {
+    is @mcp.HandlerOutcome::Complete(raw_result) else {
     fail("tool requested more input")
   }
-  guard result
-    is Object({ "content": Array([Object({ "text": String(greeting), .. })]), .. }) else {
+  let result = try! @mcp.decode_call_tool_result(raw_result)
+  guard result.content is [@mcp.TextContent(text=greeting, ..)] else {
     fail("expected text tool result")
   }
   assert_eq(greeting, "Hello, MoonBit!")
@@ -83,6 +83,13 @@ expressions, so every advertised template is readable.
 - `shiguri-01/mcp/schema`: JSON Schema builders for typed tool inputs.
 - `shiguri-01/mcp/stdio`: native newline-delimited JSON-RPC transport.
 - `shiguri-01/mcp/http`: native Streamable HTTP transport.
+
+Transport clients return these canonical root-package types from their normal
+verbs: `ListToolsResult`, `ListResourcesResult`,
+`ListResourceTemplatesResult`, `ListPromptsResult`, `CallToolResult`,
+`ReadResourceResult`, `GetPromptResult`, and `CompleteResult`. Each transport
+also exposes a matching `*_raw` verb, while `Client::request` remains the
+lowest-level escape hatch for protocol extensions.
 
 See [`docs/design-2026-07-28.md`](docs/design-2026-07-28.md) for the protocol
 model, validation rules, transport behavior, and verification strategy.

@@ -6,6 +6,22 @@ Server programs register typed async handlers and pass the transport-neutral
 server to `serve`. Client programs can spawn a server process, send
 `server/discover`, and then call its advertised tools.
 
+The client-facing verbs return the canonical result types from
+`shiguri-01/mcp`; wire JSON remains available through the corresponding
+`*_raw` verbs and the general `request` method.
+
+```mbt nocheck
+let listed = client.list_resources()
+for resource in listed.resources {
+  println(resource.uri)
+}
+match client.read_resource(uri="file:///guide.txt") {
+  Complete(result) => println(result.contents.length().to_string())
+  InputRequired(pending) => handle_input(pending)
+  ExtensionResult(kind, value) => handle_extension(kind, value)
+}
+```
+
 ```mbt nocheck
 ///|
 struct GreetInput {

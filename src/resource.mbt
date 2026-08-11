@@ -191,15 +191,24 @@ pub fn ResourceContent::blob(
 ///|
 pub(all) struct ReadResourceResult {
   contents : Array[ResourceContent]
+  cache_policy : CachePolicy?
+  meta : ResultMeta?
 } derive(Debug, Eq)
 
 ///|
 pub impl ToJson for ReadResourceResult with fn to_json(
   self : ReadResourceResult,
 ) -> Json {
-  Json::object({
+  let fields : Map[String, Json] = {
     "contents": self.contents.map(fn(content) { content.to_json() }).to_json(),
-  })
+  }
+  if self.cache_policy is Some(policy) {
+    policy.put(fields)
+  }
+  if self.meta is Some(meta) {
+    fields["_meta"] = meta.to_json()
+  }
+  Json::object(fields)
 }
 
 ///|
@@ -209,5 +218,9 @@ pub fn ReadResourceResult::text(
   text~ : String,
   mime_type? : String,
 ) -> ReadResourceResult {
-  { contents: [ResourceContent::text(uri~, text~, mime_type?)] }
+  {
+    contents: [ResourceContent::text(uri~, text~, mime_type?)],
+    cache_policy: None,
+    meta: None,
+  }
 }
