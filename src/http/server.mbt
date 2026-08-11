@@ -181,24 +181,26 @@ async fn send_request_stream(
     "path": Json::string(request.path),
     "headers": request.headers.to_json(),
   })
-  try {
-    conn.send_response(200, "OK", extra_headers={
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
-      "X-Accel-Buffering": "no",
-    })
-    conn.flush()
-    streaming.val = true
-  } catch {
-    _ => {
-      cancelled.val = true
-      return
-    }
-  }
   let hooks = @mcp.RequestHooks(
     emit_notification=async fn(notification) raise @mcp.McpError {
       if cancelled.val {
         raise @mcp.InternalError("HTTP response stream is closed")
+      }
+      if !streaming.val {
+        try {
+          conn.send_response(200, "OK", extra_headers={
+            "Content-Type": "text/event-stream",
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+          })
+          conn.flush()
+          streaming.val = true
+        } catch {
+          error => {
+            cancelled.val = true
+            raise @mcp.InternalError(error.to_string())
+          }
+        }
       }
       outbound.put(Some(sse_message(notification))) catch {
         error => {
@@ -237,7 +239,7 @@ async fn send_request_stream(
       async fn() {
         while !cancelled.val {
           @async.sleep(15000)
-          if !cancelled.val {
+          if !cancelled.val && streaming.val {
             outbound.put(Some(": keepalive\r\n\r\n"))
           }
         }
