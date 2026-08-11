@@ -50,7 +50,7 @@ async fn run_client(executable : String) -> Unit {
     if !discovery.supported_versions.contains(@mcp.latest_protocol_version) {
       abort("server did not advertise the current protocol version")
     }
-    let outcome = client.call_tool(
+    let outcome = client.call_tool_raw(
       name="echo",
       arguments=Json::object({ "text": Json::string("世界—😀") }),
     ) catch {

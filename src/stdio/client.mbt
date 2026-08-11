@@ -476,7 +476,7 @@ pub async fn Client::discover(
 }
 
 ///|
-pub async fn Client::list_tools(
+pub async fn Client::list_tools_raw(
   self : Client,
   cursor? : String,
   options? : @mcp.RequestOptions = RequestOptions(),
@@ -488,7 +488,18 @@ pub async fn Client::list_tools(
 }
 
 ///|
-pub async fn Client::call_tool(
+/// List tools as the canonical domain result. Use `list_tools_raw` for
+/// transport-level extension inspection.
+pub async fn Client::list_tools(
+  self : Client,
+  cursor? : String,
+  options? : @mcp.RequestOptions = RequestOptions(),
+) -> @mcp.ListToolsResult raise @mcp.McpError {
+  @mcp.decode_list_tools_result(self.list_tools_raw(cursor?, options~))
+}
+
+///|
+pub async fn Client::call_tool_raw(
   self : Client,
   name~ : String,
   arguments? : Json = Json::object({}),
@@ -498,13 +509,27 @@ pub async fn Client::call_tool(
 }
 
 ///|
+pub async fn Client::call_tool(
+  self : Client,
+  name~ : String,
+  arguments? : Json = Json::object({}),
+  options? : @mcp.RequestOptions = RequestOptions(),
+) -> @mcp.HandlerOutcome[@mcp.CallToolResult] raise @mcp.McpError {
+  match self.call_tool_raw(name~, arguments~, options~) {
+    Complete(result) => Complete(@mcp.decode_call_tool_result(result))
+    InputRequired(value) => InputRequired(value)
+    ExtensionResult(result_type, value) => ExtensionResult(result_type, value)
+  }
+}
+
+///|
 pub async fn[T : FromJson] Client::call_tool_as(
   self : Client,
   name~ : String,
   arguments? : Json = Json::object({}),
   options? : @mcp.RequestOptions = RequestOptions(),
 ) -> @mcp.HandlerOutcome[T] raise @mcp.McpError {
-  match self.call_tool(name~, arguments~, options~) {
+  match self.call_tool_raw(name~, arguments~, options~) {
     Complete(result) => Complete(@mcp.decode_structured_content(result))
     InputRequired(value) => InputRequired(value)
     ExtensionResult(result_type, value) => ExtensionResult(result_type, value)
@@ -512,7 +537,7 @@ pub async fn[T : FromJson] Client::call_tool_as(
 }
 
 ///|
-pub async fn Client::list_resources(
+pub async fn Client::list_resources_raw(
   self : Client,
   cursor? : String,
   options? : @mcp.RequestOptions = RequestOptions(),
@@ -524,7 +549,16 @@ pub async fn Client::list_resources(
 }
 
 ///|
-pub async fn Client::list_resource_templates(
+pub async fn Client::list_resources(
+  self : Client,
+  cursor? : String,
+  options? : @mcp.RequestOptions = RequestOptions(),
+) -> @mcp.ListResourcesResult raise @mcp.McpError {
+  @mcp.decode_list_resources_result(self.list_resources_raw(cursor?, options~))
+}
+
+///|
+pub async fn Client::list_resource_templates_raw(
   self : Client,
   cursor? : String,
   options? : @mcp.RequestOptions = RequestOptions(),
@@ -536,7 +570,18 @@ pub async fn Client::list_resource_templates(
 }
 
 ///|
-pub async fn Client::read_resource(
+pub async fn Client::list_resource_templates(
+  self : Client,
+  cursor? : String,
+  options? : @mcp.RequestOptions = RequestOptions(),
+) -> @mcp.ListResourceTemplatesResult raise @mcp.McpError {
+  @mcp.decode_list_resource_templates_result(
+    self.list_resource_templates_raw(cursor?, options~),
+  )
+}
+
+///|
+pub async fn Client::read_resource_raw(
   self : Client,
   uri~ : String,
   options? : @mcp.RequestOptions = RequestOptions(),
@@ -545,7 +590,20 @@ pub async fn Client::read_resource(
 }
 
 ///|
-pub async fn Client::list_prompts(
+pub async fn Client::read_resource(
+  self : Client,
+  uri~ : String,
+  options? : @mcp.RequestOptions = RequestOptions(),
+) -> @mcp.HandlerOutcome[@mcp.ReadResourceResult] raise @mcp.McpError {
+  match self.read_resource_raw(uri~, options~) {
+    Complete(result) => Complete(@mcp.decode_read_resource_result(result))
+    InputRequired(value) => InputRequired(value)
+    ExtensionResult(result_type, value) => ExtensionResult(result_type, value)
+  }
+}
+
+///|
+pub async fn Client::list_prompts_raw(
   self : Client,
   cursor? : String,
   options? : @mcp.RequestOptions = RequestOptions(),
@@ -557,7 +615,16 @@ pub async fn Client::list_prompts(
 }
 
 ///|
-pub async fn Client::get_prompt(
+pub async fn Client::list_prompts(
+  self : Client,
+  cursor? : String,
+  options? : @mcp.RequestOptions = RequestOptions(),
+) -> @mcp.ListPromptsResult raise @mcp.McpError {
+  @mcp.decode_list_prompts_result(self.list_prompts_raw(cursor?, options~))
+}
+
+///|
+pub async fn Client::get_prompt_raw(
   self : Client,
   name~ : String,
   arguments? : Json = Json::object({}),
@@ -567,7 +634,21 @@ pub async fn Client::get_prompt(
 }
 
 ///|
-pub async fn Client::complete(
+pub async fn Client::get_prompt(
+  self : Client,
+  name~ : String,
+  arguments? : Json = Json::object({}),
+  options? : @mcp.RequestOptions = RequestOptions(),
+) -> @mcp.HandlerOutcome[@mcp.GetPromptResult] raise @mcp.McpError {
+  match self.get_prompt_raw(name~, arguments~, options~) {
+    Complete(result) => Complete(@mcp.decode_get_prompt_result(result))
+    InputRequired(value) => InputRequired(value)
+    ExtensionResult(result_type, value) => ExtensionResult(result_type, value)
+  }
+}
+
+///|
+pub async fn Client::complete_raw(
   self : Client,
   reference~ : @mcp.CompletionReference,
   argument_name~ : String,
@@ -586,6 +667,26 @@ pub async fn Client::complete(
       ),
     ),
     "completion/complete",
+  )
+}
+
+///|
+pub async fn Client::complete(
+  self : Client,
+  reference~ : @mcp.CompletionReference,
+  argument_name~ : String,
+  argument_value~ : String,
+  context_arguments? : Map[String, String],
+  options? : @mcp.RequestOptions = RequestOptions(),
+) -> @mcp.CompleteResult raise @mcp.McpError {
+  @mcp.decode_complete_result(
+    self.complete_raw(
+      reference~,
+      argument_name~,
+      argument_value~,
+      context_arguments?,
+      options~,
+    ),
   )
 }
 

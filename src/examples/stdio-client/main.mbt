@@ -21,7 +21,7 @@ async fn main {
         arguments=Json::object({ "name": Json::string("MoonBit") }),
       )) {
       @mcp.HandlerOutcome::Complete(result) =>
-        println(result.stringify(indent=2))
+        println(result.to_json().stringify(indent=2))
       @mcp.HandlerOutcome::InputRequired(request) =>
         println(request.to_json().stringify(indent=2))
       @mcp.HandlerOutcome::ExtensionResult(_, result) =>

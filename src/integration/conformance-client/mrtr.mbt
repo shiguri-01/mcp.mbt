@@ -62,7 +62,7 @@ async fn complete_no_state_round(
 async fn run_request_state(
   client : @mcp_http.Client,
 ) -> Unit raise @mcp.McpError {
-  ignore(client.list_tools())
+  ignore(client.list_tools_raw())
   complete_echo_state_round(client)
   complete_no_state_round(client)
   guard client.call_tool(name="test_mrtr_no_result_type") is @mcp.Complete(_) else {

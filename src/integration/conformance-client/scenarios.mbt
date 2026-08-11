@@ -33,7 +33,7 @@ fn first_prompt_name(result : Json) -> String raise @mcp.McpError {
 
 ///|
 async fn run_tools_call(client : @mcp_http.Client) -> Unit raise @mcp.McpError {
-  let tools = client.list_tools()
+  let tools = client.list_tools_raw()
   ignore(
     client.call_tool(
       name=first_tool_name(tools),
@@ -47,20 +47,20 @@ async fn run_request_metadata(
   client : @mcp_http.Client,
 ) -> Unit raise @mcp.McpError {
   ignore(client.discover())
-  ignore(client.list_tools())
+  ignore(client.list_tools_raw())
 }
 
 ///|
 async fn run_standard_headers(
   client : @mcp_http.Client,
 ) -> Unit raise @mcp.McpError {
-  let tools = client.list_tools()
+  let tools = client.list_tools_raw()
   ignore(
     client.call_tool(name=first_tool_name(tools), arguments=Json::object({})),
   )
-  let resources = client.list_resources()
+  let resources = client.list_resources_raw()
   ignore(client.read_resource(uri=first_resource_uri(resources)))
-  let prompts = client.list_prompts()
+  let prompts = client.list_prompts_raw()
   ignore(
     client.get_prompt(
       name=first_prompt_name(prompts),
@@ -102,7 +102,7 @@ fn conformance_tool_calls() -> Array[(String, Json)] raise @mcp.McpError {
 async fn run_custom_headers(
   client : @mcp_http.Client,
 ) -> Unit raise @mcp.McpError {
-  ignore(client.list_tools())
+  ignore(client.list_tools_raw())
   for call in conformance_tool_calls() {
     let (name, arguments) = call
     ignore(client.call_tool(name~, arguments~))
@@ -113,7 +113,7 @@ async fn run_custom_headers(
 async fn run_invalid_tool_headers(
   client : @mcp_http.Client,
 ) -> Unit raise @mcp.McpError {
-  let tools = client.list_tools()
+  let tools = client.list_tools_raw()
   let name = first_tool_name(tools)
   if name != "valid_tool" {
     raise @mcp.InvalidRequest(
@@ -132,5 +132,5 @@ async fn run_invalid_tool_headers(
 async fn run_json_schema_ref_no_deref(
   client : @mcp_http.Client,
 ) -> Unit raise @mcp.McpError {
-  ignore(client.list_tools())
+  ignore(client.list_tools_raw())
 }

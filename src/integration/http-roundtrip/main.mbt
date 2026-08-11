@@ -86,7 +86,7 @@ async fn run_client(executable : String) -> Unit {
       process.cancel()
       abort("HTTP server did not become discoverable")
     }
-    let outcome = try! client.call_tool(
+    let outcome = try! client.call_tool_raw(
       name="echo",
       arguments=Json::object({ "text": Json::string("世界—😀") }),
     )
