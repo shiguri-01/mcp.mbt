@@ -296,10 +296,49 @@ fn response_status(response : Json) -> (Int, String) {
 ///|
 fn origin_allowed(headers : Map[String, String], allowed : Set[String]) -> Bool {
   match unique_header(headers, "Origin") {
-    Ok(Some(origin)) => allowed.contains(origin)
+    Ok(Some(origin)) => {
+      if allowed.contains(origin) {
+        return true
+      }
+      if !allowed.is_empty() {
+        return false
+      }
+      guard unique_header(headers, "Host") is Ok(Some(host)) else {
+        return false
+      }
+      let authority = host.to_lower()
+      let hostname = if authority.has_prefix("["[:]) {
+        match authority.find("]") {
+          Some(end) => authority[:end + 1].to_owned()
+          None => authority
+        }
+      } else {
+        match authority.find(":") {
+          Some(port) => authority[:port].to_owned()
+          None => authority
+        }
+      }
+      let loopback = hostname == "localhost" ||
+        hostname == "127.0.0.1" ||
+        hostname == "[::1]"
+      loopback &&
+      (
+        origin.to_lower() == "http://\{authority}" ||
+        origin.to_lower() == "https://\{authority}"
+      )
+    }
     Ok(None) => true
     Err(_) => false
   }
+}
+
+///|
+fn validate_request_metadata(message : Json) -> Unit raise @mcp.McpError {
+  guard is_jsonrpc_request(message) else { return }
+  guard message is Object({ "params": Object({ "_meta": meta, .. }), .. }) else {
+    raise @mcp.InvalidParams("request params._meta is required")
+  }
+  ignore(@mcp.parse_request_meta(meta))
 }
 
 ///|
@@ -372,6 +411,7 @@ fn validate_post_request(
   server : @mcp.Server,
 ) -> Unit raise @mcp.McpError {
   validate_post_media(request)
+  validate_request_metadata(message)
   validate_standard_headers(
     request,
     message,

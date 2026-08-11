@@ -3,7 +3,8 @@
 pub(all) struct ServerOptions {
   /// Endpoint path that accepts MCP POST requests. Defaults to `/mcp`.
   endpoint_path : String
-  /// Allowed `Origin` values. An empty set rejects any present Origin.
+  /// Allowed `Origin` values. An empty set accepts only a loopback Origin that
+  /// exactly matches the request Host authority.
   allowed_origins : Set[String]
   /// Return ordinary requests as request-scoped SSE and forward progress
   /// notifications before the final JSON-RPC response.

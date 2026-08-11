@@ -42,7 +42,7 @@ fn unique_header(
 ) -> Result[String?, String] {
   match header_entries(headers, name) {
     [] => Ok(None)
-    [value] => Ok(Some(value))
+    [value] => Ok(Some(value.trim(chars=" \t").to_owned()))
     _ => Err("Header mismatch: duplicate \{name} headers")
   }
 }
@@ -528,10 +528,11 @@ fn validate_standard_headers(
           "MCP-Protocol-Version does not match request metadata",
         )
       }
-    None =>
+    None if is_jsonrpc_request(message) =>
       raise @mcp.HeaderMismatch(
         "request metadata must include MCP protocol version",
       )
+    None => ()
   }
   if !supported_versions.contains(header_version) {
     raise @mcp.UnsupportedProtocolVersion(

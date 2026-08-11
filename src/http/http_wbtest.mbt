@@ -12,6 +12,7 @@ fn metadata_request(
     "io.modelcontextprotocol/protocolVersion": Json::string(
       @mcp.latest_protocol_version,
     ),
+    "io.modelcontextprotocol/clientCapabilities": Json::object({}),
   })
   Json::object({
     "jsonrpc": Json::string("2.0"),
@@ -372,6 +373,56 @@ test "Streamable HTTP rejects origins outside the configured allowlist" {
     ) ==
     None,
   )
+}
+
+///|
+test "Streamable HTTP accepts only matching loopback origins by default" {
+  let loopback = post_request(headers={
+    "Host": "127.0.0.1:8080",
+    "Origin": "http://127.0.0.1:8080",
+  })
+  assert_eq(common_request_error(loopback, ServerOptions()), None)
+  let rebinding = post_request(headers={
+    "Host": "evil.example.com",
+    "Origin": "http://evil.example.com",
+  })
+  assert_eq(
+    common_request_error(rebinding, ServerOptions()),
+    Some("Origin is not allowed"),
+  )
+}
+
+///|
+test "standard header values ignore surrounding HTTP whitespace" {
+  let request = metadata_request("tools/call", params={
+    "name": Json::string("greet"),
+  })
+  let headers = standard_request_headers(request, @mcp.latest_protocol_version)
+  headers["Mcp-Name"] = "  greet\t"
+  try! validate_standard_headers(post_request(headers~), request)
+}
+
+///|
+test "invalid request metadata is reported before header mismatch" {
+  let message = Json::object({
+    "jsonrpc": Json::string("2.0"),
+    "id": Json::number(1),
+    "method": Json::string("tools/list"),
+    "params": Json::object({}),
+  })
+  let server = try! @mcp.Server(name="server", version="1")
+  let headers : Map[String, String] = {
+    "Accept": "application/json, text/event-stream",
+    "Content-Type": "application/json",
+  }
+  let error = try
+    validate_post_request(post_request(headers~), message, server)
+  catch {
+    error => Some(error)
+  } noraise {
+    _ => None
+  }
+  assert_true(error is Some(@mcp.InvalidParams(_)))
 }
 
 ///|
