@@ -55,9 +55,10 @@ fn parse_ttl_ms(
 pub fn parse_discover_result(value : Json) -> DiscoverResult raise McpError {
   let context = "discover result"
   let fields = expect_object(value, context)
-  guard fields.get("resultType") is Some(result_type) &&
-    parse_result_type(result_type) == Complete else {
-    raise InvalidRequest("discover result.resultType must be 'complete'")
+  match fields.get("resultType") {
+    Some(result_type) if parse_result_type(result_type) == Complete => ()
+    None => ()
+    _ => raise InvalidRequest("discover result.resultType must be 'complete'")
   }
   let supported_versions = match fields.get("supportedVersions") {
     Some(Array(values)) =>

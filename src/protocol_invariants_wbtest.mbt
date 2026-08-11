@@ -144,10 +144,66 @@ test "MRTR retry helper requires matching response keys" {
   }
   let options = try! required.retry_options({
     "approval": InputResponse(
-      Json::object({ "action": Json::string("accept") }),
+      Json::object({
+        "action": Json::string("accept"),
+        "content": Json::object({}),
+      }),
     ),
   })
   assert_true(options.input_responses is Some(_))
+}
+
+///|
+test "form elicitation uses primitive schemas and validates accepted content" {
+  try
+    InputRequest(
+      method_name="elicitation/create",
+      params=Json::object({
+        "message": Json::string("Nested value"),
+        "requestedSchema": Json::object({
+          "type": Json::string("object"),
+          "properties": Json::object({
+            "nested": Json::object({ "type": Json::string("object") }),
+          }),
+        }),
+      }),
+    )
+  catch {
+    InvalidParams(_) => ()
+    _ => fail("expected invalid primitive schema error")
+  } noraise {
+    _ => fail("nested elicitation schema must be rejected")
+  }
+  let required = try! InputRequiredResult(input_requests={
+    "age": try! InputRequest(
+      method_name="elicitation/create",
+      params=Json::object({
+        "message": Json::string("Age"),
+        "requestedSchema": Json::object({
+          "type": Json::string("object"),
+          "properties": Json::object({
+            "age": Json::object({ "type": Json::string("integer") }),
+          }),
+          "required": ["age"].to_json(),
+        }),
+      }),
+    ),
+  })
+  try
+    required.retry_options({
+      "age": InputResponse(
+        Json::object({
+          "action": Json::string("accept"),
+          "content": Json::object({ "age": Json::string("unknown") }),
+        }),
+      ),
+    })
+  catch {
+    InvalidParams(_) => ()
+    _ => fail("expected elicitation content validation error")
+  } noraise {
+    _ => fail("accepted content must match requestedSchema")
+  }
 }
 
 ///|
@@ -229,5 +285,117 @@ test "cancellation identifiers are never null" {
     _ => fail("expected InvalidParams")
   } noraise {
     _ => fail("expected null cancellation id to raise")
+  }
+}
+
+///|
+test "discover accepts complete results without resultType" {
+  let result = parse_discover_result(
+    Json::object({
+      "supportedVersions": Json::array([Json::string(latest_protocol_version)]),
+      "capabilities": Json::object({
+        "com.example/custom": Json::object({ "enabled": Json::boolean(true) }),
+      }),
+      "ttlMs": Json::number(0),
+      "cacheScope": Json::string("private"),
+    }),
+  )
+  assert_eq(
+    result.capabilities.extra.get("com.example/custom"),
+    Some(Json::object({ "enabled": Json::boolean(true) })),
+  )
+  assert_true(
+    result.to_json() is Object({ "resultType": String("complete"), .. }),
+  )
+}
+
+///|
+test "sampling MRTR validates message roles and response content" {
+  try
+    InputRequest(
+      method_name="sampling/createMessage",
+      params=Json::object({
+        "messages": Json::array([
+          Json::object({
+            "role": Json::string("system"),
+            "content": Json::object({
+              "type": Json::string("text"),
+              "text": Json::string("hello"),
+            }),
+          }),
+        ]),
+        "maxTokens": Json::number(32),
+      }),
+    )
+  catch {
+    InvalidParams(_) => ()
+    _ => fail("expected invalid sampling message error")
+  } noraise {
+    _ => fail("expected invalid sampling message to raise")
+  }
+  let required = try! InputRequiredResult(input_requests={
+    "sample": try! InputRequest(
+      method_name="sampling/createMessage",
+      params=Json::object({
+        "messages": Json::array([
+          Json::object({
+            "role": Json::string("user"),
+            "content": Json::object({
+              "type": Json::string("text"),
+              "text": Json::string("hello"),
+            }),
+          }),
+        ]),
+        "maxTokens": Json::number(32),
+      }),
+    ),
+  })
+  try
+    required.retry_options({
+      "sample": InputResponse(
+        Json::object({
+          "model": Json::string("example"),
+          "role": Json::string("user"),
+          "content": Json::boolean(true),
+        }),
+      ),
+    })
+  catch {
+    InvalidParams(_) => ()
+    _ => fail("expected invalid sampling response error")
+  } noraise {
+    _ => fail("expected invalid sampling response to raise")
+  }
+}
+
+///|
+test "roots MRTR responses require URI and allow omitted names" {
+  let required = try! InputRequiredResult(input_requests={
+    "roots": try! InputRequest(method_name="roots/list"),
+  })
+  ignore(
+    try! required.retry_options({
+      "roots": InputResponse(
+        Json::object({
+          "roots": Json::array([
+            Json::object({ "uri": Json::string("file:///workspace") }),
+          ]),
+        }),
+      ),
+    }),
+  )
+  try
+    required.retry_options({
+      "roots": InputResponse(
+        Json::object({
+          "roots": Json::array([Json::object({ "name": Json::string("src") })]),
+        }),
+      ),
+    })
+  catch {
+    InvalidParams(_) => ()
+    _ => fail("expected invalid roots response error")
+  } noraise {
+    _ => fail("expected invalid roots response to raise")
   }
 }

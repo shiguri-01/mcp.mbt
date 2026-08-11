@@ -173,75 +173,104 @@ async fn send_request_stream(
   request : @async_http.Request,
   message : Json,
 ) -> Unit {
-  let mut cancelled = false
-  let mut streaming = false
+  let cancelled = Ref(false)
+  let streaming = Ref(false)
+  let outbound : @aqueue.Queue[String?] = Queue(kind=Unbounded)
   let transport_meta = Json::object({
     "httpMethod": Json::string("POST"),
     "path": Json::string(request.path),
     "headers": request.headers.to_json(),
   })
+  try {
+    conn.send_response(200, "OK", extra_headers={
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      "X-Accel-Buffering": "no",
+    })
+    conn.flush()
+    streaming.val = true
+  } catch {
+    _ => {
+      cancelled.val = true
+      return
+    }
+  }
   let hooks = @mcp.RequestHooks(
     emit_notification=async fn(notification) raise @mcp.McpError {
-      if cancelled {
+      if cancelled.val {
         raise @mcp.InternalError("HTTP response stream is closed")
       }
-      if !streaming {
-        conn.send_response(200, "OK", extra_headers={
-          "Content-Type": "text/event-stream",
-          "Cache-Control": "no-cache",
-          "X-Accel-Buffering": "no",
-        }) catch {
-          _ => {
-            cancelled = true
-            raise @mcp.InternalError("failed to start HTTP response stream")
-          }
-        }
-        streaming = true
-        conn.flush() catch {
-          _ => {
-            cancelled = true
-            raise @mcp.InternalError("failed to flush HTTP response stream")
-          }
-        }
-      }
-      try {
-        conn.write(sse_message(notification))
-        conn.flush()
-      } catch {
-        _ => {
-          cancelled = true
-          raise @mcp.InternalError("failed to write HTTP response stream")
+      outbound.put(Some(sse_message(notification))) catch {
+        error => {
+          cancelled.val = true
+          raise @mcp.InternalError(error.to_string())
         }
       }
     },
-    is_cancelled=() => cancelled,
+    is_cancelled=() => cancelled.val,
     transport_meta~,
   )
-  let response = server.handle_jsonrpc_with_hooks(message, hooks~)
-  match response {
-    Some(response) if !cancelled && streaming =>
-      try {
-        conn.write(sse_message(response))
-        conn.flush()
-      } catch {
-        _ => cancelled = true
+  @async.with_task_group(group => {
+    let handler = group.spawn(
+      async fn() { server.handle_jsonrpc_with_hooks(message, hooks~) },
+      allow_failure=true,
+    )
+    let writer = group.spawn(
+      async fn() {
+        while outbound.get() is Some(frame) {
+          try {
+            conn.write(frame)
+            conn.flush()
+          } catch {
+            _ => {
+              cancelled.val = true
+              handler.cancel()
+              outbound.close(clear=true)
+              return
+            }
+          }
+        }
+      },
+      allow_failure=true,
+    )
+    let heartbeat = group.spawn(
+      async fn() {
+        while !cancelled.val {
+          @async.sleep(15000)
+          if !cancelled.val {
+            outbound.put(Some(": keepalive\r\n\r\n"))
+          }
+        }
+      },
+      allow_failure=true,
+    )
+    let response = handler.wait() catch { _ => None }
+    heartbeat.cancel()
+    match response {
+      Some(response) if !cancelled.val && streaming.val => {
+        outbound.put(Some(sse_message(response)))
+        outbound.put(None)
+        writer.wait()
       }
-    Some(response) if !cancelled => {
-      // Do not commit a 200 SSE response until progress is actually emitted.
-      // Validation and method errors therefore retain their proper HTTP status.
-      let (status, reason) = response_status(response)
-      send_json(conn, status, reason, response)
-      return
+      Some(response) if !cancelled.val => {
+        writer.cancel()
+        // Error responses retain their HTTP status when no progress stream was
+        // committed.
+        let (status, reason) = response_status(response)
+        send_json(conn, status, reason, response)
+        return
+      }
+      None if !cancelled.val && !streaming.val => {
+        writer.cancel()
+        send_empty(conn, 202, "Accepted")
+        return
+      }
+      _ => writer.cancel()
     }
-    None if !cancelled && !streaming => {
-      send_empty(conn, 202, "Accepted")
-      return
+    if !cancelled.val {
+      conn.end_response()
     }
-    _ => ()
-  }
-  if !cancelled {
-    conn.end_response()
-  }
+  })
 }
 
 ///|
@@ -406,17 +435,10 @@ async fn handle_post(
     }
   }
   if is_jsonrpc_notification(message) {
-    if (options.on_notification)(message) {
-      send_empty(conn, 202, "Accepted")
-    } else {
-      send_mcp_error(
-        conn,
-        400,
-        "Bad Request",
-        Json::null(),
-        @mcp.InvalidRequest("client notification is not accepted"),
-      )
+    (options.on_notification)(message) catch {
+      _ => ()
     }
+    send_empty(conn, 202, "Accepted")
     return
   }
   if request_method_name(message) == Some("subscriptions/listen") {

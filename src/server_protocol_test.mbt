@@ -177,7 +177,10 @@ async test "MRTR retries echo opaque state and supply input responses" {
     name="confirm",
     options=try! required.retry_options({
       "answer": @mcp.InputResponse(
-        Json::object({ "action": Json::string("accept") }),
+        Json::object({
+          "action": Json::string("accept"),
+          "content": Json::object({}),
+        }),
       ),
     }),
   )
@@ -296,10 +299,8 @@ async test "tool input and structured output honor declared JSON Schemas" {
     try! client.call_tool_request(name="bounded", arguments={}),
   )
   guard missing_input
-    is Some(
-      Object({ "error": Object({ "code": Number(-32602.0, ..), .. }), .. })
-    ) else {
-    fail("expected missing required property to be InvalidParams")
+    is Some(Object({ "result": Object({ "isError": True, .. }), .. })) else {
+    fail("expected actionable input validation error")
   }
   let bad_input = server.handle_jsonrpc(
     try! client.call_tool_request(name="bounded", arguments={

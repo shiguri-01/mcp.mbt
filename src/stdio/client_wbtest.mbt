@@ -119,6 +119,16 @@ test "numeric request ids route by JSON number value" {
 }
 
 ///|
+test "closing a client wakes every pending request" {
+  let pending : Map[String, @aqueue.Queue[Inbound]] = Map([])
+  let queue : @aqueue.Queue[Inbound] = Queue(kind=Unbounded)
+  pending["number:1"] = queue
+  fail_pending_now(pending, "closed")
+  assert_true(queue.try_get() is Some(Failed(InternalError("closed"))))
+  assert_true(pending.is_empty())
+}
+
+///|
 test "MRTR resolution requires a positive bound" {
   try validate_max_rounds(0) catch {
     InvalidRequest(message) => assert_true(message.contains("positive"))

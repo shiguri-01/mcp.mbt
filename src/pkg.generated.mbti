@@ -483,8 +483,9 @@ pub(all) struct ServerCapabilities {
   completions : Bool
   extensions : Map[String, Json]
   experimental : Map[String, Json]
+  extra : Map[String, Json]
 } derive(Eq, @debug.Debug)
-pub fn ServerCapabilities::ServerCapabilities(tools? : ToolsCapability, resources? : ResourcesCapability, prompts? : PromptsCapability, completions? : Bool, extensions? : Map[String, Json], experimental? : Map[String, Json]) -> Self
+pub fn ServerCapabilities::ServerCapabilities(tools? : ToolsCapability, resources? : ResourcesCapability, prompts? : PromptsCapability, completions? : Bool, extensions? : Map[String, Json], experimental? : Map[String, Json], extra? : Map[String, Json]) -> Self
 pub fn ServerCapabilities::empty() -> Self
 pub impl ToJson for ServerCapabilities
 

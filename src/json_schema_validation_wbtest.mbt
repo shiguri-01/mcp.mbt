@@ -115,6 +115,15 @@ test "schema validator evaluates array applicators" {
 }
 
 ///|
+test "multipleOf accepts decimal multiples without binary rounding artifacts" {
+  let validator = compile_json_schema(
+    Json::object({ "type": Json::string("number"), "multipleOf": 0.1 }),
+  )
+  assert_eq(validator.validate(Json::number(0.3)), None)
+  assert_true(validator.validate(Json::number(0.31)) is Some(_))
+}
+
+///|
 test "2020-12 unevaluated properties include successful applicators" {
   let validator = compile_json_schema(
     Json::object({
@@ -145,6 +154,28 @@ test "2020-12 unevaluated properties include successful applicators" {
 }
 
 ///|
+test "2020-12 unevaluated items include successful applicators" {
+  let validator = compile_json_schema(
+    Json::object({
+      "$schema": Json::string("https://json-schema.org/draft/2020-12/schema"),
+      "allOf": [
+        Json::object({
+          "prefixItems": [Json::object({ "type": Json::string("string") })],
+        }),
+      ],
+      "unevaluatedItems": Json::boolean(false),
+    }),
+  )
+  assert_eq(validator.validate(Json::array([Json::string("head")])), None)
+  assert_true(
+    validator.validate(
+      Json::array([Json::string("head"), Json::string("unexpected")]),
+    )
+    is Some(_),
+  )
+}
+
+///|
 test "2020-12 dynamic references resolve local dynamic anchors" {
   let validator = compile_json_schema(
     Json::object({
@@ -163,6 +194,26 @@ test "2020-12 dynamic references resolve local dynamic anchors" {
 }
 
 ///|
+test "2020-12 anchors use the specification name grammar" {
+  ignore(
+    compile_json_schema(
+      Json::object({
+        "$anchor": Json::string("_valid.anchor-1"),
+        "type": Json::string("string"),
+      }),
+    ),
+  )
+  try
+    compile_json_schema(Json::object({ "$anchor": Json::string("a:b") }))
+  catch {
+    InvalidParams(_) => ()
+    _ => fail("expected InvalidParams")
+  } noraise {
+    _ => fail("colon is not valid in a 2020-12 anchor")
+  }
+}
+
+///|
 test "schema compilation enforces structural and reference constraints" {
   for
     schema in [
@@ -170,6 +221,10 @@ test "schema compilation enforces structural and reference constraints" {
       Json::object({ "$dynamicRef": Json::string("https://example.com/schema") }),
       Json::object({ "type": Json::string("unknown") }),
       Json::object({ "enum": Json::array([]) }),
+      Json::object({ "allOf": Json::array([]) }),
+      Json::object({ "prefixItems": Json::array([]) }),
+      Json::object({ "$anchor": Json::string("1invalid") }),
+      Json::object({ "$id": Json::number(1) }),
       Json::object({ "multipleOf": Json::number(0.0) }),
       Json::object({
         "patternProperties": Json::object({

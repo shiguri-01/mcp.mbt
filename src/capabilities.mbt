@@ -293,6 +293,7 @@ pub(all) struct ServerCapabilities {
   completions : Bool
   extensions : Map[String, Json]
   experimental : Map[String, Json]
+  extra : Map[String, Json]
 } derive(Debug, Eq)
 
 ///|
@@ -303,8 +304,9 @@ pub fn ServerCapabilities::ServerCapabilities(
   completions? : Bool = false,
   extensions? : Map[String, Json] = {},
   experimental? : Map[String, Json] = {},
+  extra? : Map[String, Json] = {},
 ) -> ServerCapabilities {
-  { tools, resources, prompts, completions, extensions, experimental }
+  { tools, resources, prompts, completions, extensions, experimental, extra }
 }
 
 ///|
@@ -316,7 +318,13 @@ pub fn ServerCapabilities::empty() -> ServerCapabilities {
 pub impl ToJson for ServerCapabilities with fn to_json(
   self : ServerCapabilities,
 ) -> Json {
-  let fields : Map[String, Json] = Map([])
+  let fields = self.extra.copy()
+  for
+    key in [
+      "tools", "resources", "prompts", "completions", "extensions", "experimental",
+    ] {
+    fields.remove(key)
+  }
   if self.tools is Some(value) {
     fields["tools"] = value.to_json()
   }
@@ -338,6 +346,18 @@ pub impl ToJson for ServerCapabilities with fn to_json(
 fn parse_server_capabilities(value : Json) -> ServerCapabilities raise McpError {
   let context = "server capabilities"
   let fields = expect_object(value, context)
+  let extra : Map[String, Json] = Map([])
+  for key, item in fields {
+    match key {
+      "tools"
+      | "resources"
+      | "prompts"
+      | "completions"
+      | "extensions"
+      | "experimental" => ()
+      _ => extra[key] = item
+    }
+  }
   ServerCapabilities(
     tools?=match fields.get("tools") {
       Some(value) => {
@@ -396,5 +416,6 @@ fn parse_server_capabilities(value : Json) -> ServerCapabilities raise McpError 
     },
     extensions=parse_capability_map(fields, "extensions", context),
     experimental=parse_capability_map(fields, "experimental", context),
+    extra~,
   )
 }

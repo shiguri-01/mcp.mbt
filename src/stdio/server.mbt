@@ -124,7 +124,7 @@ async fn write_frames(queue : @aqueue.Queue[String?]) -> Unit {
 ///|
 /// Serve newline-delimited MCP with concurrent request dispatch and one stdout
 /// writer. Listen requests remain transport-owned: acknowledgement is always
-/// the first stream event and cancellation produces the graceful final result.
+/// the first stream event; client cancellation sends no final response.
 pub async fn serve(
   server : @mcp.Server,
   on_subscription? : async (@mcp.Subscription, async (Json) -> Unit) -> Unit = fn(

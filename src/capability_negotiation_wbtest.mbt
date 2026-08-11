@@ -6,7 +6,15 @@ test "deprecated MRTR methods require and accept matching capabilities" {
     "sampling": try! InputRequest(
       method_name="sampling/createMessage",
       params=Json::object({
-        "messages": Json::array([]),
+        "messages": Json::array([
+          Json::object({
+            "role": Json::string("user"),
+            "content": Json::object({
+              "type": Json::string("text"),
+              "text": Json::string("hello"),
+            }),
+          }),
+        ]),
         "maxTokens": Json::number(1.0),
       }),
     ),

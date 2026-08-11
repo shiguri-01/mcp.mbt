@@ -94,6 +94,23 @@ fn validate_unique_strings(
 }
 
 ///|
+fn valid_schema_anchor(value : String) -> Bool {
+  let chars = value.to_array()
+  guard chars is [first, .. rest] &&
+    (first is ('A'..='Z') || first is ('a'..='z') || first == '_') else {
+    return false
+  }
+  rest.all(fn(char) {
+    char is ('A'..='Z') ||
+    char is ('a'..='z') ||
+    char is ('0'..='9') ||
+    char == '-' ||
+    char == '_' ||
+    char == '.'
+  })
+}
+
+///|
 fn validate_schema_shape(
   schema : Json,
   depth : Int,
@@ -129,6 +146,10 @@ fn validate_schema_shape(
           }
         Some(_) => raise InvalidParams("JSON Schema $ref must be a string")
       }
+      match fields.get("$id") {
+        None | Some(String(_)) => ()
+        Some(_) => raise InvalidParams("JSON Schema $id must be a string")
+      }
       match fields.get("$dynamicRef") {
         None => ()
         Some(String(reference)) =>
@@ -142,7 +163,7 @@ fn validate_schema_shape(
         match fields.get(keyword) {
           None => ()
           Some(String(value)) =>
-            if value.is_empty() || value.contains("/") {
+            if !valid_schema_anchor(value) {
               raise InvalidParams(
                 "JSON Schema \{keyword} is not a valid anchor",
               )
@@ -248,10 +269,14 @@ fn validate_schema_shape(
       for key in array_keywords {
         match fields.get(key) {
           None => ()
-          Some(Array(children)) =>
+          Some(Array(children)) => {
+            if children.is_empty() {
+              raise InvalidParams("JSON Schema \{key} must not be empty")
+            }
             for child in children {
               validate_schema_shape(child, depth + 1, count, draft7)
             }
+          }
           Some(_) => raise InvalidParams("JSON Schema \{key} must be an array")
         }
       }
@@ -565,6 +590,106 @@ fn collect_evaluated_object_properties(
           depth + 1,
         )
       }
+    }
+  }
+}
+
+///|
+fn collect_evaluated_array_items(
+  schema : Json,
+  root : Json,
+  values : Array[Json],
+  evaluated : Map[Int, Bool],
+  depth : Int,
+) -> Unit {
+  if depth > 64 {
+    return
+  }
+  guard schema is Object(fields) else { return }
+  for keyword in ["$ref", "$dynamicRef"] {
+    if fields.get(keyword) is Some(String(reference)) {
+      let target = if keyword == "$dynamicRef" {
+        resolve_local_dynamic_ref(root, reference)
+      } else {
+        resolve_local_ref(root, reference)
+      }
+      if target is Some(child) {
+        collect_evaluated_array_items(child, root, values, evaluated, depth + 1)
+      }
+    }
+  }
+  if !root_uses_draft_07(root) &&
+    fields.get("prefixItems") is Some(Array(items)) {
+    for index, _ in items {
+      if index < values.length() {
+        evaluated[index] = true
+      }
+    }
+  }
+  match fields.get("items") {
+    Some(Array(items)) =>
+      for index, _ in items {
+        if index < values.length() {
+          evaluated[index] = true
+        }
+      }
+    Some(_) => {
+      let start = match fields.get("prefixItems") {
+        Some(Array(items)) if !root_uses_draft_07(root) => items.length()
+        _ => 0
+      }
+      for index = start; index < values.length(); index = index + 1 {
+        evaluated[index] = true
+      }
+    }
+    None => ()
+  }
+  if fields.get("contains") is Some(contains) {
+    for index, item in values {
+      if validate_json_schema(contains, root, item, "$[\{index}]", depth + 1)
+        is None {
+        evaluated[index] = true
+      }
+    }
+  }
+  for keyword in ["allOf", "anyOf", "oneOf"] {
+    if fields.get(keyword) is Some(Array(children)) {
+      for child in children {
+        if validate_json_schema(
+            child,
+            root,
+            Json::array(values),
+            "$",
+            depth + 1,
+          )
+          is None {
+          collect_evaluated_array_items(
+            child,
+            root,
+            values,
+            evaluated,
+            depth + 1,
+          )
+        }
+      }
+    }
+  }
+  if fields.get("if") is Some(condition) {
+    collect_evaluated_array_items(condition, root, values, evaluated, depth + 1)
+    let branch = if validate_json_schema(
+        condition,
+        root,
+        Json::array(values),
+        "$",
+        depth + 1,
+      )
+      is None {
+      fields.get("then")
+    } else {
+      fields.get("else")
+    }
+    if branch is Some(child) {
+      collect_evaluated_array_items(child, root, values, evaluated, depth + 1)
     }
   }
 }
@@ -1039,27 +1164,20 @@ fn validate_json_schema(
           }
           if fields.get("unevaluatedItems") is Some(child) &&
             !root_uses_draft_07(root) {
-            let mut evaluated_until = prefix_items.length()
-            if fields.contains("items") {
-              evaluated_until = values.length()
-            }
-            for index = evaluated_until
-                index < values.length()
-                index = index + 1 {
-              let matched_contains = fields.get("contains") is Some(contains) &&
-                validate_json_schema(
-                  contains,
-                  root,
-                  values[index],
-                  "\{path}[\{index}]",
-                  depth + 1,
-                )
-                is None
-              if !matched_contains &&
+            let evaluated : Map[Int, Bool] = Map([])
+            collect_evaluated_array_items(
+              Json::object(fields),
+              root,
+              values,
+              evaluated,
+              depth + 1,
+            )
+            for index, item in values {
+              if !evaluated.contains(index) &&
                 validate_json_schema(
                   child,
                   root,
-                  values[index],
+                  item,
                   "\{path}[\{index}]",
                   depth + 1,
                 )
@@ -1118,11 +1236,15 @@ fn validate_json_schema(
               json_schema_error(path, "number is not below exclusiveMaximum"),
             )
           }
-          if fields.get("multipleOf") is Some(Number(divisor, ..)) &&
-            (divisor <= 0.0 || number / divisor != (number / divisor).floor()) {
-            return Some(
-              json_schema_error(path, "number is not a multipleOf value"),
-            )
+          if fields.get("multipleOf") is Some(Number(divisor, ..)) {
+            let quotient = number / divisor
+            let scale = if quotient.abs() > 1.0 { quotient.abs() } else { 1.0 }
+            if divisor <= 0.0 ||
+              (quotient - quotient.round()).abs() > 1.0e-12 * scale {
+              return Some(
+                json_schema_error(path, "number is not a multipleOf value"),
+              )
+            }
           }
         }
         _ => ()

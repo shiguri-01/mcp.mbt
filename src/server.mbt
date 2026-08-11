@@ -767,9 +767,6 @@ async fn Server::call_tool(
   match self.tools.get(name) {
     Some(registered) => {
       if registered.input_validator.validate(arguments) is Some(error) {
-        if tool_argument_shape_error(error) {
-          raise InvalidParams("invalid arguments for tool \{name}: \{error}")
-        }
         return self.outcome_json(
           context,
           "tools/call",
@@ -992,15 +989,6 @@ fn response_error_id(message : Json) -> Json? {
     Object({ "id": String(_) | Number(_) as id, .. }) => Some(id)
     _ => None
   }
-}
-
-///|
-fn tool_argument_shape_error(error : String) -> Bool {
-  error.contains("required property") ||
-  error.contains("expected type") ||
-  error.contains("does not match any declared type") ||
-  error.contains("additional property") ||
-  error.contains("requires property")
 }
 
 ///|

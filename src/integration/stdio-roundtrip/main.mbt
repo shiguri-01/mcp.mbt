@@ -15,6 +15,22 @@ async fn run_server() -> Unit {
       @mcp.Complete(@mcp.CallToolResult::text(arguments.stringify()))
     },
   )
+  try! server.json_tool(
+    name="wait",
+    input_schema=Json::object({
+      "type": Json::string("object"),
+      "additionalProperties": Json::boolean(false),
+    }),
+    async fn(
+      _context,
+      _arguments,
+    ) -> @mcp.HandlerOutcome[@mcp.CallToolResult] raise @mcp.McpError {
+      @async.sleep(30000) catch {
+        error => raise @mcp.InternalError(error.to_string())
+      }
+      @mcp.Complete(@mcp.CallToolResult::text("done"))
+    },
+  )
   @mcp_stdio.serve(server)
 }
 
@@ -57,6 +73,24 @@ async fn run_client(executable : String) -> Unit {
     println("roundtrip complete")
     try! client.shutdown()
     println("shutdown complete")
+    let closing_client = try! @mcp_stdio.Client::spawn(
+      group,
+      executable,
+      name="closing-client",
+      version="1",
+      args=["--stdio-server"],
+    )
+    let pending = group.spawn(
+      async fn() { closing_client.call_tool(name="wait") },
+      allow_failure=true,
+    )
+    @async.sleep(200)
+    try! closing_client.close_and_wait()
+    try pending.wait() catch {
+      _ => println("in-flight close complete")
+    } noraise {
+      _ => abort("closing an in-flight stdio client returned a result")
+    }
   }
 }
 

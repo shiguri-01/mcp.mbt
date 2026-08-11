@@ -3,7 +3,6 @@
 pub struct Client {
   priv core : @mcp.Client
   priv process : @process.Process
-  priv reader : @process.ReadFromProcess
   priv outbound : @aqueue.Queue[String?]
   priv pending : Map[String, @aqueue.Queue[Inbound]]
   priv progress_routes : Map[String, String]
@@ -45,6 +44,8 @@ pub async fn[X] Client::spawn(
         stdin=server_stdin,
         stdout=server_stdout,
         cwd~,
+        cancel_handler=@process.hard_cancel(),
+        no_wait=true,
       ) catch {
         error => raise @mcp.InternalError(error.to_string())
       }
@@ -55,6 +56,8 @@ pub async fn[X] Client::spawn(
         args,
         stdin=server_stdin,
         stdout=server_stdout,
+        cancel_handler=@process.hard_cancel(),
+        no_wait=true,
       ) catch {
         error => raise @mcp.InternalError(error.to_string())
       }
@@ -69,7 +72,6 @@ pub async fn[X] Client::spawn(
   {
     core: Client(name~, version~, capabilities~, extension_result_types~),
     process,
-    reader: client_reader,
     outbound,
     pending,
     progress_routes,
@@ -85,11 +87,37 @@ pub fn Client::pid(self : Client) -> Int {
 
 ///|
 pub fn Client::close(self : Client) -> Unit {
+  fail_pending_now(self.pending, "MCP stdio client was closed")
+  self.progress_routes.clear()
   ignore(self.outbound.try_put(None) catch { _ => false })
-  self.reader.close()
-  self.writer_task.cancel()
-  self.reader_task.cancel()
-  self.process.cancel()
+}
+
+///|
+/// Cancel the transport and wait until the child process has terminated.
+pub async fn Client::close_and_wait(self : Client) -> Unit raise @mcp.McpError {
+  self.close()
+  self.writer_task.wait() catch {
+    error => raise InternalError(error.to_string())
+  }
+  ignore(
+    self.process.wait() catch {
+      error => raise InternalError(error.to_string())
+    },
+  )
+  self.reader_task.wait() catch {
+    error => raise InternalError(error.to_string())
+  }
+}
+
+///|
+fn fail_pending_now(
+  pending : Map[String, @aqueue.Queue[Inbound]],
+  message : String,
+) -> Unit {
+  for queue in pending.values() {
+    ignore(queue.try_put(Failed(InternalError(message))) catch { _ => false })
+  }
+  pending.clear()
 }
 
 ///|

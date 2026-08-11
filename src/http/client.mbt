@@ -286,6 +286,17 @@ fn SubscriptionStreamState::consume(
     }
     return Notification(message)
   }
+  if message
+    is Object(
+      { "jsonrpc": String("2.0"), "id": response_id, "error": Object(_), .. }
+    ) {
+    if response_id != self.expected_id {
+      raise @mcp.InvalidRequest(
+        "subscription error response id does not match request id",
+      )
+    }
+    return Final(message)
+  }
   guard message
     is Object(
       {
@@ -539,6 +550,22 @@ pub async fn Client::call_tool(
     self.core.call_tool_request(name~, arguments~, options~),
     input_schema?=schema,
   )
+}
+
+///|
+/// Call a tool and decode its `structuredContent` as `T`.
+pub async fn[T : FromJson] Client::call_tool_as(
+  self : Client,
+  name~ : String,
+  arguments? : Json = Json::object({}),
+  input_schema? : Json,
+  options? : @mcp.RequestOptions = @mcp.RequestOptions(),
+) -> @mcp.HandlerOutcome[T] raise @mcp.McpError {
+  match self.call_tool(name~, arguments~, input_schema?, options~) {
+    Complete(result) => Complete(@mcp.decode_structured_content(result))
+    InputRequired(value) => InputRequired(value)
+    ExtensionResult(result_type, value) => ExtensionResult(result_type, value)
+  }
 }
 
 ///|

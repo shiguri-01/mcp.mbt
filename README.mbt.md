@@ -84,18 +84,8 @@ expressions, so every advertised template is readable.
 - `shiguri-01/mcp/stdio`: native newline-delimited JSON-RPC transport.
 - `shiguri-01/mcp/http`: native Streamable HTTP transport.
 
-## Migrating from 0.1
-
-Version 0.2 is intentionally source- and wire-incompatible with the old
-connection-oriented API. Remove `initialize`, `initialized`, `ping`, session
-stores and IDs, `logging/setLevel`, and resource subscribe/unsubscribe calls.
-Construct `Client` with its identity and capabilities once; the SDK copies
-them into every request. Register async handlers on a stateless `Server`, use
-`server/discover` when capability discovery is useful, and use
-`subscriptions/listen` or `InputRequiredResult` for streaming and MRTR flows.
-
-See [`docs/design-2026-07-28.md`](docs/design-2026-07-28.md) for the design and
-the complete list of deliberate breaking changes.
+See [`docs/design-2026-07-28.md`](docs/design-2026-07-28.md) for the protocol
+model, validation rules, transport behavior, and verification strategy.
 
 ## Examples
 

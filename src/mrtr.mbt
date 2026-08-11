@@ -34,25 +34,40 @@ fn validate_core_input_request(
             )
           }
           guard schema.get("type") == Some(Json::string("object")) &&
-            schema.get("properties") is Some(Object(_)) else {
+            schema.get("properties") is Some(Object(properties)) else {
             raise InvalidParams(
               "elicitation/create requestedSchema requires object properties",
             )
           }
+          for _, property_schema in properties {
+            validate_elicitation_primitive_schema(property_schema)
+          }
+          ignore(compile_json_schema(Json::object(schema)))
         }
         Some(_) =>
           raise InvalidParams("elicitation/create params.mode is invalid")
       }
     }
     "sampling/createMessage" => {
-      guard fields.get("messages") is Some(Array(_)) else {
+      guard fields.get("messages") is Some(Array(messages)) else {
         raise InvalidParams(
-          "sampling/createMessage params.messages is required",
+          "sampling/createMessage params.messages must be an array",
         )
       }
-      guard fields.get("maxTokens") is Some(Number(value, ..)) && value > 0.0 else {
+      for message in messages {
+        let item = expect_object(message, "sampling message")
+        match item.get("role") {
+          Some(String("user" | "assistant")) => ()
+          _ => raise InvalidParams("sampling message.role is invalid")
+        }
+        guard item.get("content") is Some(content) else {
+          raise InvalidParams("sampling message.content is required")
+        }
+        validate_sampling_content(content)
+      }
+      guard fields.get("maxTokens") is Some(Number(_)) else {
         raise InvalidParams(
-          "sampling/createMessage params.maxTokens must be positive",
+          "sampling/createMessage params.maxTokens is required",
         )
       }
     }
@@ -192,6 +207,7 @@ pub fn InputRequiredResult::retry_options(
       for key, request in requests {
         validate_core_input_response(
           request.method_name(),
+          request.params(),
           responses[key].result(),
         )
       }
@@ -212,28 +228,157 @@ pub fn InputRequiredResult::retry_options(
 ///|
 fn validate_core_input_response(
   method_name : String,
+  request_params : Json,
   result : Json,
 ) -> Unit raise McpError {
   let fields = expect_object(result, "input response")
   match method_name {
     "elicitation/create" =>
       match fields.get("action") {
-        Some(String("accept" | "decline" | "cancel")) => ()
+        Some(String("accept")) => {
+          let request = expect_object(request_params, "elicitation request")
+          if request.get("mode") is Some(String("url")) {
+            ()
+          } else {
+            guard fields.get("content") is Some(content) else {
+              raise InvalidParams(
+                "accepted form elicitation response.content is required",
+              )
+            }
+            let request_schema = match request.get("requestedSchema") {
+              Some(value) => value
+              None =>
+                raise InvalidParams(
+                  "elicitation request.requestedSchema is required",
+                )
+            }
+            if compile_json_schema(request_schema).validate(content)
+              is Some(error) {
+              raise InvalidParams(
+                "elicitation response.content does not match requestedSchema: \{error}",
+              )
+            }
+          }
+        }
+        Some(String("decline" | "cancel")) => ()
         _ => raise InvalidParams("elicitation response.action is invalid")
       }
     "sampling/createMessage" => {
       ignore(get_string(fields, "model", "sampling response"))
-      ignore(get_string(fields, "role", "sampling response"))
-      guard fields.contains("content") else {
+      guard fields.get("role") is Some(String("user" | "assistant")) else {
+        raise InvalidParams("sampling response.role is invalid")
+      }
+      guard fields.get("content") is Some(content) else {
         raise InvalidParams("sampling response.content is required")
       }
+      validate_sampling_content(content)
     }
     "roots/list" => {
-      guard fields.get("roots") is Some(Array(_)) else {
+      guard fields.get("roots") is Some(Array(roots)) else {
         raise InvalidParams("roots response.roots is required")
+      }
+      for root in roots {
+        let item = expect_object(root, "roots response root")
+        ignore(get_string(item, "uri", "roots response root"))
+        ignore(get_optional_string(item, "name", "roots response root"))
       }
     }
     _ => ()
+  }
+}
+
+///|
+fn validate_sampling_content(value : Json) -> Unit raise McpError {
+  let validate_one = fn(content : Json) -> Unit raise McpError {
+    let fields = expect_object(content, "sampling content")
+    match fields.get("type") {
+      Some(String("text")) =>
+        ignore(get_string(fields, "text", "sampling text content"))
+      Some(String("image" | "audio")) => {
+        ignore(get_string(fields, "data", "sampling media content"))
+        ignore(get_string(fields, "mimeType", "sampling media content"))
+      }
+      Some(String("tool_use")) => {
+        ignore(get_string(fields, "id", "sampling tool use content"))
+        ignore(get_string(fields, "name", "sampling tool use content"))
+        guard fields.get("input") is Some(Object(_)) else {
+          raise InvalidParams("sampling tool use input must be an object")
+        }
+      }
+      Some(String("tool_result")) => {
+        ignore(get_string(fields, "toolUseId", "sampling tool result content"))
+        guard fields.get("content") is Some(Array(contents)) else {
+          raise InvalidParams("sampling tool result content must be an array")
+        }
+        for content in contents {
+          validate_sampling_tool_result_content(content)
+        }
+      }
+      Some(String(_)) => raise InvalidParams("sampling content.type is invalid")
+      _ => raise InvalidParams("sampling content.type is required")
+    }
+  }
+  match value {
+    Array(values) if !values.is_empty() =>
+      for content in values {
+        validate_one(content)
+      }
+    Object(_) => validate_one(value)
+    _ => raise InvalidParams("sampling content must be an object or array")
+  }
+}
+
+///|
+fn validate_sampling_tool_result_content(value : Json) -> Unit raise McpError {
+  let fields = expect_object(value, "sampling tool result content block")
+  match fields.get("type") {
+    Some(String("text")) =>
+      ignore(get_string(fields, "text", "sampling tool result text"))
+    Some(String("image" | "audio")) => {
+      ignore(get_string(fields, "data", "sampling tool result media"))
+      ignore(get_string(fields, "mimeType", "sampling tool result media"))
+    }
+    Some(String("resource_link")) => {
+      ignore(get_string(fields, "uri", "sampling resource link"))
+      ignore(get_string(fields, "name", "sampling resource link"))
+    }
+    Some(String("resource")) => {
+      guard fields.get("resource") is Some(Object(resource)) else {
+        raise InvalidParams("sampling embedded resource is required")
+      }
+      ignore(get_string(resource, "uri", "sampling embedded resource"))
+      guard resource.get("text") is Some(String(_)) ||
+        resource.get("blob") is Some(String(_)) else {
+        raise InvalidParams("sampling embedded resource requires text or blob")
+      }
+    }
+    _ => raise InvalidParams("sampling tool result content type is invalid")
+  }
+}
+
+///|
+fn validate_elicitation_primitive_schema(value : Json) -> Unit raise McpError {
+  let fields = expect_object(value, "elicitation primitive schema")
+  match fields.get("type") {
+    Some(String("string" | "number" | "integer" | "boolean")) => ()
+    Some(String("array")) => {
+      let items = match fields.get("items") {
+        Some(value) => expect_object(value, "elicitation enum items")
+        None =>
+          raise InvalidParams("elicitation array schema.items is required")
+      }
+      guard items.get("type") == Some(Json::string("string")) else {
+        raise InvalidParams("elicitation array schema items must be strings")
+      }
+      guard items.get("enum") is Some(Array(_)) ||
+        items.get("anyOf") is Some(Array(_)) else {
+        raise InvalidParams(
+          "elicitation array schema items require enum options",
+        )
+      }
+    }
+    _ =>
+      raise InvalidParams("elicitation properties must use primitive schemas")
   }
 }
 

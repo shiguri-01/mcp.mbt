@@ -12,9 +12,9 @@ pub(all) struct ServerOptions {
   /// the acknowledgement before invoking this callback and the final response
   /// after it returns.
   on_subscription : async (@mcp.Subscription, async (Json) -> Unit) -> Unit
-  /// Accept an extension-defined client notification. Core 2026-07-28 has no
-  /// HTTP client notifications, so the default rejects them.
-  on_notification : async (Json) -> Bool
+  /// Observe a client notification. Notifications are always acknowledged
+  /// with HTTP 202 and never receive a JSON-RPC response.
+  on_notification : async (Json) -> Unit
 }
 
 ///|
@@ -26,7 +26,7 @@ pub fn ServerOptions::ServerOptions(
     _,
     _,
   ) => (),
-  on_notification? : async (Json) -> Bool = _ => false,
+  on_notification? : async (Json) -> Unit = _ => (),
 ) -> ServerOptions {
   {
     endpoint_path,

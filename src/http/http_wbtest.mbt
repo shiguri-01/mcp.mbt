@@ -621,6 +621,28 @@ test "subscription client enforces acknowledgement and stream identity" {
 }
 
 ///|
+test "subscription producer errors retain their JSON-RPC identity" {
+  let expected_id = Json::number(7.0, repr="7")
+  let state = SubscriptionStreamState::new(
+    expected_id,
+    @mcp.SubscriptionFilter(tools_list_changed=true),
+  )
+  let acknowledgement = Json::object({
+    "jsonrpc": Json::string("2.0"),
+    "method": Json::string("notifications/subscriptions/acknowledged"),
+    "params": Json::object({
+      "notifications": @mcp.SubscriptionFilter(tools_list_changed=true).to_json(),
+      "_meta": Json::object({
+        "io.modelcontextprotocol/subscriptionId": expected_id,
+      }),
+    }),
+  })
+  assert_true(state.consume(acknowledgement) is Acknowledged)
+  let error = jsonrpc_error(expected_id, @mcp.InternalError("producer failed"))
+  assert_true(state.consume(error) is Final(_))
+}
+
+///|
 test "subscription client rejects unhonored filters and wrong final id" {
   let expected_id = Json::number(1.0, repr="1")
   let requested = @mcp.SubscriptionFilter(tools_list_changed=true)

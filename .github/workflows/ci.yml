@@ -10,6 +10,7 @@ permissions:
 jobs:
   native:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
       - name: Set up MoonBit
@@ -22,16 +23,18 @@ jobs:
           moon update
           moon check --target all
           moon test --target native
-          moon test src --target wasm-gc
+          moon test --target js
+          moon test --target wasm-gc
           moon info
-          git diff --exit-code -- '*.mbti'
+          moon fmt
+          git diff --exit-code
       - name: Verify stdio process roundtrip
         run: |
           moon build --target native src/integration/stdio-roundtrip
           executable="$PWD/_build/native/debug/build/integration/stdio-roundtrip/stdio-roundtrip"
-          MCP_STDIO_INTEGRATION_SERVER="$executable" "$executable"
+          timeout 30s env MCP_STDIO_INTEGRATION_SERVER="$executable" "$executable"
       - name: Verify HTTP socket roundtrip
         run: |
           moon build --target native src/integration/http-roundtrip
           executable="$PWD/_build/native/debug/build/integration/http-roundtrip/http-roundtrip"
-          MCP_HTTP_INTEGRATION_SERVER="$executable" "$executable"
+          timeout 30s env MCP_HTTP_INTEGRATION_SERVER="$executable" "$executable"
