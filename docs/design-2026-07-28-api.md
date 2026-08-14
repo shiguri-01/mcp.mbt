@@ -53,19 +53,19 @@ first dispatch. Registration names use MCP concepts directly:
 let server = try! @mcp.Server(
   name="greeter", version="1.0.0",
 )
-try! server.register_tool(
-  @mcp.Tool(name="greet", description="Greet a person", input_schema~),
-  async fn(context : RequestContext, input : GreetInput) {
+try! server.tool(
+  name="greet",
+  description="Greet a person",
+  fn(context : RequestContext, input : GreetInput) {
     Complete(CallToolResult::text("Hello, \\{input.name}!"))
   },
 )
 ```
 
-There is one registration function per MCP feature (`register_tool`,
-`register_resource`, `register_resource_template`, `register_prompt`, and
-`register_completion`). A raw escape hatch is named `register_method` and is
-explicitly documented as a wire-level API. `tool`, `tool_raw`, and multiple
-`simple_*` variants are not part of the public surface.
+There is one high-level registration method per MCP feature (`tool`,
+`resource`, `resource_template`, `prompt`, and `completion`). Raw JSON tools
+use the explicitly named `tool_raw` escape hatch; `on` is the wire-level
+custom-method escape hatch. There are no `simple_*` convenience variants.
 
 The server automatically implements `server/discover`, `tools/list`,
 `tools/call`, `resources/list`, `resources/read`, `prompts/list`,
@@ -86,18 +86,21 @@ let client = try! @mcp.Client(
   name="example", version="1.0.0",
   capabilities=ClientCapabilities::empty(),
 )
-let discovered = try! client.server_discover()
-let tools = try! client.tools_list()
-let result = try! client.tools_call(name="greet", arguments=input)
+let discover_request = try! client.discover_request()
+let tools_request = try! client.list_tools_request()
+let call_request = try! client.call_tool_request(name="greet", arguments=input)
 ```
 
-The default verbs return `DiscoverResult`, `ListToolsResult`,
-`CallToolResult`, `ReadResourceResult`, `GetPromptResult`, and
-`CompleteResult`. `request_raw` and `*_raw` are the only APIs that expose raw
-JSON. MRTR retry is implemented by the typed verbs with a bounded policy and a
-typed input callback.
+The root client is the transport-independent request builder and decoder.
+The HTTP and stdio bindings provide the asynchronous typed verbs `discover`,
+`list_tools`, `call_tool`, `read_resource`, `get_prompt`, and `complete`, which
+return `DiscoverResult`, `ListToolsResult`, `CallToolResult`,
+`ReadResourceResult`, `GetPromptResult`, and `CompleteResult`. `request_raw` and
+the transport-specific `*_raw` methods are the explicit escape hatches for
+extension methods. MRTR retry is exposed by the transport bindings with a
+bounded policy and typed input callback.
 
-## JSON Schema redesign
+## JSON Schema
 
 The current validator is too large and too ambitious for an implicit helper.
 The replacement has three explicit layers:
