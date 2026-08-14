@@ -114,6 +114,28 @@ test "typed Schema constructors produce a validated document" {
 }
 
 ///|
+test "string constraints are constructed and validated as typed schemas" {
+  let schema = Schema::string_constraints(min_length=2, max_length=4)
+  assert_eq(
+    schema.to_json(),
+    Json::object({
+      "type": Json::string("string"),
+      "minLength": Json::number(2.0, repr="2"),
+      "maxLength": Json::number(4.0, repr="4"),
+    }),
+  )
+  let compiled = schema.document().compile()
+  assert_true(compiled.validate(Json::string("moon")).valid)
+  assert_false(compiled.validate(Json::string("m")).valid)
+  ignore(
+    Schema::string_constraints(min_length=5, max_length=2) catch {
+      InvalidSchema(_) => Schema::never()
+      _ => fail("expected invalid string bounds")
+    },
+  )
+}
+
+///|
 test "typed combinators preserve JSON Schema assertion semantics" {
   let positive = Schema::any_of([
     Schema::const_value(Json::string("yes")),
