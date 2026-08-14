@@ -5,12 +5,36 @@ pub(open) trait JsonSchema {
 }
 
 ///|
+pub impl JsonSchema for String with fn json_schema() -> Json {
+  Schema::string().to_json()
+}
+
+///|
+pub impl JsonSchema for Bool with fn json_schema() -> Json {
+  Schema::boolean().to_json()
+}
+
+///|
+pub impl JsonSchema for Int with fn json_schema() -> Json {
+  Schema::integer().to_json()
+}
+
+///|
+pub impl JsonSchema for Int64 with fn json_schema() -> Json {
+  Schema::integer().to_json()
+}
+
+///|
+pub impl JsonSchema for Double with fn json_schema() -> Json {
+  Schema::number().to_json()
+}
+
+///|
 /// The JSON Schema dialect used by MCP `2026-07-28` when `$schema` is absent.
 pub let draft_2020_12 : String = "https://json-schema.org/draft/2020-12/schema"
 
 ///|
 pub(all) suberror SchemaError {
-  InvalidHeaderName(String)
   InvalidDocument(String)
   UnsupportedDialect(String)
   InvalidSchema(String)
@@ -20,14 +44,20 @@ pub(all) suberror SchemaError {
 /// JSON Schema object field descriptor used by `schema`.
 pub struct Property {
   name : String
-  schema : Json
+  schema : Schema
   required : Bool
 } derive(Debug, Eq)
 
 ///|
+/// Obtain a typed schema without constructing a runtime value of `A`.
+pub fn[A : JsonSchema] schema_of(_witness : A?) -> Schema raise SchemaError {
+  Schema::raw(A::json_schema())
+}
+
+///|
 pub fn Property::Property(
   name~ : String,
-  schema~ : Json,
+  schema~ : Schema,
   required? : Bool = false,
 ) -> Property raise SchemaError {
   if name.is_empty() {
@@ -37,80 +67,36 @@ pub fn Property::Property(
 }
 
 ///|
-/// Build a JSON Schema object for MCP tool input.
-pub fn schema(
+/// Build a typed JSON Schema object for an input value.
+pub fn object(
   properties : Array[Property],
   additional_properties? : Bool = false,
-) -> Json {
-  let property_fields : Map[String, Json] = Map([])
+) -> Schema raise SchemaError {
+  let property_schemas : Map[String, Schema] = Map([])
   let required : Array[String] = []
   for property in properties {
-    property_fields[property.name] = property.schema
+    property_schemas[property.name] = property.schema
     if property.required {
       required.push(property.name)
     }
   }
-  Json::object({
-    "$schema": Json::string(draft_2020_12),
-    "type": Json::string("object"),
-    "properties": Json::object(property_fields),
-    "required": required.to_json(),
-    "additionalProperties": Json::boolean(additional_properties),
-  })
+  Schema::object(properties=property_schemas, required~, additional_properties~)
 }
 
 ///|
-fn is_http_token_char(char : Char) -> Bool {
-  match char {
-    'a'..='z'
-    | 'A'..='Z'
-    | '0'..='9'
-    | '!'
-    | '#'
-    | '$'
-    | '%'
-    | '&'
-    | '\''
-    | '*'
-    | '+'
-    | '-'
-    | '.'
-    | '^'
-    | '_'
-    | '`'
-    | '|'
-    | '~' => true
-    _ => false
-  }
+/// Encode a typed object schema for APIs that still accept a JSON Schema value.
+pub fn object_json(
+  properties : Array[Property],
+  additional_properties? : Bool = false,
+) -> Json raise SchemaError {
+  object(properties, additional_properties~).to_json()
 }
 
 ///|
-fn validate_header_name(name : String) -> Unit raise SchemaError {
-  if name.is_empty() {
-    raise InvalidHeaderName("x-mcp-header must not be empty")
-  }
-  for char in name {
-    if !is_http_token_char(char) {
-      raise InvalidHeaderName("invalid x-mcp-header name: \{name}")
-    }
-  }
-}
-
-///|
-fn with_header(schema : Json, header_name : String) -> Json raise SchemaError {
-  validate_header_name(header_name)
-  guard schema is Object(fields) else {
-    raise InvalidHeaderName("header property schema must be an object")
-  }
-  fields["x-mcp-header"] = Json::string(header_name)
-  Json::object(fields)
-}
-
-///|
-/// Build an object field from an arbitrary JSON Schema fragment.
+/// Build an object field from a typed JSON Schema fragment.
 fn property(
   name~ : String,
-  schema~ : Json,
+  schema~ : Schema,
   required? : Bool = false,
 ) -> Property raise SchemaError {
   Property(name~, schema~, required~)
@@ -118,90 +104,51 @@ fn property(
 
 ///|
 /// Build a JSON Schema string type fragment.
-pub fn string_schema(description? : String) -> Json {
-  let fields : Map[String, Json] = { "type": Json::string("string") }
-  put_optional_string(fields, "description", description)
-  Json::object(fields)
+pub fn string_schema(description? : String) -> Schema {
+  match description {
+    Some(value) => Schema::description(Schema::string(), value)
+    None => Schema::string()
+  }
 }
 
 ///|
 /// Build a JSON Schema integer type fragment.
-pub fn integer_schema(description? : String) -> Json {
-  let fields : Map[String, Json] = { "type": Json::string("integer") }
-  put_optional_string(fields, "description", description)
-  Json::object(fields)
+pub fn integer_schema(description? : String) -> Schema {
+  match description {
+    Some(value) => Schema::description(Schema::integer(), value)
+    None => Schema::integer()
+  }
 }
 
 ///|
 /// Build a JSON Schema number type fragment.
-pub fn number_schema(description? : String) -> Json {
-  let fields : Map[String, Json] = { "type": Json::string("number") }
-  put_optional_string(fields, "description", description)
-  Json::object(fields)
+pub fn number_schema(description? : String) -> Schema {
+  match description {
+    Some(value) => Schema::description(Schema::number(), value)
+    None => Schema::number()
+  }
 }
 
 ///|
 /// Build a JSON Schema boolean type fragment.
-pub fn boolean_schema(description? : String) -> Json {
-  let fields : Map[String, Json] = { "type": Json::string("boolean") }
-  put_optional_string(fields, "description", description)
-  Json::object(fields)
+pub fn boolean_schema(description? : String) -> Schema {
+  match description {
+    Some(value) => Schema::description(Schema::boolean(), value)
+    None => Schema::boolean()
+  }
 }
 
 ///|
 /// Build a string property mirrored to `Mcp-Param-{header_name}` by HTTP.
-pub fn header_string(
-  name~ : String,
-  header_name~ : String,
-  description? : String,
-  required? : Bool = false,
-) -> Property raise SchemaError {
-  property(
-    name~,
-    schema=with_header(string_schema(description?), header_name),
-    required~,
-  )
-}
-
-///|
-/// Build an integer property mirrored to `Mcp-Param-{header_name}` by HTTP.
-pub fn header_integer(
-  name~ : String,
-  header_name~ : String,
-  description? : String,
-  required? : Bool = false,
-) -> Property raise SchemaError {
-  property(
-    name~,
-    schema=with_header(integer_schema(description?), header_name),
-    required~,
-  )
-}
-
-///|
-/// Build a boolean property mirrored to `Mcp-Param-{header_name}` by HTTP.
-pub fn header_boolean(
-  name~ : String,
-  header_name~ : String,
-  description? : String,
-  required? : Bool = false,
-) -> Property raise SchemaError {
-  property(
-    name~,
-    schema=with_header(boolean_schema(description?), header_name),
-    required~,
-  )
-}
 
 ///|
 /// Build a JSON Schema array type fragment.
-pub fn array_schema(items~ : Json, description? : String) -> Json {
-  let fields : Map[String, Json] = {
-    "type": Json::string("array"),
-    "items": items,
+pub fn array_schema(items~ : Schema, description? : String) -> Schema {
+  let schema = Schema::array(items~)
+  match description {
+    Some(text) => Schema::description(schema, text)
+    None => schema
   }
-  put_optional_string(fields, "description", description)
-  Json::object(fields)
 }
 
 ///|
@@ -209,13 +156,12 @@ pub fn array_schema(items~ : Json, description? : String) -> Json {
 pub fn string_enum_schema(
   values : Array[String],
   description? : String,
-) -> Json {
-  let fields : Map[String, Json] = {
-    "type": Json::string("string"),
-    "enum": values.to_json(),
+) -> Schema raise SchemaError {
+  let value = Schema::enum_values(values.map(value => Json::string(value)))
+  match description {
+    Some(description) => Schema::description(value, description)
+    None => value
   }
-  put_optional_string(fields, "description", description)
-  Json::object(fields)
 }
 
 ///|
@@ -262,7 +208,7 @@ pub fn boolean(
 /// Build an array field for a JSON Schema object.
 pub fn array(
   name~ : String,
-  items~ : Json,
+  items~ : Schema,
   description? : String,
   required? : Bool = false,
 ) -> Property raise SchemaError {
@@ -278,16 +224,4 @@ pub fn string_enum(
   required? : Bool = false,
 ) -> Property raise SchemaError {
   property(name~, schema=string_enum_schema(values, description?), required~)
-}
-
-///|
-fn put_optional_string(
-  fields : Map[String, Json],
-  key : String,
-  value : String?,
-) -> Unit {
-  match value {
-    Some(value) => fields[key] = Json::string(value)
-    None => ()
-  }
 }

@@ -68,7 +68,7 @@ fn copy_optional_json(value : Json?) -> Json? {
 
 ///|
 fn empty_object_schema() -> Json {
-  @schema.schema([])
+  try! @schema.object_json([])
 }
 
 ///|

@@ -6,43 +6,40 @@ import {
 }
 
 // Values
-pub fn array(name~ : String, items~ : Json, description? : String, required? : Bool) -> Property raise SchemaError
+pub fn array(name~ : String, items~ : Schema, description? : String, required? : Bool) -> Property raise SchemaError
 
-pub fn array_schema(items~ : Json, description? : String) -> Json
+pub fn array_schema(items~ : Schema, description? : String) -> Schema
 
 pub fn boolean(name~ : String, description? : String, required? : Bool) -> Property raise SchemaError
 
-pub fn boolean_schema(description? : String) -> Json
+pub fn boolean_schema(description? : String) -> Schema
 
 pub let draft_2020_12 : String
 
-pub fn header_boolean(name~ : String, header_name~ : String, description? : String, required? : Bool) -> Property raise SchemaError
-
-pub fn header_integer(name~ : String, header_name~ : String, description? : String, required? : Bool) -> Property raise SchemaError
-
-pub fn header_string(name~ : String, header_name~ : String, description? : String, required? : Bool) -> Property raise SchemaError
-
 pub fn integer(name~ : String, description? : String, required? : Bool) -> Property raise SchemaError
 
-pub fn integer_schema(description? : String) -> Json
+pub fn integer_schema(description? : String) -> Schema
 
 pub fn number(name~ : String, description? : String, required? : Bool) -> Property raise SchemaError
 
-pub fn number_schema(description? : String) -> Json
+pub fn number_schema(description? : String) -> Schema
 
-pub fn schema(Array[Property], additional_properties? : Bool) -> Json
+pub fn object(Array[Property], additional_properties? : Bool) -> Schema raise SchemaError
+
+pub fn object_json(Array[Property], additional_properties? : Bool) -> Json raise SchemaError
+
+pub fn[A : JsonSchema] schema_of(A?) -> Schema raise SchemaError
 
 pub fn string(name~ : String, description? : String, required? : Bool) -> Property raise SchemaError
 
 pub fn string_enum(name~ : String, values~ : Array[String], description? : String, required? : Bool) -> Property raise SchemaError
 
-pub fn string_enum_schema(Array[String], description? : String) -> Json
+pub fn string_enum_schema(Array[String], description? : String) -> Schema raise SchemaError
 
-pub fn string_schema(description? : String) -> Json
+pub fn string_schema(description? : String) -> Schema
 
 // Errors
 pub(all) suberror SchemaError {
-  InvalidHeaderName(String)
   InvalidDocument(String)
   UnsupportedDialect(String)
   InvalidSchema(String)
@@ -68,13 +65,14 @@ pub struct Document {
 } derive(Eq, @debug.Debug)
 pub fn Document::Document(Json) -> Self raise SchemaError
 pub fn Document::compile(Self, options? : CompileOptions) -> CompiledSchema raise SchemaError
+pub impl ToJson for Document
 
 pub struct Property {
   name : String
-  schema : Json
+  schema : Schema
   required : Bool
 } derive(Eq, @debug.Debug)
-pub fn Property::Property(name~ : String, schema~ : Json, required? : Bool) -> Self raise SchemaError
+pub fn Property::Property(name~ : String, schema~ : Schema, required? : Bool) -> Self raise SchemaError
 
 pub enum Schema {
   Always
@@ -93,6 +91,7 @@ pub enum Schema {
   OneOf(Array[Schema])
   Not(Schema)
   Ref(String)
+  Description(Schema, String)
   Raw(Json)
 } derive(Eq, @debug.Debug)
 pub fn Schema::all_of(Array[Self]) -> Self
@@ -101,6 +100,7 @@ pub fn Schema::any_of(Array[Self]) -> Self raise SchemaError
 pub fn Schema::array(items~ : Self) -> Self
 pub fn Schema::boolean() -> Self
 pub fn Schema::const_value(Json) -> Self
+pub fn Schema::description(Self, String) -> Self
 pub fn Schema::document(Self) -> Document raise SchemaError
 pub fn Schema::enum_values(Array[Json]) -> Self raise SchemaError
 pub fn Schema::integer() -> Self
@@ -114,6 +114,7 @@ pub fn Schema::raw(Json) -> Self raise SchemaError
 pub fn Schema::reference(String) -> Self raise SchemaError
 pub fn Schema::string() -> Self
 pub fn Schema::to_json(Self) -> Json
+pub impl ToJson for Schema
 
 pub struct ValidationResult {
   valid : Bool
@@ -126,3 +127,8 @@ pub struct ValidationResult {
 pub(open) trait JsonSchema {
   fn json_schema() -> Json raise SchemaError
 }
+pub impl JsonSchema for Bool
+pub impl JsonSchema for Int
+pub impl JsonSchema for Int64
+pub impl JsonSchema for Double
+pub impl JsonSchema for String

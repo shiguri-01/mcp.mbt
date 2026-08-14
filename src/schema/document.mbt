@@ -18,6 +18,7 @@ pub enum Schema {
   OneOf(Array[Schema])
   Not(Schema)
   Ref(String)
+  Description(Schema, String)
   Raw(Json)
 } derive(Debug, Eq)
 
@@ -101,6 +102,12 @@ pub fn Schema::not(value : Schema) -> Schema {
 }
 
 ///|
+/// Attach the standard JSON Schema description annotation to a schema.
+pub fn Schema::description(value : Schema, description : String) -> Schema {
+  Description(value, description)
+}
+
+///|
 pub fn Schema::reference(reference : String) -> Schema raise SchemaError {
   if !reference.has_prefix("#") {
     raise InvalidSchema("network JSON Schema references are disabled")
@@ -162,8 +169,20 @@ pub fn Schema::to_json(self : Schema) -> Json {
       Json::object({ "oneOf": values.map(value => value.to_json()).to_json() })
     Not(value) => Json::object({ "not": value.to_json() })
     Ref(reference) => Json::object({ "$ref": Json::string(reference) })
+    Description(value, description) => {
+      guard value.to_json() is Object(fields) else {
+        return Json::object({ "description": Json::string(description) })
+      }
+      fields["description"] = Json::string(description)
+      Json::object(fields)
+    }
     Raw(value) => value
   }
+}
+
+///|
+pub impl ToJson for Schema with fn to_json(self) -> Json {
+  self.to_json()
 }
 
 ///|
@@ -182,6 +201,11 @@ pub struct Document {
   value : Json
   dialect : String
 } derive(Debug, Eq)
+
+///|
+pub impl ToJson for Document with fn to_json(self) -> Json {
+  self.value
+}
 
 ///|
 pub fn Document::Document(value : Json) -> Document raise SchemaError {
