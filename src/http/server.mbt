@@ -417,7 +417,7 @@ fn validate_post_request(
   validate_standard_headers(
     request,
     message,
-    supported_versions=server.supported_versions(),
+    supported_versions=server.supported_versions,
   )
   validate_tool_call_headers(server, request, message)
 }

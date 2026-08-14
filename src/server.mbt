@@ -40,9 +40,6 @@ pub fn Server::tool_input_schema(self : Server, name : String) -> Json? {
 }
 
 ///|
-pub fn Server::supported_versions(self : Server) -> Array[String] {
-  self.supported_versions.copy()
-}
 
 ///|
 struct RegisteredResource {
@@ -125,7 +122,7 @@ pub struct Server {
   priv info : Implementation
   priv instructions : String?
   priv cache_policy : CachePolicy
-  priv supported_versions : Array[String]
+  supported_versions : Array[String]
   priv mut registry_frozen : Bool
   priv tools : Map[String, RegisteredTool]
   priv resources : Map[String, RegisteredResource]

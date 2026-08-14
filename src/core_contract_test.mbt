@@ -83,7 +83,7 @@ test "protocol objects retain independent copies of mutable inputs" {
     supported_versions=versions,
   )
   versions[0] = "mutated"
-  assert_eq(server.supported_versions(), [@mcp.latest_protocol_version])
+  assert_eq(server.supported_versions, [@mcp.latest_protocol_version])
   let settings : Map[String, Json] = { "enabled": Json::boolean(true) }
   let extensions : Map[String, Json] = {
     "com.example/feature": Json::object(settings),
