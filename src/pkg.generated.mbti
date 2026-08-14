@@ -18,6 +18,14 @@ pub fn complete_result(Json, server_info? : Implementation, meta? : Map[String, 
 
 pub fn[T : @json.FromJson] decode_json(Json, context? : String) -> T raise McpError
 
+pub fn decode_message(Json) -> @jsonrpc.Message raise McpError
+
+pub fn error_response(id? : @jsonrpc.RequestId, McpError) -> Json
+
+pub fn error_response_from_json_id(id? : Json, McpError) -> Json
+
+pub fn jsonrpc_error(@jsonrpc.JsonRpcDecodeError) -> McpError
+
 pub fn logging_message_notification(level~ : LoggingLevel, data~ : Json, logger? : String) -> Json
 
 pub fn progress_notification(progress_token~ : Json, progress~ : Double, total? : Double, message? : String) -> Json raise McpError
@@ -31,6 +39,10 @@ pub fn resources_list_changed_notification(subscription_id~ : Json) -> Json
 pub fn subscriptions_acknowledged_notification(subscription_id~ : Json, notifications~ : SubscriptionFilter) -> Json
 
 pub fn subscriptions_listen_params(notifications~ : SubscriptionFilter, meta~ : Json) -> Json
+
+pub fn success_response(@jsonrpc.RequestId, Json) -> Json
+
+pub fn success_response_from_json_id(Json, Json) -> Json raise McpError
 
 pub fn tools_list_changed_notification(subscription_id~ : Json) -> Json
 

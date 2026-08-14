@@ -10,12 +10,10 @@ pub fn cancelled_notification(
   }
   let params : Map[String, Json] = { "requestId": request_id }
   put_optional_string(params, "reason", reason)
-  @jsonrpc.Notification(
+  try! @jsonrpc.Notification(
     method_name="notifications/cancelled",
     params=Json::object(params),
-  ).to_json() catch {
-    _ => Json::null()
-  }
+  ).to_json()
 }
 
 ///|
@@ -35,22 +33,18 @@ pub fn progress_notification(
     None => ()
   }
   put_optional_string(params, "message", message)
-  @jsonrpc.Notification(
+  try! @jsonrpc.Notification(
     method_name="notifications/progress",
     params=Json::object(params),
-  ).to_json() catch {
-    _ => Json::null()
-  }
+  ).to_json()
 }
 
 ///|
 pub fn tools_list_changed_notification(subscription_id~ : Json) -> Json {
-  @jsonrpc.Notification(
+  try! @jsonrpc.Notification(
     method_name="notifications/tools/list_changed",
     params=subscription_params(subscription_id),
-  ).to_json() catch {
-    _ => Json::null()
-  }
+  ).to_json()
 }
 
 ///|
@@ -65,12 +59,10 @@ fn subscription_params(subscription_id : Json) -> Json {
 
 ///|
 pub fn resources_list_changed_notification(subscription_id~ : Json) -> Json {
-  @jsonrpc.Notification(
+  try! @jsonrpc.Notification(
     method_name="notifications/resources/list_changed",
     params=subscription_params(subscription_id),
-  ).to_json() catch {
-    _ => Json::null()
-  }
+  ).to_json()
 }
 
 ///|
@@ -81,20 +73,16 @@ pub fn resource_updated_notification(
 ) -> Json {
   let params : Map[String, Json] = { "uri": Json::string(uri) }
   params["_meta"] = subscription_notification_meta(subscription_id)
-  @jsonrpc.Notification(
+  try! @jsonrpc.Notification(
     method_name="notifications/resources/updated",
     params=Json::object(params),
-  ).to_json() catch {
-    _ => Json::null()
-  }
+  ).to_json()
 }
 
 ///|
 pub fn prompts_list_changed_notification(subscription_id~ : Json) -> Json {
-  @jsonrpc.Notification(
+  try! @jsonrpc.Notification(
     method_name="notifications/prompts/list_changed",
     params=subscription_params(subscription_id),
-  ).to_json() catch {
-    _ => Json::null()
-  }
+  ).to_json()
 }

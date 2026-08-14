@@ -1,37 +1,41 @@
 ///|
 fn inbound_id(message : Json) -> Json? {
-  match message {
-    Object({ "id": String(_) | Number(_) as id, .. }) => Some(id)
+  match (@jsonrpc.decode(message) catch { _ => return None }) {
+    @jsonrpc.Message::Request(request) => Some(request.id.as_json())
     _ => None
   }
 }
 
 ///|
 fn error_response(id : Json?, error : @mcp.McpError) -> Json {
-  Json::object({
-    "jsonrpc": Json::string("2.0"),
-    "id": id.unwrap_or(Json::null()),
-    "error": error.to_json(),
-  })
+  @mcp.error_response_from_json_id(id?, error)
 }
 
 ///|
 fn is_listen_request(message : Json) -> Bool {
-  message is Object({ "method": String("subscriptions/listen"), "id": _, .. })
+  match (@jsonrpc.decode(message) catch { _ => return false }) {
+    @jsonrpc.Message::Request(request) =>
+      request.method_name == "subscriptions/listen"
+    _ => false
+  }
 }
 
 ///|
 fn cancelled_request_id(message : Json) -> Json? {
-  match message {
-    Object(
-      {
-        "jsonrpc": String("2.0"),
-        "method": String("notifications/cancelled"),
-        "id"? : None,
-        "params": Object({ "requestId": String(_) | Number(_) as id, .. }),
-        ..
+  match (@jsonrpc.decode(message) catch { _ => return None }) {
+    @jsonrpc.Message::Notification(notification) =>
+      if notification.method_name == "notifications/cancelled" {
+        match notification.params {
+          Object(params) =>
+            match params.get("requestId") {
+              Some(String(_) | Number(_) as id) => Some(id)
+              _ => None
+            }
+          _ => None
+        }
+      } else {
+        None
       }
-    ) => Some(id)
     _ => None
   }
 }
@@ -78,30 +82,25 @@ fn subscription_event_allowed(
   subscription : @mcp.Subscription,
   event : Json,
 ) -> Bool {
-  guard event
-    is Object(
-      {
-        "jsonrpc": String("2.0"),
-        "method": String(method_name),
-        "params": Object(params),
-        "id"? : None,
-        ..
-      }
-    ) else {
-    return false
+  let decoded = @jsonrpc.decode(event) catch { _ => return false }
+  let notification = match decoded {
+    @jsonrpc.Message::Notification(notification) => notification
+    _ => return false
   }
-  guard params
-    is {
-      "_meta": Object(
-        { "io.modelcontextprotocol/subscriptionId": subscription_id, .. }
-      ),
-      ..
-    } &&
-    subscription_id == subscription.id else {
+  let params = match notification.params {
+    Object(params) => params
+    _ => return false
+  }
+  let meta = match params.get("_meta") {
+    Some(Object(meta)) => meta
+    _ => return false
+  }
+  guard meta.get("io.modelcontextprotocol/subscriptionId") ==
+    Some(subscription.id) else {
     return false
   }
   let filter = subscription.notifications
-  match method_name {
+  match notification.method_name {
     "notifications/tools/list_changed" => filter.tools_list_changed
     "notifications/prompts/list_changed" => filter.prompts_list_changed
     "notifications/resources/list_changed" => filter.resources_list_changed

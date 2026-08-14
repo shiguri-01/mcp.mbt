@@ -159,57 +159,58 @@ fn routing_key(id : Json) -> String {
 
 ///|
 fn subscription_notification_id(message : Json) -> Json? {
-  match message {
-    Object(
-      {
-        "method": String(_),
-        "params": Object(
-          {
-            "_meta": Object(
-              { "io.modelcontextprotocol/subscriptionId": id, .. }
-            ),
-            ..
-          }
-        ),
-        ..
+  let decoded = @jsonrpc.decode(message) catch { _ => return None }
+  let notification = match decoded {
+    @jsonrpc.Message::Notification(notification) => notification
+    _ => return None
+  }
+  match notification.params {
+    Object(params) =>
+      match params.get("_meta") {
+        Some(Object(meta)) => meta.get("io.modelcontextprotocol/subscriptionId")
+        _ => None
       }
-    ) => Some(id)
     _ => None
   }
 }
 
 ///|
 fn request_progress_token(message : Json) -> Json? {
-  match message {
-    Object(
-      {
-        "params": Object(
-          {
-            "_meta": Object(
-              { "progressToken": String(_) | Number(_) as token, .. }
-            ),
-            ..
+  let decoded = @jsonrpc.decode(message) catch { _ => return None }
+  let request = match decoded {
+    @jsonrpc.Message::Request(request) => request
+    _ => return None
+  }
+  match request.params {
+    Object(params) =>
+      match params.get("_meta") {
+        Some(Object(meta)) =>
+          match meta.get("progressToken") {
+            Some(String(_) | Number(_) as token) => Some(token)
+            _ => None
           }
-        ),
-        ..
+        _ => None
       }
-    ) => Some(token)
     _ => None
   }
 }
 
 ///|
 fn notification_progress_token(message : Json) -> Json? {
-  match message {
-    Object(
-      {
-        "method": String("notifications/progress"),
-        "params": Object(
-          { "progressToken": String(_) | Number(_) as token, .. }
-        ),
-        ..
+  let decoded = @jsonrpc.decode(message) catch { _ => return None }
+  let notification = match decoded {
+    @jsonrpc.Message::Notification(notification) => notification
+    _ => return None
+  }
+  if notification.method_name != "notifications/progress" {
+    return None
+  }
+  match notification.params {
+    Object(params) =>
+      match params.get("progressToken") {
+        Some(String(_) | Number(_) as token) => Some(token)
+        _ => None
       }
-    ) => Some(token)
     _ => None
   }
 }
@@ -419,10 +420,10 @@ pub async fn Client::notify(
   self : Client,
   notification : Json,
 ) -> Unit raise @mcp.McpError {
-  guard notification
-    is Object(
-      { "jsonrpc": String("2.0"), "method": String(_), "id"? : None, .. }
-    ) else {
+  let decoded = @jsonrpc.decode(notification) catch {
+    _ => raise InvalidRequest("stdio notify requires a JSON-RPC notification")
+  }
+  guard decoded is @jsonrpc.Message::Notification(_) else {
     raise InvalidRequest("stdio notify requires a JSON-RPC notification")
   }
   self.outbound.put(Some(encode_frame(notification))) catch {

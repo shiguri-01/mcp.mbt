@@ -1,10 +1,6 @@
 ///|
 fn jsonrpc_error(id : Json, error : @mcp.McpError) -> Json {
-  Json::object({
-    "jsonrpc": Json::string("2.0"),
-    "id": id,
-    "error": error.to_json(),
-  })
+  @mcp.error_response_from_json_id(id~, error)
 }
 
 ///|
@@ -49,30 +45,25 @@ fn subscription_event_allowed(
   subscription : @mcp.Subscription,
   event : Json,
 ) -> Bool {
-  guard event
-    is Object(
-      {
-        "jsonrpc": String("2.0"),
-        "method": String(method_name),
-        "params": Object(params),
-        "id"? : None,
-        ..
-      }
-    ) else {
-    return false
+  let decoded = @jsonrpc.decode(event) catch { _ => return false }
+  let notification = match decoded {
+    @jsonrpc.Message::Notification(notification) => notification
+    _ => return false
   }
-  guard params
-    is {
-      "_meta": Object(
-        { "io.modelcontextprotocol/subscriptionId": subscription_id, .. }
-      ),
-      ..
-    } &&
-    subscription_id == subscription.id else {
+  let params = match notification.params {
+    Object(params) => params
+    _ => return false
+  }
+  let meta = match params.get("_meta") {
+    Some(Object(meta)) => meta
+    _ => return false
+  }
+  guard meta.get("io.modelcontextprotocol/subscriptionId") ==
+    Some(subscription.id) else {
     return false
   }
   let filter = subscription.notifications
-  match method_name {
+  match notification.method_name {
     "notifications/tools/list_changed" => filter.tools_list_changed
     "notifications/prompts/list_changed" => filter.prompts_list_changed
     "notifications/resources/list_changed" => filter.resources_list_changed

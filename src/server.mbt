@@ -947,37 +947,27 @@ pub async fn Server::handle_jsonrpc_with_hooks(
   hooks~ : RequestHooks,
 ) -> Json? {
   let decoded = @jsonrpc.decode(message) catch {
-    error => {
-      let response : @jsonrpc.Response[Json] = @jsonrpc.response_failure(
-        error=InvalidRequest(
-          match error {
-            InvalidMessage(msg) => msg
-          },
-        ).to_error_object(),
+    error =>
+      return Some(
+        error_response(
+          InvalidRequest(
+            match error {
+              InvalidMessage(msg) => msg
+            },
+          ),
+        ),
       )
-      return Some(response.to_json())
-    }
   }
   match decoded {
     @jsonrpc.Message::Notification(_) => None
-    @jsonrpc.Message::Response(_) => {
-      let response : @jsonrpc.Response[Json] = @jsonrpc.response_failure(
-        error=InvalidRequest("MCP server expected a request").to_error_object(),
-      )
-      Some(response.to_json())
-    }
+    @jsonrpc.Message::Response(_) =>
+      Some(error_response(InvalidRequest("MCP server expected a request")))
     @jsonrpc.Message::Request(request) =>
       try {
         let result = self.dispatch_request(request, hooks~)
-        Some(@jsonrpc.response_success(id=request.id, result~).to_json())
+        Some(success_response(request.id, result))
       } catch {
-        error => {
-          let response : @jsonrpc.Response[Json] = @jsonrpc.response_failure(
-            id=request.id,
-            error=error.to_error_object(),
-          )
-          Some(response.to_json())
-        }
+        error => Some(error_response(id=request.id, error))
       } noraise {
         response => response
       }

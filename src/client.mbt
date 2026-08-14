@@ -77,9 +77,14 @@ pub fn Client::request_raw(
     client_info=self.info,
     protocol_version=self.protocol_version,
   )
-  @jsonrpc.Request(id=self.fresh_id(), method_name~, params=payload).to_json() catch {
-    _ => Json::null()
+  let request = @jsonrpc.Request(
+    id=self.fresh_id(),
+    method_name~,
+    params=payload,
+  ) catch {
+    InvalidEnvelope(msg) => raise InvalidParams(msg)
   }
+  request.to_json()
 }
 
 ///|

@@ -441,9 +441,9 @@ fn decode_jsonrpc_message(message : Json) -> @jsonrpc.Message? {
 
 ///|
 fn jsonrpc_error_code(message : Json) -> Double? {
-  match message {
-    Object({ "error": Object({ "code": Number(code, ..), .. }), .. }) =>
-      Some(code)
+  match decode_jsonrpc_message(message) {
+    Some(@jsonrpc.Message::Response(@jsonrpc.Response::Failure(error~, ..))) =>
+      Some(error.code.to_double())
     _ => None
   }
 }

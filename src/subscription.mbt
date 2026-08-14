@@ -135,7 +135,7 @@ pub fn subscriptions_acknowledged_notification(
   subscription_id~ : Json,
   notifications~ : SubscriptionFilter,
 ) -> Json {
-  @jsonrpc.Notification(
+  try! @jsonrpc.Notification(
     method_name="notifications/subscriptions/acknowledged",
     params=Json::object({
       "_meta": Json::object({
@@ -143,9 +143,7 @@ pub fn subscriptions_acknowledged_notification(
       }),
       "notifications": notifications.to_json(),
     }),
-  ).to_json() catch {
-    _ => Json::null()
-  }
+  ).to_json()
 }
 
 ///|
