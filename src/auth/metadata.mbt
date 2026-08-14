@@ -106,10 +106,10 @@ pub fn parse_protected_resource_metadata(
   let root_fallback_matches = if allow_same_origin_root {
     let actual = parse_absolute_uri(resource)
     let expected = parse_absolute_uri(expected_resource)
-    actual.scheme().equal_ignore_ascii_case(expected.scheme()) &&
-    actual.authority().equal_ignore_ascii_case(expected.authority()) &&
-    (actual.path().is_empty() || actual.path() == "/") &&
-    actual.query() is None
+    actual.scheme.equal_ignore_ascii_case(expected.scheme) &&
+    actual.authority.equal_ignore_ascii_case(expected.authority) &&
+    (actual.path.is_empty() || actual.path == "/") &&
+    actual.query is None
   } else {
     false
   }

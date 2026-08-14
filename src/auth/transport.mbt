@@ -104,8 +104,8 @@ fn validate_destination_default(
     url,
     allow_loopback_http=allow_insecure_loopback,
   )
-  if private_literal_authority(uri.authority()) &&
-    !(allow_insecure_loopback && loopback_authority(uri.authority())) {
+  if private_literal_authority(uri.authority) &&
+    !(allow_insecure_loopback && loopback_authority(uri.authority)) {
     raise InvalidUri("authorization destination must not be a private address")
   }
 }

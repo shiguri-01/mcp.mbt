@@ -25,15 +25,15 @@ pub fn validate_authorization_response(
   expected_redirect_uri? : String,
 ) -> AuthorizationCode raise AuthError {
   let callback = parse_absolute_uri(callback_uri)
-  let parameters = parse_query(callback.query().unwrap_or(""))
+  let parameters = parse_query(callback.query.unwrap_or(""))
   if expected_redirect_uri is Some(expected) {
     let redirect = parse_absolute_uri(expected)
-    if callback.scheme() != redirect.scheme() ||
-      callback.authority() != redirect.authority() ||
-      callback.path() != redirect.path() {
+    if callback.scheme != redirect.scheme ||
+      callback.authority != redirect.authority ||
+      callback.path != redirect.path {
       raise InvalidAuthorizationResponse("authorization redirect URI mismatch")
     }
-    let expected_query = parse_query(redirect.query().unwrap_or(""))
+    let expected_query = parse_query(redirect.query.unwrap_or(""))
     for name, value in expected_query {
       if parameters.get(name) != Some(value) {
         raise InvalidAuthorizationResponse(

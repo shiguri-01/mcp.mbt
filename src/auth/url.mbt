@@ -1,29 +1,9 @@
 ///|
 pub struct AbsoluteUri {
-  priv scheme : String
-  priv authority : String
-  priv path : String
-  priv query : String?
-}
-
-///|
-pub fn AbsoluteUri::scheme(self : AbsoluteUri) -> String {
-  self.scheme
-}
-
-///|
-pub fn AbsoluteUri::authority(self : AbsoluteUri) -> String {
-  self.authority
-}
-
-///|
-pub fn AbsoluteUri::path(self : AbsoluteUri) -> String {
-  self.path
-}
-
-///|
-pub fn AbsoluteUri::query(self : AbsoluteUri) -> String? {
-  self.query
+  scheme : String
+  authority : String
+  path : String
+  query : String?
 }
 
 ///|
@@ -221,7 +201,7 @@ pub fn validate_public_authorization_uri(
   value : String,
 ) -> AbsoluteUri raise AuthError {
   let uri = validate_secure_uri(value)
-  if private_literal_authority(uri.authority()) {
+  if private_literal_authority(uri.authority) {
     raise InvalidUri("authorization destination must not be a private address")
   }
   uri
@@ -235,12 +215,12 @@ pub fn validate_secure_uri(
   allow_loopback_http? : Bool = false,
 ) -> AbsoluteUri raise AuthError {
   let uri = parse_absolute_uri(value)
-  if uri.scheme().equal_ignore_ascii_case("https") {
+  if uri.scheme.equal_ignore_ascii_case("https") {
     return uri
   }
   if allow_loopback_http &&
-    uri.scheme().equal_ignore_ascii_case("http") &&
-    loopback_authority(uri.authority()) {
+    uri.scheme.equal_ignore_ascii_case("http") &&
+    loopback_authority(uri.authority) {
     return uri
   }
   raise InvalidUri("authorization URI must use HTTPS")

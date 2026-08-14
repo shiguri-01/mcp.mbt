@@ -1131,7 +1131,7 @@ async test "401 without a challenge falls back to protected-resource discovery" 
     open_authorization_url=url => {
       opened.push(url)
       let parsed = @auth.parse_absolute_uri(url)
-      let state = @auth.parse_query(parsed.query().unwrap_or(""))
+      let state = @auth.parse_query(parsed.query.unwrap_or(""))
         .get("state")
         .unwrap()
       "https://client.example/callback?code=code-1&state=" +

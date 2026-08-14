@@ -274,7 +274,7 @@ pub fn choose_registration(
       url,
       allow_loopback_http=allow_insecure_loopback,
     )
-    if document.path().is_empty() || document.path() == "/" {
+    if document.path.is_empty() || document.path == "/" {
       raise UnsupportedRegistration(
         "client metadata document URL must have a non-root path",
       )
