@@ -1,8 +1,8 @@
 # MCP 2026-07-28 MoonBit API design
 
-This document is the contract for the next implementation pass. It is
-deliberately written in MCP terminology. It is not a history of the current
-implementation and it does not describe compatibility aliases.
+This document describes the current public contract. It is deliberately
+written in MCP terminology and does not describe compatibility aliases or
+implementation history.
 
 ## Design rules
 
@@ -168,10 +168,8 @@ validation helper that duplicates constructor or codec validation;
 
 ## Implementation order
 
-1. Freeze this public contract and remove obsolete aliases/getters.
-2. Rebuild `schema` as an independent document/compiler/validation package.
-3. Rebuild JSON-RPC and MCP codecs around the canonical `jsonrpc` package.
-4. Implement typed server/client core and use it from HTTP and stdio.
-5. Add transport-specific conformance tests and typed quickstart tests.
-6. Run all MCP 2026-07-28 conformance suites and publish only claims backed by
-   those tests.
+The implementation is validated in layers: the schema, JSON-RPC, MCP core,
+and transport packages each own their contract tests. HTTP and stdio use the
+same MCP request/result codecs; transport tests cover framing, headers,
+stream lifetime, and cancellation. Conformance claims are published only
+when backed by the corresponding MCP 2026-07-28 suite.
