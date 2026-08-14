@@ -243,8 +243,7 @@ fn register_capability_and_tamper_mrtr(server : @mcp.Server) -> Unit {
     (context, _arguments) => {
       let capabilities = context.meta.client_capabilities
       let requests : Map[String, @mcp.InputRequest] = Map([])
-      if capabilities.deprecated is Some(deprecated) &&
-        deprecated.sampling is Some(_) {
+      if capabilities.sampling is Some(_) {
         requests["capital_question"] = sampling_request()
       }
       if capabilities.elicitation is Some(_) {

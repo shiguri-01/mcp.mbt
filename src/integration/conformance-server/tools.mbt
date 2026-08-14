@@ -23,7 +23,7 @@ fn register_tool_fixtures(server : @mcp.Server) -> Unit {
     fn(_context, _arguments) {
       @mcp.Complete(
         @mcp.CallToolResult(content=[
-          @mcp.ContentBlock::image(data=pixel_png, mime_type="image/png"),
+          @mcp.Content::image(data=pixel_png, mime_type="image/png"),
         ]),
       )
     },
@@ -35,7 +35,7 @@ fn register_tool_fixtures(server : @mcp.Server) -> Unit {
     fn(_context, _arguments) {
       @mcp.Complete(
         @mcp.CallToolResult(content=[
-          @mcp.ContentBlock::audio(data=silent_wav, mime_type="audio/wav"),
+          @mcp.Content::audio(data=silent_wav, mime_type="audio/wav"),
         ]),
       )
     },
@@ -47,7 +47,7 @@ fn register_tool_fixtures(server : @mcp.Server) -> Unit {
     fn(_context, _arguments) {
       @mcp.Complete(
         @mcp.CallToolResult(content=[
-          @mcp.ContentBlock::embedded_resource(
+          @mcp.Content::embedded_resource(
             resource=@mcp.ResourceContent::text(
               uri="test://embedded-resource",
               text="This is an embedded resource content.",
@@ -65,9 +65,9 @@ fn register_tool_fixtures(server : @mcp.Server) -> Unit {
     fn(_context, _arguments) {
       @mcp.Complete(
         @mcp.CallToolResult(content=[
-          @mcp.ContentBlock::text("Multiple content types test:"),
-          @mcp.ContentBlock::image(data=pixel_png, mime_type="image/png"),
-          @mcp.ContentBlock::embedded_resource(
+          @mcp.Content::text("Multiple content types test:"),
+          @mcp.Content::image(data=pixel_png, mime_type="image/png"),
+          @mcp.Content::embedded_resource(
             resource=@mcp.ResourceContent::text(
               uri="test://mixed-content-resource",
               text="{\"test\":\"data\",\"value\":123}",

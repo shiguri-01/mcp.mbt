@@ -88,7 +88,7 @@ test "discover and request implementation codecs retain icons and metadata" {
 }
 
 ///|
-test "deprecated and unknown client capabilities round trip" {
+test "client capabilities and unknown properties round trip" {
   let meta = try! @mcp.decode_request_meta(
     Json::object({
       "io.modelcontextprotocol/protocolVersion": Json::string(
@@ -105,11 +105,12 @@ test "deprecated and unknown client capabilities round trip" {
   )
   guard meta.client_capabilities
     is {
-      deprecated: Some({ roots: Some(Object(_)), sampling: Some(Object(_)) }),
+      roots: Some({ list_changed: Some(true) }),
+      sampling: Some(_),
       extra: { "com.example/customCapability": Object(_), .. },
       ..,
     } else {
-    fail("expected wire-compatible capabilities")
+    fail("expected typed client capabilities")
   }
   guard meta.client_capabilities.to_json()
     is Object(
@@ -158,4 +159,45 @@ test "invalid resource parameters preserve the requested URI" {
     error.data(),
     Some(Json::object({ "uri": Json::string("test://missing") })),
   )
+}
+
+///|
+test "mcp capabilities typed constructors and roundtrip" {
+  let client_caps = @mcp.ClientCapabilities(
+    roots=@mcp.RootsCapability(list_changed=true),
+    sampling=@mcp.SamplingCapability(),
+  )
+  let client_json = client_caps.to_json()
+  guard client_json
+    is Object(
+      {
+        "roots": Object({ "listChanged": True, .. }),
+        "sampling": Object(_),
+        ..
+      }
+    ) else {
+    fail("expected roots and sampling in client capabilities JSON")
+  }
+
+  let server_caps = @mcp.ServerCapabilities(
+    tools=@mcp.ToolsCapability(list_changed=true),
+    resources=@mcp.ResourcesCapability(subscribe=true, list_changed=false),
+    prompts=@mcp.PromptsCapability(list_changed=true),
+    logging=@mcp.LoggingCapability(),
+    completions=true,
+  )
+  let server_json = server_caps.to_json()
+  guard server_json
+    is Object(
+      {
+        "tools": Object({ "listChanged": True, .. }),
+        "resources": Object({ "subscribe": True, "listChanged": False, .. }),
+        "prompts": Object({ "listChanged": True, .. }),
+        "logging": Object(_),
+        "completions": Object(_),
+        ..
+      }
+    ) else {
+    fail("expected all typed server capabilities in JSON")
+  }
 }

@@ -1,11 +1,9 @@
 ///|
 fn conformance_capabilities() -> @mcp.ClientCapabilities {
   @mcp.ClientCapabilities(
+    roots=@mcp.RootsCapability(),
+    sampling=@mcp.SamplingCapability(),
     elicitation=@mcp.ElicitationCapability(form=Json::object({})),
-    deprecated=@mcp.DeprecatedClientCapabilities(
-      roots=Json::object({}),
-      sampling=Json::object({}),
-    ),
   )
 }
 

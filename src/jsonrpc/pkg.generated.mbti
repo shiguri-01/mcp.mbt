@@ -7,6 +7,18 @@ import {
 }
 
 // Values
+pub const INTERNAL_ERROR : Int = -32603
+
+pub const INVALID_PARAMS : Int = -32602
+
+pub const INVALID_REQUEST : Int = -32600
+
+pub const JSON_RPC_VERSION : String = "2.0"
+
+pub const METHOD_NOT_FOUND : Int = -32601
+
+pub const PARSE_ERROR : Int = -32700
+
 pub fn decode(Json) -> Message raise JsonRpcDecodeError
 
 pub fn[Result] response_failure(id~ : RequestId, error~ : ErrorObject) -> Response[Result]

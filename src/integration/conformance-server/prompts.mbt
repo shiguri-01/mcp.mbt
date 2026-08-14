@@ -36,7 +36,7 @@ fn register_prompt_fixtures(server : @mcp.Server) -> Unit {
         @mcp.GetPromptResult(messages=[
           @mcp.PromptMessage(
             role=@mcp.Role::User,
-            content=@mcp.ContentBlock::embedded_resource(
+            content=@mcp.Content::embedded_resource(
               resource=@mcp.ResourceContent::text(
                 uri~,
                 text="Embedded resource content for testing.",
@@ -59,10 +59,7 @@ fn register_prompt_fixtures(server : @mcp.Server) -> Unit {
         @mcp.GetPromptResult(messages=[
           @mcp.PromptMessage(
             role=@mcp.Role::User,
-            content=@mcp.ContentBlock::image(
-              data=pixel_png,
-              mime_type="image/png",
-            ),
+            content=@mcp.Content::image(data=pixel_png, mime_type="image/png"),
           ),
           @mcp.PromptMessage::user("Please analyze the image above."),
         ]),

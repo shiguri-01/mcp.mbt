@@ -4,7 +4,22 @@
 /// This package deliberately knows nothing about MCP methods, transports, or
 /// HTTP headers.  It only validates the JSON-RPC envelope and preserves the
 /// payload for the protocol layer.
-const JSON_RPC_VERSION : String = "2.0"
+pub const JSON_RPC_VERSION : String = "2.0"
+
+///|
+pub const PARSE_ERROR : Int = -32700
+
+///|
+pub const INVALID_REQUEST : Int = -32600
+
+///|
+pub const METHOD_NOT_FOUND : Int = -32601
+
+///|
+pub const INVALID_PARAMS : Int = -32602
+
+///|
+pub const INTERNAL_ERROR : Int = -32603
 
 ///|
 pub enum RequestId {

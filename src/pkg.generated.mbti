@@ -4,11 +4,14 @@ package "shiguri-01/mcp"
 import {
   "moonbitlang/core/debug",
   "moonbitlang/core/json",
+  "shiguri-01/mcp/jsonrpc",
   "shiguri-01/mcp/schema",
   "shiguri-01/mcp/transport",
 }
 
 // Values
+pub const LATEST_PROTOCOL_VERSION : String = "2026-07-28"
+
 pub fn cancelled_notification(request_id~ : Json, reason? : String) -> Json raise McpError
 
 pub fn complete_result(Json, server_info? : Implementation, meta? : Map[String, Json]) -> Json raise McpError
@@ -17,7 +20,7 @@ pub fn decode_call_tool_result(Json) -> CallToolResult raise McpError
 
 pub fn decode_complete_result(Json) -> CompleteResult raise McpError
 
-pub fn decode_content_block(Json) -> ContentBlock raise McpError
+pub fn decode_content(Json) -> Content raise McpError
 
 pub fn decode_discover_result(Json) -> DiscoverResult raise McpError
 
@@ -78,8 +81,10 @@ pub(all) suberror McpError {
 } derive(Eq, @debug.Debug)
 pub fn McpError::code(Self) -> Int
 pub fn McpError::data(Self) -> Json?
+pub fn McpError::from_error_object(@jsonrpc.ErrorObject) -> Self raise Self
 pub fn McpError::from_rpc_parts(Int, String, data? : Json) -> Self raise Self
 pub fn McpError::message(Self) -> String
+pub fn McpError::to_error_object(Self) -> @jsonrpc.ErrorObject
 pub impl ToJson for McpError
 
 // Types and methods
@@ -106,12 +111,12 @@ pub fn CacheScope::to_string(Self) -> String
 pub impl ToJson for CacheScope
 
 pub struct CallToolResult {
-  content : Array[ContentBlock]
+  content : Array[Content]
   structured_content : Json?
   is_error : Bool
   meta : ResultMeta?
 } derive(Eq, @debug.Debug)
-pub fn CallToolResult::CallToolResult(content~ : Array[ContentBlock], structured_content? : Json, is_error? : Bool, meta? : ResultMeta) -> Self
+pub fn CallToolResult::CallToolResult(content~ : Array[Content], structured_content? : Json, is_error? : Bool, meta? : ResultMeta) -> Self
 pub fn[T : @json.FromJson] CallToolResult::decode_structured(Self) -> T raise McpError
 pub fn CallToolResult::error_text(String, annotations? : Annotations, meta? : Json) -> Self
 pub fn CallToolResult::json(Json) -> Self
@@ -144,13 +149,14 @@ pub fn Client::read_resource_request(Self, uri~ : String, options? : RequestOpti
 pub fn Client::request_raw(Self, method_name~ : String, params? : Map[String, Json], options? : RequestOptions) -> Json raise McpError
 
 pub struct ClientCapabilities {
+  roots : RootsCapability?
+  sampling : SamplingCapability?
   elicitation : ElicitationCapability?
-  deprecated : DeprecatedClientCapabilities?
   extensions : Map[String, Json]
   experimental : Map[String, Json]
   extra : Map[String, Json]
 } derive(Eq, @debug.Debug)
-pub fn ClientCapabilities::ClientCapabilities(elicitation? : ElicitationCapability, deprecated? : DeprecatedClientCapabilities, extensions? : Map[String, Json], experimental? : Map[String, Json], extra? : Map[String, Json]) -> Self
+pub fn ClientCapabilities::ClientCapabilities(roots? : RootsCapability, sampling? : SamplingCapability, elicitation? : ElicitationCapability, extensions? : Map[String, Json], experimental? : Map[String, Json], extra? : Map[String, Json]) -> Self
 pub fn ClientCapabilities::empty() -> Self
 pub impl ToJson for ClientCapabilities
 
@@ -179,25 +185,19 @@ pub struct CompletionRequest {
   meta : Json?
 } derive(Eq, @debug.Debug)
 
-pub(all) enum ContentBlock {
+pub(all) enum Content {
   TextContent(text~ : String, annotations~ : Annotations?, meta~ : Json?)
   ImageContent(data~ : String, mime_type~ : String, annotations~ : Annotations?, meta~ : Json?)
   AudioContent(data~ : String, mime_type~ : String, annotations~ : Annotations?, meta~ : Json?)
   EmbeddedResource(resource~ : ResourceContent, annotations~ : Annotations?, meta~ : Json?)
   ResourceLink(ResourceLink)
 } derive(Eq, @debug.Debug)
-pub fn ContentBlock::audio(data~ : String, mime_type~ : String, annotations? : Annotations, meta? : Json) -> Self
-pub fn ContentBlock::embedded_resource(resource~ : ResourceContent, annotations? : Annotations, meta? : Json) -> Self
-pub fn ContentBlock::image(data~ : String, mime_type~ : String, annotations? : Annotations, meta? : Json) -> Self
-pub fn ContentBlock::resource_link(ResourceLink) -> Self
-pub fn ContentBlock::text(String, annotations? : Annotations, meta? : Json) -> Self
-pub impl ToJson for ContentBlock
-
-pub struct DeprecatedClientCapabilities {
-  roots : Json?
-  sampling : Json?
-} derive(Eq, @debug.Debug)
-pub fn DeprecatedClientCapabilities::DeprecatedClientCapabilities(roots? : Json, sampling? : Json) -> Self
+pub fn Content::audio(data~ : String, mime_type~ : String, annotations? : Annotations, meta? : Json) -> Self
+pub fn Content::embedded_resource(resource~ : ResourceContent, annotations? : Annotations, meta? : Json) -> Self
+pub fn Content::image(data~ : String, mime_type~ : String, annotations? : Annotations, meta? : Json) -> Self
+pub fn Content::resource_link(ResourceLink) -> Self
+pub fn Content::text(String, annotations? : Annotations, meta? : Json) -> Self
+pub impl ToJson for Content
 
 pub struct DiscoverResult {
   supported_versions : Array[String]
@@ -311,6 +311,11 @@ pub struct ListToolsResult {
   meta : ResultMeta?
 } derive(Eq, @debug.Debug)
 
+pub struct LoggingCapability {
+} derive(Eq, @debug.Debug)
+pub fn LoggingCapability::LoggingCapability() -> Self
+pub impl ToJson for LoggingCapability
+
 pub(all) enum LoggingLevel {
   Debug
   Info
@@ -348,9 +353,9 @@ pub impl ToJson for PromptArgument
 
 pub struct PromptMessage {
   role : Role
-  content : ContentBlock
+  content : Content
 } derive(Eq, @debug.Debug)
-pub fn PromptMessage::PromptMessage(role~ : Role, content~ : ContentBlock) -> Self
+pub fn PromptMessage::PromptMessage(role~ : Role, content~ : Content) -> Self
 pub fn PromptMessage::assistant(String) -> Self
 pub fn PromptMessage::user(String) -> Self
 pub impl ToJson for PromptMessage
@@ -498,6 +503,17 @@ pub fn Role::to_string(Self) -> String
 pub impl ToJson for Role
 pub impl @json.FromJson for Role
 
+pub struct RootsCapability {
+  list_changed : Bool?
+} derive(Eq, @debug.Debug)
+pub fn RootsCapability::RootsCapability(list_changed? : Bool) -> Self
+pub impl ToJson for RootsCapability
+
+pub struct SamplingCapability {
+} derive(Eq, @debug.Debug)
+pub fn SamplingCapability::SamplingCapability() -> Self
+pub impl ToJson for SamplingCapability
+
 pub struct Server {
   // private fields
 }
@@ -519,12 +535,13 @@ pub struct ServerCapabilities {
   tools : ToolsCapability?
   resources : ResourcesCapability?
   prompts : PromptsCapability?
+  logging : LoggingCapability?
   completions : Bool
   extensions : Map[String, Json]
   experimental : Map[String, Json]
   extra : Map[String, Json]
 } derive(Eq, @debug.Debug)
-pub fn ServerCapabilities::ServerCapabilities(tools? : ToolsCapability, resources? : ResourcesCapability, prompts? : PromptsCapability, completions? : Bool, extensions? : Map[String, Json], experimental? : Map[String, Json], extra? : Map[String, Json]) -> Self
+pub fn ServerCapabilities::ServerCapabilities(tools? : ToolsCapability, resources? : ResourcesCapability, prompts? : PromptsCapability, logging? : LoggingCapability, completions? : Bool, extensions? : Map[String, Json], experimental? : Map[String, Json], extra? : Map[String, Json]) -> Self
 pub fn ServerCapabilities::empty() -> Self
 pub impl ToJson for ServerCapabilities
 

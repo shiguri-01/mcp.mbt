@@ -381,46 +381,42 @@ fn decode_resource_content(
 
 ///|
 /// Decode one official MCP content union value.
-pub fn decode_content_block(value : Json) -> ContentBlock raise McpError {
-  let context = "content block"
+pub fn decode_content(value : Json) -> Content raise McpError {
+  let context = "content"
   let fields = expect_object(value, context)
   let annotations = optional_annotations(fields, context)
   let meta = optional_meta_json(fields, context)
   match get_string(fields, "type", context) {
     "text" =>
-      ContentBlock::text(
-        get_string(fields, "text", context),
-        annotations?,
-        meta?,
-      )
+      Content::text(get_string(fields, "text", context), annotations?, meta?)
     "image" =>
-      ContentBlock::image(
+      Content::image(
         data=get_string(fields, "data", context),
         mime_type=get_string(fields, "mimeType", context),
         annotations?,
         meta?,
       )
     "audio" =>
-      ContentBlock::audio(
+      Content::audio(
         data=get_string(fields, "data", context),
         mime_type=get_string(fields, "mimeType", context),
         annotations?,
         meta?,
       )
     "resource" =>
-      ContentBlock::embedded_resource(
+      Content::embedded_resource(
         resource=decode_resource_content(
           match fields.get("resource") {
             Some(resource) => resource
-            None => raise InvalidParams("content block.resource is required")
+            None => raise InvalidParams("content.resource is required")
           },
-          "content block.resource",
+          "content.resource",
         ),
         annotations?,
         meta?,
       )
     "resource_link" =>
-      ContentBlock::resource_link(
+      Content::resource_link(
         ResourceLink(
           uri=get_string(fields, "uri", context),
           name=get_string(fields, "name", context),
@@ -433,7 +429,7 @@ pub fn decode_content_block(value : Json) -> ContentBlock raise McpError {
           meta?,
         ),
       )
-    other => raise InvalidParams("unknown content block type: \{other}")
+    other => raise InvalidParams("unknown content type: \{other}")
   }
 }
 
@@ -442,11 +438,11 @@ fn decode_content_array(
   fields : Map[String, Json],
   key : String,
   context : String,
-) -> Array[ContentBlock] raise McpError {
+) -> Array[Content] raise McpError {
   guard fields.get(key) is Some(Array(values)) else {
     raise InvalidParams("\{context}.\{key} must be an array")
   }
-  values.map(value => decode_content_block(value))
+  values.map(value => decode_content(value))
 }
 
 ///|
@@ -498,7 +494,7 @@ fn decode_prompt_message(
           raise InvalidParams("\{context}.role: \{message}")
       }
     },
-    content=decode_content_block(
+    content=decode_content(
       match fields.get("content") {
         Some(content) => content
         None => raise InvalidParams("\{context}.content is required")

@@ -36,9 +36,9 @@ test "descriptor constructors enforce numeric wire constraints" {
 
 ///|
 test "result decoders enforce descriptor numeric constraints" {
-  assert_invalid_params(fn() -> Unit raise @mcp.McpError {
+  assert_invalid_params(() => {
     ignore(
-      @mcp.decode_content_block(
+      @mcp.decode_content(
         Json::object({
           "type": Json::string("resource_link"),
           "uri": Json::string("memory://a"),
@@ -48,9 +48,9 @@ test "result decoders enforce descriptor numeric constraints" {
       ),
     )
   })
-  assert_invalid_params(fn() -> Unit raise @mcp.McpError {
+  assert_invalid_params(() => {
     ignore(
-      @mcp.decode_content_block(
+      @mcp.decode_content(
         Json::object({
           "type": Json::string("text"),
           "text": Json::string("a"),

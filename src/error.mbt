@@ -17,12 +17,12 @@ pub(all) suberror McpError {
 ///|
 pub fn McpError::code(self : McpError) -> Int {
   match self {
-    ParseError(_) => -32700
-    InvalidRequest(_) => -32600
-    MethodNotFound(_) => -32601
-    InvalidParams(_) => -32602
-    InvalidParamsWithData(_, _) => -32602
-    InternalError(_) => -32603
+    ParseError(_) => @jsonrpc.PARSE_ERROR
+    InvalidRequest(_) => @jsonrpc.INVALID_REQUEST
+    MethodNotFound(_) => @jsonrpc.METHOD_NOT_FOUND
+    InvalidParams(_) => @jsonrpc.INVALID_PARAMS
+    InvalidParamsWithData(_, _) => @jsonrpc.INVALID_PARAMS
+    InternalError(_) => @jsonrpc.INTERNAL_ERROR
     HeaderMismatch(_) => -32020
     MissingRequiredClientCapability(_, _) => -32021
     UnsupportedProtocolVersion(_) => -32022
@@ -65,13 +65,17 @@ pub fn McpError::data(self : McpError) -> Json? {
 }
 
 ///|
+pub fn McpError::to_error_object(self : McpError) -> @jsonrpc.ErrorObject {
+  @jsonrpc.ErrorObject(
+    code=self.code(),
+    message=self.message(),
+    data?=self.data(),
+  )
+}
+
+///|
 pub impl ToJson for McpError with fn to_json(self : McpError) -> Json {
-  let fields : Map[String, Json] = {
-    "code": Json::number(self.code().to_double(), repr="\{self.code()}"),
-    "message": Json::string(self.message()),
-  }
-  put_optional_json(fields, "data", self.data())
-  Json::object(fields)
+  self.to_error_object().to_json()
 }
 
 ///|
@@ -110,6 +114,14 @@ fn parse_unsupported_version_data(
 }
 
 ///|
+/// Decode an MCP error object from a JSON-RPC error structure.
+pub fn McpError::from_error_object(
+  error : @jsonrpc.ErrorObject,
+) -> McpError raise McpError {
+  McpError::from_rpc_parts(error.code, error.message, data?=error.data)
+}
+
+///|
 /// Decode an MCP error object after a JSON-RPC implementation has separated
 /// its `code`, `message`, and optional `data` members.
 pub fn McpError::from_rpc_parts(
@@ -118,15 +130,15 @@ pub fn McpError::from_rpc_parts(
   data? : Json,
 ) -> McpError raise McpError {
   match code {
-    -32700 => ParseError(message)
-    -32600 => InvalidRequest(message)
-    -32601 => MethodNotFound(message)
-    -32602 =>
+    @jsonrpc.PARSE_ERROR => ParseError(message)
+    @jsonrpc.INVALID_REQUEST => InvalidRequest(message)
+    @jsonrpc.METHOD_NOT_FOUND => MethodNotFound(message)
+    @jsonrpc.INVALID_PARAMS =>
       match data {
         Some(data) => InvalidParamsWithData(message, data)
         None => InvalidParams(message)
       }
-    -32603 => InternalError(message)
+    @jsonrpc.INTERNAL_ERROR => InternalError(message)
     -32020 => HeaderMismatch(message)
     -32021 =>
       MissingRequiredClientCapability(

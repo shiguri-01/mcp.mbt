@@ -66,7 +66,7 @@ test "prompt metadata and messages match the content union" {
   assert_eq(icon["src"], Json::string("data:image/png;base64,AA=="))
   let message = @mcp.PromptMessage(
     role=@mcp.Role::Assistant,
-    content=@mcp.ContentBlock::resource_link(
+    content=@mcp.Content::resource_link(
       @mcp.ResourceLink(uri="memory://report", name="report"),
     ),
   ).to_json()

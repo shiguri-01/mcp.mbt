@@ -99,25 +99,25 @@ pub impl ToJson for Prompt with fn to_json(self : Prompt) -> Json {
 ///|
 pub struct PromptMessage {
   role : Role
-  content : ContentBlock
+  content : Content
 } derive(Debug, Eq)
 
 ///|
 pub fn PromptMessage::PromptMessage(
   role~ : Role,
-  content~ : ContentBlock,
+  content~ : Content,
 ) -> PromptMessage {
   { role, content }
 }
 
 ///|
 pub fn PromptMessage::user(text : String) -> PromptMessage {
-  { role: User, content: ContentBlock::text(text) }
+  { role: User, content: Content::text(text) }
 }
 
 ///|
 pub fn PromptMessage::assistant(text : String) -> PromptMessage {
-  { role: Assistant, content: ContentBlock::text(text) }
+  { role: Assistant, content: Content::text(text) }
 }
 
 ///|

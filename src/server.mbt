@@ -557,15 +557,13 @@ fn required_elicitation_capability(
 }
 
 ///|
-fn required_deprecated_capability(method_name : String) -> ClientCapabilities {
-  ClientCapabilities(
-    deprecated=match method_name {
-      "roots/list" => DeprecatedClientCapabilities(roots=Json::object({}))
-      "sampling/createMessage" =>
-        DeprecatedClientCapabilities(sampling=Json::object({}))
-      _ => DeprecatedClientCapabilities()
-    },
-  )
+fn required_client_capability(method_name : String) -> ClientCapabilities {
+  match method_name {
+    "roots/list" => ClientCapabilities(roots=RootsCapability())
+    "sampling/createMessage" =>
+      ClientCapabilities(sampling=SamplingCapability())
+    _ => ClientCapabilities()
+  }
 }
 
 ///|
@@ -595,16 +593,17 @@ fn Server::validate_input_requests(
           }
         }
         "roots/list" | "sampling/createMessage" as method_name => {
-          let actual = context.meta.client_capabilities.deprecated
-          let accepted = match (method_name, actual) {
-            ("roots/list", Some({ roots: Some(_), .. })) => true
-            ("sampling/createMessage", Some({ sampling: Some(_), .. })) => true
+          let actual_roots = context.meta.client_capabilities.roots
+          let actual_sampling = context.meta.client_capabilities.sampling
+          let accepted = match method_name {
+            "roots/list" => actual_roots is Some(_)
+            "sampling/createMessage" => actual_sampling is Some(_)
             _ => false
           }
           if !accepted {
             raise MissingRequiredClientCapability(
-              "Request requires deprecated client capability: \{method_name}",
-              required_deprecated_capability(method_name),
+              "Request requires client capability: \{method_name}",
+              required_client_capability(method_name),
             )
           }
         }

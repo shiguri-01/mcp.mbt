@@ -1,5 +1,62 @@
 ///|
-/// Client support for server-initiated elicitation during an MRTR.
+/// Roots capability declared by an MCP client.
+pub struct RootsCapability {
+  list_changed : Bool?
+} derive(Debug, Eq)
+
+///|
+pub fn RootsCapability::RootsCapability(
+  list_changed? : Bool,
+) -> RootsCapability {
+  { list_changed, }
+}
+
+///|
+pub impl ToJson for RootsCapability with fn to_json(self : RootsCapability) -> Json {
+  let fields : Map[String, Json] = Map([])
+  put_optional_bool(fields, "listChanged", self.list_changed)
+  Json::object(fields)
+}
+
+///|
+fn parse_roots_capability(
+  value : Json,
+  context : String,
+) -> RootsCapability raise McpError {
+  let fields = expect_object(value, context)
+  RootsCapability(
+    list_changed?=get_optional_bool(fields, "listChanged", context),
+  )
+}
+
+///|
+/// Sampling capability declared by an MCP client.
+pub struct SamplingCapability {} derive(Debug, Eq)
+
+///|
+pub fn SamplingCapability::SamplingCapability() -> SamplingCapability {
+  SamplingCapability::{  }
+}
+
+///|
+pub impl ToJson for SamplingCapability with fn to_json(
+  self : SamplingCapability,
+) -> Json {
+  ignore(self)
+  Json::object(Map([]))
+}
+
+///|
+fn parse_sampling_capability(
+  value : Json,
+  context : String,
+) -> SamplingCapability raise McpError {
+  ignore(expect_object(value, context))
+  SamplingCapability()
+}
+
+///|
+/// Client support for server-initiated elicitation.
 pub struct ElicitationCapability {
   form : Json?
   url : Json?
@@ -31,33 +88,23 @@ pub impl ToJson for ElicitationCapability with fn to_json(
 }
 
 ///|
-/// Wire-compatible capabilities retained only for deprecated MRTR methods.
-/// New applications should prefer elicitation and extension methods.
-pub struct DeprecatedClientCapabilities {
-  roots : Json?
-  sampling : Json?
-} derive(Debug, Eq)
-
-///|
-pub fn DeprecatedClientCapabilities::DeprecatedClientCapabilities(
-  roots? : Json,
-  sampling? : Json,
-) -> DeprecatedClientCapabilities {
-  { roots: copy_optional_json(roots), sampling: copy_optional_json(sampling) }
+fn parse_elicitation_capability(
+  value : Json,
+  context : String,
+) -> ElicitationCapability raise McpError {
+  let fields = expect_object(value, context)
+  ElicitationCapability(
+    form?=get_optional_object(fields, "form", context),
+    url?=get_optional_object(fields, "url", context),
+  )
 }
 
 ///|
-fn DeprecatedClientCapabilities::copy(
-  self : DeprecatedClientCapabilities,
-) -> DeprecatedClientCapabilities {
-  DeprecatedClientCapabilities(roots?=self.roots, sampling?=self.sampling)
-}
-
-///|
-/// Capabilities declared independently on every request.
+/// Capabilities declared by an MCP client.
 pub struct ClientCapabilities {
+  roots : RootsCapability?
+  sampling : SamplingCapability?
   elicitation : ElicitationCapability?
-  deprecated : DeprecatedClientCapabilities?
   extensions : Map[String, Json]
   experimental : Map[String, Json]
   extra : Map[String, Json]
@@ -65,15 +112,17 @@ pub struct ClientCapabilities {
 
 ///|
 pub fn ClientCapabilities::ClientCapabilities(
+  roots? : RootsCapability,
+  sampling? : SamplingCapability,
   elicitation? : ElicitationCapability,
-  deprecated? : DeprecatedClientCapabilities,
   extensions? : Map[String, Json] = {},
   experimental? : Map[String, Json] = {},
   extra? : Map[String, Json] = {},
 ) -> ClientCapabilities {
   {
+    roots,
+    sampling,
     elicitation,
-    deprecated,
     extensions: copy_json_map(extensions),
     experimental: copy_json_map(experimental),
     extra: copy_json_map(extra),
@@ -83,8 +132,9 @@ pub fn ClientCapabilities::ClientCapabilities(
 ///|
 fn ClientCapabilities::copy(self : ClientCapabilities) -> ClientCapabilities {
   ClientCapabilities(
+    roots?=self.roots,
+    sampling?=self.sampling,
     elicitation?=self.elicitation.map(value => value.copy()),
-    deprecated?=self.deprecated.map(value => value.copy()),
     extensions=self.extensions,
     experimental=self.experimental,
     extra=self.extra,
@@ -161,17 +211,17 @@ pub impl ToJson for ClientCapabilities with fn to_json(
   self : ClientCapabilities,
 ) -> Json {
   let fields = copy_json_map(self.extra)
-  fields.remove("elicitation")
-  fields.remove("roots")
-  fields.remove("sampling")
-  fields.remove("extensions")
-  fields.remove("experimental")
-  if self.elicitation is Some(value) {
-    fields["elicitation"] = value.to_json()
+  for key in ["roots", "sampling", "elicitation", "extensions", "experimental"] {
+    fields.remove(key)
   }
-  if self.deprecated is Some(value) {
-    put_optional_json(fields, "roots", value.roots)
-    put_optional_json(fields, "sampling", value.sampling)
+  if self.roots is Some(roots) {
+    fields["roots"] = roots.to_json()
+  }
+  if self.sampling is Some(sampling) {
+    fields["sampling"] = sampling.to_json()
+  }
+  if self.elicitation is Some(elicitation) {
+    fields["elicitation"] = elicitation.to_json()
   }
   put_capability_map(fields, "extensions", self.extensions)
   put_capability_map(fields, "experimental", self.experimental)
@@ -202,49 +252,30 @@ fn parse_capability_map(
 }
 
 ///|
-fn parse_elicitation_capability(
-  value : Json,
-  context : String,
-) -> ElicitationCapability raise McpError {
-  let fields = expect_object(value, context)
-  ElicitationCapability(
-    form?=get_optional_object(fields, "form", context),
-    url?=get_optional_object(fields, "url", context),
-  )
-}
-
-///|
 fn parse_client_capabilities(
   value : Json,
   context? : String = "client capabilities",
 ) -> ClientCapabilities raise McpError {
   let fields = expect_object(value, context)
-  let parse_deprecated = fn(key : String) -> Json? raise McpError {
-    match fields.get(key) {
-      Some(Object(_) as value) => Some(value)
-      Some(Null) | None => None
-      Some(_) => raise InvalidParams("\{context}.\{key} must be an object")
-    }
-  }
-  let roots = parse_deprecated("roots")
-  let sampling = parse_deprecated("sampling")
   let extra : Map[String, Json] = Map([])
-  for key, value in fields {
+  for key, val in fields {
     match key {
-      "elicitation" | "roots" | "sampling" | "extensions" | "experimental" => ()
-      _ => extra[key] = value
+      "roots" | "sampling" | "elicitation" | "extensions" | "experimental" => ()
+      _ => extra[key] = val
     }
   }
   ClientCapabilities(
-    elicitation?=match fields.get("elicitation") {
-      Some(value) =>
-        Some(parse_elicitation_capability(value, "\{context}.elicitation"))
+    roots?=match fields.get("roots") {
+      Some(v) => Some(parse_roots_capability(v, "\{context}.roots"))
       None => None
     },
-    deprecated?=if roots is Some(_) || sampling is Some(_) {
-      Some(DeprecatedClientCapabilities(roots?, sampling?))
-    } else {
-      None
+    sampling?=match fields.get("sampling") {
+      Some(v) => Some(parse_sampling_capability(v, "\{context}.sampling"))
+      None => None
+    },
+    elicitation?=match fields.get("elicitation") {
+      Some(v) => Some(parse_elicitation_capability(v, "\{context}.elicitation"))
+      None => None
     },
     extensions=parse_capability_map(fields, "extensions", context),
     experimental=parse_capability_map(fields, "experimental", context),
@@ -253,6 +284,7 @@ fn parse_client_capabilities(
 }
 
 ///|
+/// Tools capability declared by an MCP server.
 pub struct ToolsCapability {
   list_changed : Bool?
 } derive(Debug, Eq)
@@ -272,6 +304,18 @@ pub impl ToJson for ToolsCapability with fn to_json(self : ToolsCapability) -> J
 }
 
 ///|
+fn parse_tools_capability(
+  value : Json,
+  context : String,
+) -> ToolsCapability raise McpError {
+  let fields = expect_object(value, context)
+  ToolsCapability(
+    list_changed?=get_optional_bool(fields, "listChanged", context),
+  )
+}
+
+///|
+/// Prompts capability declared by an MCP server.
 pub struct PromptsCapability {
   list_changed : Bool?
 } derive(Debug, Eq)
@@ -291,6 +335,18 @@ pub impl ToJson for PromptsCapability with fn to_json(self : PromptsCapability) 
 }
 
 ///|
+fn parse_prompts_capability(
+  value : Json,
+  context : String,
+) -> PromptsCapability raise McpError {
+  let fields = expect_object(value, context)
+  PromptsCapability(
+    list_changed?=get_optional_bool(fields, "listChanged", context),
+  )
+}
+
+///|
+/// Resources capability declared by an MCP server.
 pub struct ResourcesCapability {
   subscribe : Bool?
   list_changed : Bool?
@@ -315,12 +371,48 @@ pub impl ToJson for ResourcesCapability with fn to_json(
 }
 
 ///|
-/// Core server capabilities. Deprecated logging and extension-defined task
-/// capabilities intentionally do not appear here.
+fn parse_resources_capability(
+  value : Json,
+  context : String,
+) -> ResourcesCapability raise McpError {
+  let fields = expect_object(value, context)
+  ResourcesCapability(
+    subscribe?=get_optional_bool(fields, "subscribe", context),
+    list_changed?=get_optional_bool(fields, "listChanged", context),
+  )
+}
+
+///|
+/// Logging capability declared by an MCP server.
+pub struct LoggingCapability {} derive(Debug, Eq)
+
+///|
+pub fn LoggingCapability::LoggingCapability() -> LoggingCapability {
+  LoggingCapability::{  }
+}
+
+///|
+pub impl ToJson for LoggingCapability with fn to_json(self : LoggingCapability) -> Json {
+  ignore(self)
+  Json::object(Map([]))
+}
+
+///|
+fn parse_logging_capability(
+  value : Json,
+  context : String,
+) -> LoggingCapability raise McpError {
+  ignore(expect_object(value, context))
+  LoggingCapability()
+}
+
+///|
+/// Capabilities declared by an MCP server.
 pub struct ServerCapabilities {
   tools : ToolsCapability?
   resources : ResourcesCapability?
   prompts : PromptsCapability?
+  logging : LoggingCapability?
   completions : Bool
   extensions : Map[String, Json]
   experimental : Map[String, Json]
@@ -332,6 +424,7 @@ pub fn ServerCapabilities::ServerCapabilities(
   tools? : ToolsCapability,
   resources? : ResourcesCapability,
   prompts? : PromptsCapability,
+  logging? : LoggingCapability,
   completions? : Bool = false,
   extensions? : Map[String, Json] = {},
   experimental? : Map[String, Json] = {},
@@ -341,6 +434,7 @@ pub fn ServerCapabilities::ServerCapabilities(
     tools,
     resources,
     prompts,
+    logging,
     completions,
     extensions: copy_json_map(extensions),
     experimental: copy_json_map(experimental),
@@ -354,6 +448,7 @@ fn ServerCapabilities::copy(self : ServerCapabilities) -> ServerCapabilities {
     tools?=self.tools,
     resources?=self.resources,
     prompts?=self.prompts,
+    logging?=self.logging,
     completions=self.completions,
     extensions=self.extensions,
     experimental=self.experimental,
@@ -373,7 +468,7 @@ pub impl ToJson for ServerCapabilities with fn to_json(
   let fields = copy_json_map(self.extra)
   for
     key in [
-      "tools", "resources", "prompts", "completions", "extensions", "experimental",
+      "tools", "resources", "prompts", "logging", "completions", "extensions", "experimental",
     ] {
     fields.remove(key)
   }
@@ -385,6 +480,9 @@ pub impl ToJson for ServerCapabilities with fn to_json(
   }
   if self.prompts is Some(value) {
     fields["prompts"] = value.to_json()
+  }
+  if self.logging is Some(value) {
+    fields["logging"] = value.to_json()
   }
   if self.completions {
     fields["completions"] = Json::object({})
@@ -404,6 +502,7 @@ fn parse_server_capabilities(value : Json) -> ServerCapabilities raise McpError 
       "tools"
       | "resources"
       | "prompts"
+      | "logging"
       | "completions"
       | "extensions"
       | "experimental" => ()
@@ -412,53 +511,20 @@ fn parse_server_capabilities(value : Json) -> ServerCapabilities raise McpError 
   }
   ServerCapabilities(
     tools?=match fields.get("tools") {
-      Some(value) => {
-        let item = expect_object(value, "\{context}.tools")
-        Some(
-          ToolsCapability(
-            list_changed?=get_optional_bool(
-              item,
-              "listChanged",
-              "\{context}.tools",
-            ),
-          ),
-        )
-      }
+      Some(value) => Some(parse_tools_capability(value, "\{context}.tools"))
       None => None
     },
     resources?=match fields.get("resources") {
-      Some(value) => {
-        let item = expect_object(value, "\{context}.resources")
-        Some(
-          ResourcesCapability(
-            subscribe?=get_optional_bool(
-              item,
-              "subscribe",
-              "\{context}.resources",
-            ),
-            list_changed?=get_optional_bool(
-              item,
-              "listChanged",
-              "\{context}.resources",
-            ),
-          ),
-        )
-      }
+      Some(value) =>
+        Some(parse_resources_capability(value, "\{context}.resources"))
       None => None
     },
     prompts?=match fields.get("prompts") {
-      Some(value) => {
-        let item = expect_object(value, "\{context}.prompts")
-        Some(
-          PromptsCapability(
-            list_changed?=get_optional_bool(
-              item,
-              "listChanged",
-              "\{context}.prompts",
-            ),
-          ),
-        )
-      }
+      Some(value) => Some(parse_prompts_capability(value, "\{context}.prompts"))
+      None => None
+    },
+    logging?=match fields.get("logging") {
+      Some(value) => Some(parse_logging_capability(value, "\{context}.logging"))
       None => None
     },
     completions=match fields.get("completions") {

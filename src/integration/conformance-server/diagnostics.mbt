@@ -1,8 +1,6 @@
 ///|
 fn sampling_capability() -> @mcp.ClientCapabilities {
-  @mcp.ClientCapabilities(
-    deprecated=@mcp.DeprecatedClientCapabilities(sampling=Json::object({})),
-  )
+  @mcp.ClientCapabilities(sampling=@mcp.SamplingCapability())
 }
 
 ///|
@@ -13,8 +11,7 @@ fn register_stateless_diagnostics(server : @mcp.Server) -> Unit {
     input_schema=empty_object_schema(),
     (context, _arguments) => {
       let capabilities = context.meta.client_capabilities
-      if capabilities.deprecated is Some(deprecated) &&
-        deprecated.sampling is Some(_) {
+      if capabilities.sampling is Some(_) {
         @mcp.Complete(@mcp.CallToolResult::text("sampling is available"))
       } else {
         raise @mcp.MissingRequiredClientCapability(

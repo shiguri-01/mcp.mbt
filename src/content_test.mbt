@@ -5,7 +5,7 @@ test "content blocks encode annotations meta and resources" {
     priority=0.75,
     last_modified="2026-05-26T00:00:00Z",
   )
-  let text = @mcp.ContentBlock::text(
+  let text = @mcp.Content::text(
     "hello",
     annotations~,
     meta=Json::object({ "source": Json::string("test") }),
@@ -20,7 +20,7 @@ test "content blocks encode annotations meta and resources" {
     text_fields["_meta"] == Json::object({ "source": Json::string("test") }),
   )
 
-  let embedded = @mcp.ContentBlock::embedded_resource(
+  let embedded = @mcp.Content::embedded_resource(
     resource=@mcp.ResourceContent::text(
       uri="memory://status",
       text="ready",
@@ -37,7 +37,7 @@ test "content blocks encode annotations meta and resources" {
     resource["_meta"] == Json::object({ "etag": Json::string("abc") }),
   )
 
-  let link = @mcp.ContentBlock::resource_link(
+  let link = @mcp.Content::resource_link(
     @mcp.ResourceLink(
       uri="file:///tmp/report.md",
       name="report",

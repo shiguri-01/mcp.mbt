@@ -18,8 +18,6 @@ pub impl ToJson for Role with fn to_json(self : Role) -> Json {
 }
 
 ///|
-
-///|
 pub impl @json.FromJson for Role with fn from_json(value, path) -> Role {
   match value {
     String("user") => User
@@ -147,8 +145,9 @@ pub impl ToJson for ResourceLink with fn to_json(self : ResourceLink) -> Json {
 ///|
 /// Content payload accepted by MCP prompts and tool results.
 ///
-/// This enum contains exactly the content variants defined by MCP 2026-07-28.
-pub(all) enum ContentBlock {
+/// Corresponds to `Content` in the MCP specification:
+/// `TextContent | ImageContent | EmbeddedResource`
+pub(all) enum Content {
   TextContent(text~ : String, annotations~ : Annotations?, meta~ : Json?)
   ImageContent(
     data~ : String,
@@ -183,7 +182,7 @@ fn put_content_metadata(
 }
 
 ///|
-pub impl ToJson for ContentBlock with fn to_json(self : ContentBlock) -> Json {
+pub impl ToJson for Content with fn to_json(self : Content) -> Json {
   match self {
     TextContent(text~, annotations~, meta~) => {
       let fields : Map[String, Json] = {
@@ -224,12 +223,12 @@ pub impl ToJson for ContentBlock with fn to_json(self : ContentBlock) -> Json {
 }
 
 ///|
-/// Construct a text content block.
-pub fn ContentBlock::text(
+/// Construct a text content.
+pub fn Content::text(
   text : String,
   annotations? : Annotations,
   meta? : Json,
-) -> ContentBlock {
+) -> Content {
   TextContent(
     text~,
     annotations=copy_optional_annotations(annotations),
@@ -238,13 +237,13 @@ pub fn ContentBlock::text(
 }
 
 ///|
-/// Construct an image content block from base64-encoded data.
-pub fn ContentBlock::image(
+/// Construct an image content from base64-encoded data.
+pub fn Content::image(
   data~ : String,
   mime_type~ : String,
   annotations? : Annotations,
   meta? : Json,
-) -> ContentBlock {
+) -> Content {
   ImageContent(
     data~,
     mime_type~,
@@ -254,13 +253,13 @@ pub fn ContentBlock::image(
 }
 
 ///|
-/// Construct an audio content block from base64-encoded data.
-pub fn ContentBlock::audio(
+/// Construct an audio content from base64-encoded data.
+pub fn Content::audio(
   data~ : String,
   mime_type~ : String,
   annotations? : Annotations,
   meta? : Json,
-) -> ContentBlock {
+) -> Content {
   AudioContent(
     data~,
     mime_type~,
@@ -270,12 +269,12 @@ pub fn ContentBlock::audio(
 }
 
 ///|
-/// Construct a content block that embeds resource contents inline.
-pub fn ContentBlock::embedded_resource(
+/// Construct a content that embeds resource contents inline.
+pub fn Content::embedded_resource(
   resource~ : ResourceContent,
   annotations? : Annotations,
   meta? : Json,
-) -> ContentBlock {
+) -> Content {
   EmbeddedResource(
     resource~,
     annotations=copy_optional_annotations(annotations),
@@ -284,16 +283,14 @@ pub fn ContentBlock::embedded_resource(
 }
 
 ///|
-/// Construct a content block that links to a readable resource.
-pub fn ContentBlock::resource_link(
-  resource_link : ResourceLink,
-) -> ContentBlock {
+/// Construct a content that links to a readable resource.
+pub fn Content::resource_link(resource_link : ResourceLink) -> Content {
   ResourceLink(resource_link)
 }
 
 ///|
 pub struct CallToolResult {
-  content : Array[ContentBlock]
+  content : Array[Content]
   structured_content : Json?
   is_error : Bool
   meta : ResultMeta?
@@ -302,7 +299,7 @@ pub struct CallToolResult {
 ///|
 /// Construct a tool result with validated ownership of its content array.
 pub fn CallToolResult::CallToolResult(
-  content~ : Array[ContentBlock],
+  content~ : Array[Content],
   structured_content? : Json,
   is_error? : Bool = false,
   meta? : ResultMeta,
@@ -352,7 +349,7 @@ pub fn CallToolResult::text(
   meta? : Json,
 ) -> CallToolResult {
   {
-    content: [ContentBlock::text(text, annotations?, meta?)],
+    content: [Content::text(text, annotations?, meta?)],
     structured_content: None,
     is_error: false,
     meta: None,
@@ -379,7 +376,7 @@ pub fn CallToolResult::error_text(
   meta? : Json,
 ) -> CallToolResult {
   {
-    content: [ContentBlock::text(text, annotations?, meta?)],
+    content: [Content::text(text, annotations?, meta?)],
     structured_content: None,
     is_error: true,
     meta: None,
