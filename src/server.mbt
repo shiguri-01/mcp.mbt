@@ -317,7 +317,11 @@ pub fn[A : FromJson + @schema.JsonSchema] Server::tool(
 
 ///|
 /// Register a raw JSON tool while retaining request context and MRTR support.
-pub fn Server::tool_json(
+
+///|
+/// Register a tool whose arguments and result are handled as raw JSON.
+/// This is the explicit escape hatch; typed tools should use `tool`.
+pub fn Server::tool_raw(
   self : Server,
   name~ : String,
   title? : String,

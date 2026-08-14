@@ -5,7 +5,7 @@ async fn run_server() -> Unit {
     version="1",
     tool_list_changed=true,
   )
-  try! server.tool_json(
+  try! server.tool_raw(
     name="echo",
     input_schema=Json::object({
       "type": Json::string("object"),
@@ -19,7 +19,7 @@ async fn run_server() -> Unit {
       @mcp.Complete(@mcp.CallToolResult::text(arguments.stringify()))
     },
   )
-  try! server.tool_json(
+  try! server.tool_raw(
     name="progress",
     input_schema=Json::object({
       "type": Json::string("object"),
