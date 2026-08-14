@@ -18,12 +18,16 @@ pub impl ToJson for Role with fn to_json(self : Role) -> Json {
 }
 
 ///|
-/// Decode a role after the JSON value has crossed the wire boundary.
-pub fn Role::decode(value : Json) -> Role raise McpError {
+
+///|
+pub impl @json.FromJson for Role with fn from_json(value, path) -> Role {
   match value {
     String("user") => User
     String("assistant") => Assistant
-    _ => raise InvalidParams("role must be \"user\" or \"assistant\"")
+    _ =>
+      raise @json.JsonDecodeError(
+        (path, "role must be \"user\" or \"assistant\""),
+      )
   }
 }
 

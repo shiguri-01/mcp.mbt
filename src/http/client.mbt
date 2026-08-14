@@ -693,7 +693,9 @@ fn SubscriptionStreamState::consume(
         "subscription stream must start with an acknowledgement",
       )
     }
-    let honored = @mcp.SubscriptionFilter::decode(notifications)
+    let honored : @mcp.SubscriptionFilter = @json.from_json(notifications) catch {
+      error => raise @mcp.InvalidRequest(error.to_string())
+    }
     if subscription_id != self.expected_id {
       raise @mcp.InvalidRequest(
         "subscription acknowledgement id does not match request id",

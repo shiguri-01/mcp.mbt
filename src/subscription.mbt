@@ -46,38 +46,55 @@ pub impl ToJson for SubscriptionFilter with fn to_json(
 }
 
 ///|
-/// Decode and validate a `subscriptions/listen` notification filter.
-pub fn SubscriptionFilter::decode(
-  value : Json,
-) -> SubscriptionFilter raise McpError {
-  let fields = expect_object(value, "subscription filter")
-  let resource_subscriptions = match fields.get("resourceSubscriptions") {
+
+///|
+pub impl @json.FromJson for SubscriptionFilter with fn from_json(value, path) -> SubscriptionFilter {
+  let fields = match value {
+    Object(fields) => fields
+    _ =>
+      raise @json.JsonDecodeError(
+        (path, "subscription filter must be an object"),
+      )
+  }
+  let read_bool = fn(key : String) -> Bool raise @json.JsonDecodeError {
+    match fields.get(key) {
+      None | Some(Null) => false
+      Some(True) => true
+      Some(False) => false
+      Some(_) =>
+        raise @json.JsonDecodeError(
+          (path.add_key(key), "subscription filter flag must be boolean"),
+        )
+    }
+  }
+  let resource_subscriptions : Array[String] = match
+    fields.get("resourceSubscriptions") {
     None | Some(Null) => []
     Some(Array(values)) =>
-      values.map(fn(value) raise McpError {
+      values.map(fn(value) -> String raise @json.JsonDecodeError {
         match value {
           String(uri) => uri
           _ =>
-            raise InvalidParams(
-              "subscription filter.resourceSubscriptions must contain strings",
+            raise @json.JsonDecodeError(
+              (
+                path.add_key("resourceSubscriptions"),
+                "resource subscription must be a string",
+              ),
             )
         }
       })
     Some(_) =>
-      raise InvalidParams(
-        "subscription filter.resourceSubscriptions must be an array",
+      raise @json.JsonDecodeError(
+        (
+          path.add_key("resourceSubscriptions"),
+          "resourceSubscriptions must be an array",
+        ),
       )
   }
   {
-    tools_list_changed: get_optional_bool(
-      fields, "toolsListChanged", "subscription filter",
-    ).unwrap_or(false),
-    prompts_list_changed: get_optional_bool(
-      fields, "promptsListChanged", "subscription filter",
-    ).unwrap_or(false),
-    resources_list_changed: get_optional_bool(
-      fields, "resourcesListChanged", "subscription filter",
-    ).unwrap_or(false),
+    tools_list_changed: read_bool("toolsListChanged"),
+    prompts_list_changed: read_bool("promptsListChanged"),
+    resources_list_changed: read_bool("resourcesListChanged"),
     resource_subscriptions,
   }
 }
@@ -185,7 +202,9 @@ pub fn Server::accept_subscription(
   guard fields.get("notifications") is Some(value) else {
     raise InvalidParams("subscriptions/listen params.notifications is required")
   }
-  let requested = SubscriptionFilter::decode(value)
+  let requested : SubscriptionFilter = @json.from_json(value) catch {
+    error => raise InvalidRequest(error.to_string())
+  }
   let honored = SubscriptionFilter(
     tools_list_changed=requested.tools_list_changed && self.tool_list_changed,
     prompts_list_changed=requested.prompts_list_changed &&

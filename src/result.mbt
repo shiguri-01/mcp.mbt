@@ -291,7 +291,12 @@ fn decode_annotations(
     None => ()
     Some(Array(values)) =>
       for value in values {
-        audience.push(Role::decode(value))
+        audience.push(
+          @json.from_json(value) catch {
+            JsonDecodeError((_, message)) =>
+              raise InvalidParams("\{context}.audience: \{message}")
+          },
+        )
       }
     Some(_) => raise InvalidParams("\{context}.audience must be an array")
   }
@@ -474,12 +479,16 @@ fn decode_prompt_message(
 ) -> PromptMessage raise McpError {
   let fields = expect_object(value, context)
   PromptMessage(
-    role=Role::decode(
-      match fields.get("role") {
+    role={
+      let value = match fields.get("role") {
         Some(role) => role
         None => raise InvalidParams("\{context}.role is required")
-      },
-    ),
+      }
+      @json.from_json(value) catch {
+        JsonDecodeError((_, message)) =>
+          raise InvalidParams("\{context}.role: \{message}")
+      }
+    },
     content=decode_content_block(
       match fields.get("content") {
         Some(content) => content

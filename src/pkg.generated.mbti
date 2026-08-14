@@ -506,9 +506,9 @@ pub(all) enum Role {
   User
   Assistant
 } derive(Eq, @debug.Debug)
-pub fn Role::decode(Json) -> Self raise McpError
 pub fn Role::to_string(Self) -> String
 pub impl ToJson for Role
+pub impl @json.FromJson for Role
 
 pub struct Server {
   // private fields
@@ -558,8 +558,8 @@ pub(all) struct SubscriptionFilter {
   resource_subscriptions : Array[String]
 } derive(Eq, @debug.Debug)
 pub fn SubscriptionFilter::SubscriptionFilter(tools_list_changed? : Bool, prompts_list_changed? : Bool, resources_list_changed? : Bool, resource_subscriptions? : Array[String]) -> Self
-pub fn SubscriptionFilter::decode(Json) -> Self raise McpError
 pub impl ToJson for SubscriptionFilter
+pub impl @json.FromJson for SubscriptionFilter
 
 pub(all) struct SubscriptionsListenResult {
 } derive(Eq, @debug.Debug)
