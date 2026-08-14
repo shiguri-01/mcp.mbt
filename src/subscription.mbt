@@ -104,7 +104,13 @@ pub impl @json.FromJson for SubscriptionFilter with fn from_json(value, path) ->
 ///
 /// The dispatcher adds `resultType` and the result `_meta`, including the
 /// required `io.modelcontextprotocol/subscriptionId`.
-pub(all) struct SubscriptionsListenResult {} derive(Debug, Eq)
+pub struct SubscriptionsListenResult {} derive(Debug, Eq)
+
+///|
+/// Construct the empty completion value for a closed subscription stream.
+pub fn SubscriptionsListenResult::SubscriptionsListenResult() -> SubscriptionsListenResult {
+  SubscriptionsListenResult::{  }
+}
 
 ///|
 pub impl ToJson for SubscriptionsListenResult with fn to_json(
@@ -176,7 +182,7 @@ pub fn Subscription::close_response(self : Subscription) -> Json {
     ("io.modelcontextprotocol/subscriptionId", self.id),
   ])
   let result = try! complete_result(
-    SubscriptionsListenResult::{  }.to_json(),
+    SubscriptionsListenResult::SubscriptionsListenResult().to_json(),
     server_info=self.server_info,
     meta~,
   )

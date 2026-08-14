@@ -1,6 +1,6 @@
 ///|
 /// Configuration for the stateless MCP Streamable HTTP endpoint.
-pub(all) struct ServerOptions {
+pub struct ServerOptions {
   /// Endpoint path that accepts MCP POST requests. Defaults to `/mcp`.
   endpoint_path : String
   /// Allowed `Origin` values. An empty set accepts only a loopback Origin that

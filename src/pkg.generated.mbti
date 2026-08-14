@@ -560,8 +560,9 @@ pub fn SubscriptionFilter::SubscriptionFilter(tools_list_changed? : Bool, prompt
 pub impl ToJson for SubscriptionFilter
 pub impl @json.FromJson for SubscriptionFilter
 
-pub(all) struct SubscriptionsListenResult {
+pub struct SubscriptionsListenResult {
 } derive(Eq, @debug.Debug)
+pub fn SubscriptionsListenResult::SubscriptionsListenResult() -> Self
 pub impl ToJson for SubscriptionsListenResult
 
 pub struct Tool {
