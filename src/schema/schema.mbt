@@ -11,6 +11,9 @@ pub let draft_2020_12 : String = "https://json-schema.org/draft/2020-12/schema"
 ///|
 pub(all) suberror SchemaError {
   InvalidHeaderName(String)
+  InvalidDocument(String)
+  UnsupportedDialect(String)
+  InvalidSchema(String)
 } derive(Debug, Eq)
 
 ///|

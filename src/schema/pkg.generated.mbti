@@ -45,11 +45,39 @@ pub fn string_schema(description? : String) -> Json
 // Errors
 pub(all) suberror SchemaError {
   InvalidHeaderName(String)
+  InvalidDocument(String)
+  UnsupportedDialect(String)
+  InvalidSchema(String)
 } derive(Eq, @debug.Debug)
 
 // Types and methods
+pub struct CompileOptions {
+  max_depth : Int
+  max_nodes : Int
+} derive(Eq, @debug.Debug)
+pub fn CompileOptions::default() -> Self
+pub fn CompileOptions::new(max_depth? : Int, max_nodes? : Int) -> Self raise SchemaError
+
+pub struct CompiledSchema {
+  document : Document
+  options : CompileOptions
+} derive(Eq, @debug.Debug)
+pub fn CompiledSchema::validate(Self, Json) -> ValidationResult
+
+pub struct Document {
+  value : Json
+  dialect : String
+} derive(Eq, @debug.Debug)
+pub fn Document::compile(Self, options? : CompileOptions) -> CompiledSchema raise SchemaError
+pub fn Document::new(Json) -> Self raise SchemaError
+
 pub struct Property {
   // private fields
+} derive(Eq, @debug.Debug)
+
+pub struct ValidationResult {
+  valid : Bool
+  errors : Array[String]
 } derive(Eq, @debug.Debug)
 
 // Type aliases
