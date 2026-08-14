@@ -178,6 +178,40 @@ test "typed schema constructors reject duplicate names and enum values" {
 }
 
 ///|
+test "document compilation rejects malformed supported keywords" {
+  let invalid_schemas = [
+    Json::object({ "type": Json::number(1.0) }),
+    Json::object({ "minLength": Json::number(-1.0) }),
+    Json::object({ "required": Json::array([Json::number(1.0)]) }),
+    Json::object({ "properties": Json::string("not-an-object") }),
+    Json::object({ "items": Json::string("not-a-schema") }),
+    Json::object({ "anyOf": Json::array([]) }),
+  ]
+  for value in invalid_schemas {
+    let document = try! Document::Document(value)
+    try document.compile() catch {
+      InvalidSchema(_) => ()
+      _ => fail("malformed schema keyword must be rejected")
+    } noraise {
+      _ => fail("malformed schema keyword must be rejected")
+    }
+  }
+}
+
+///|
+test "instance data is not mistaken for a schema" {
+  let document = try! Document::Document(
+    Json::object({
+      "const": Json::object({ "pattern": Json::string("literal") }),
+    }),
+  )
+  let compiled = try! document.compile()
+  assert_true(
+    compiled.validate(Json::object({ "pattern": Json::string("literal") })).valid,
+  )
+}
+
+///|
 test "typed combinators preserve JSON Schema assertion semantics" {
   let positive = Schema::any_of([
     Schema::const_value(Json::string("yes")),

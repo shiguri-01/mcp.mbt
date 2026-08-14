@@ -351,6 +351,7 @@ pub fn Document::compile(
   }
   validate_references(self.value, 0, options.max_depth)
   validate_supported_keywords(self.value, 0, options.max_depth)
+  validate_keyword_shapes(self.value, 0, options.max_depth)
   { document: self, options }
 }
 
@@ -432,14 +433,11 @@ fn validate_references(
           raise InvalidSchema("JSON Schema $dynamicRef must be a string")
         None => ()
       }
-      for _, child in fields {
+      for child in schema_children(fields) {
         validate_references(child, depth + 1, max_depth)
       }
     }
-    Array(values) =>
-      for child in values {
-        validate_references(child, depth + 1, max_depth)
-      }
+    Array(_) => ()
     _ => ()
   }
 }
@@ -460,16 +458,140 @@ fn validate_supported_keywords(
       if fields.get("pattern") is Some(_) {
         raise UnsupportedKeyword("pattern")
       }
-      for _, child in fields {
+      for child in schema_children(fields) {
         validate_supported_keywords(child, depth + 1, max_depth)
       }
     }
-    Array(values) =>
-      for child in values {
-        validate_supported_keywords(child, depth + 1, max_depth)
-      }
+    Array(_) => ()
     _ => ()
   }
+}
+
+///|
+/// Validate the shapes of keywords understood by the bounded evaluator. This
+/// keeps malformed schemas out of `CompiledSchema`; instance validation can
+/// therefore focus on instances rather than reinterpreting schema syntax.
+fn validate_keyword_shapes(
+  value : Json,
+  depth : Int,
+  max_depth : Int,
+) -> Unit raise SchemaError {
+  if depth > max_depth {
+    raise InvalidSchema("schema exceeds max_depth")
+  }
+  match value {
+    Object(fields) => {
+      match fields.get("type") {
+        Some(String(_)) | None => ()
+        Some(_) => raise InvalidSchema("schema type must be a string")
+      }
+      match fields.get("enum") {
+        Some(Array(values)) if !values.is_empty() => ()
+        Some(Array(_)) => raise InvalidSchema("schema enum must not be empty")
+        Some(_) => raise InvalidSchema("schema enum must be an array")
+        None => ()
+      }
+      for
+        keyword in [
+          "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum",
+        ] {
+        match fields.get(keyword) {
+          Some(Number(value, ..)) if !value.is_nan() && !value.is_inf() => ()
+          Some(_) => raise InvalidSchema("{keyword} must be a finite number")
+          None => ()
+        }
+      }
+      for keyword in ["minLength", "maxLength"] {
+        match fields.get(keyword) {
+          Some(Number(value, ..)) if !value.is_nan() &&
+            !value.is_inf() &&
+            value >= 0.0 &&
+            value == value.to_int().to_double() => ()
+          Some(_) =>
+            raise InvalidSchema("{keyword} must be a non-negative integer")
+          None => ()
+        }
+      }
+      for keyword in ["allOf", "anyOf", "oneOf"] {
+        match fields.get(keyword) {
+          Some(Array(values)) if keyword == "allOf" || !values.is_empty() => ()
+          Some(Array(_)) => raise InvalidSchema("{keyword} must not be empty")
+          Some(_) => raise InvalidSchema("{keyword} must be an array")
+          None => ()
+        }
+      }
+      match fields.get("required") {
+        Some(Array(names)) => {
+          let seen : Map[String, Bool] = Map([])
+          for name in names {
+            match name {
+              String(name) if !seen.contains(name) => seen[name] = true
+              String(_) =>
+                raise InvalidSchema("required property names must be unique")
+              _ => raise InvalidSchema("required names must be strings")
+            }
+          }
+        }
+        Some(_) => raise InvalidSchema("required must be an array")
+        None => ()
+      }
+      match fields.get("properties") {
+        Some(Object(_)) => ()
+        Some(_) => raise InvalidSchema("properties must be an object")
+        None => ()
+      }
+      match fields.get("additionalProperties") {
+        Some(True | False) | None => ()
+        Some(_) =>
+          raise InvalidSchema("additionalProperties schemas are unsupported")
+      }
+      match fields.get("items") {
+        Some(Object(_) | True | False) | None => ()
+        Some(_) => raise InvalidSchema("items must be a schema")
+      }
+      for child in schema_children(fields) {
+        validate_keyword_shapes(child, depth + 1, max_depth)
+      }
+    }
+    Array(_) => ()
+    _ => ()
+  }
+}
+
+///|
+/// Return only values that are themselves schemas. Values of `const`, `enum`,
+/// and annotations are instance data and must not be interpreted as schemas.
+fn schema_children(fields : Map[String, Json]) -> Array[Json] {
+  let children : Array[Json] = []
+  for key in ["properties", "$defs", "definitions", "dependentSchemas"] {
+    match fields.get(key) {
+      Some(Object(values)) =>
+        for _, child in values {
+          children.push(child)
+        }
+      _ => ()
+    }
+  }
+  for key in ["allOf", "anyOf", "oneOf"] {
+    match fields.get(key) {
+      Some(Array(values)) =>
+        for child in values {
+          children.push(child)
+        }
+      _ => ()
+    }
+  }
+  for
+    key in [
+      "not", "items", "contains", "propertyNames", "if", "then", "else", "unevaluatedItems",
+      "unevaluatedProperties",
+    ] {
+    match fields.get(key) {
+      Some(child) if child is (Object(_) | True | False) => children.push(child)
+      _ => ()
+    }
+  }
+  children
 }
 
 ///|
