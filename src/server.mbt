@@ -109,8 +109,10 @@ struct RegisteredPrompt {
 }
 
 ///|
-fn[A : @schema.JsonSchema] schema_for(_witness : A?) -> Json {
-  A::json_schema()
+fn[A : @schema.JsonSchema] schema_for(_witness : A?) -> Json raise McpError {
+  A::json_schema() catch {
+    _ => raise InvalidParams("typed tool produced an invalid JSON Schema")
+  }
 }
 
 ///|

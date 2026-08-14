@@ -1,7 +1,7 @@
 ///|
 /// JSON Schema provider for typed tool inputs.
 pub(open) trait JsonSchema {
-  fn json_schema() -> Json
+  fn json_schema() -> Json raise SchemaError
 }
 
 ///|
@@ -19,10 +19,22 @@ pub(all) suberror SchemaError {
 ///|
 /// JSON Schema object field descriptor used by `schema`.
 pub struct Property {
-  priv name : String
-  priv schema : Json
-  priv required : Bool
+  name : String
+  schema : Json
+  required : Bool
 } derive(Debug, Eq)
+
+///|
+pub fn Property::Property(
+  name~ : String,
+  schema~ : Json,
+  required? : Bool = false,
+) -> Property raise SchemaError {
+  if name.is_empty() {
+    raise InvalidSchema("JSON Schema property name must not be empty")
+  }
+  { name, schema, required }
+}
 
 ///|
 /// Build a JSON Schema object for MCP tool input.
@@ -96,12 +108,12 @@ fn with_header(schema : Json, header_name : String) -> Json raise SchemaError {
 
 ///|
 /// Build an object field from an arbitrary JSON Schema fragment.
-pub fn field(
+fn property(
   name~ : String,
   schema~ : Json,
   required? : Bool = false,
-) -> Property {
-  { name, schema, required }
+) -> Property raise SchemaError {
+  Property(name~, schema~, required~)
 }
 
 ///|
@@ -144,7 +156,7 @@ pub fn header_string(
   description? : String,
   required? : Bool = false,
 ) -> Property raise SchemaError {
-  field(
+  property(
     name~,
     schema=with_header(string_schema(description?), header_name),
     required~,
@@ -159,7 +171,7 @@ pub fn header_integer(
   description? : String,
   required? : Bool = false,
 ) -> Property raise SchemaError {
-  field(
+  property(
     name~,
     schema=with_header(integer_schema(description?), header_name),
     required~,
@@ -174,7 +186,7 @@ pub fn header_boolean(
   description? : String,
   required? : Bool = false,
 ) -> Property raise SchemaError {
-  field(
+  property(
     name~,
     schema=with_header(boolean_schema(description?), header_name),
     required~,
@@ -212,8 +224,8 @@ pub fn string(
   name~ : String,
   description? : String,
   required? : Bool = false,
-) -> Property {
-  field(name~, schema=string_schema(description?), required~)
+) -> Property raise SchemaError {
+  property(name~, schema=string_schema(description?), required~)
 }
 
 ///|
@@ -222,8 +234,8 @@ pub fn integer(
   name~ : String,
   description? : String,
   required? : Bool = false,
-) -> Property {
-  field(name~, schema=integer_schema(description?), required~)
+) -> Property raise SchemaError {
+  property(name~, schema=integer_schema(description?), required~)
 }
 
 ///|
@@ -232,8 +244,8 @@ pub fn number(
   name~ : String,
   description? : String,
   required? : Bool = false,
-) -> Property {
-  field(name~, schema=number_schema(description?), required~)
+) -> Property raise SchemaError {
+  property(name~, schema=number_schema(description?), required~)
 }
 
 ///|
@@ -242,8 +254,8 @@ pub fn boolean(
   name~ : String,
   description? : String,
   required? : Bool = false,
-) -> Property {
-  field(name~, schema=boolean_schema(description?), required~)
+) -> Property raise SchemaError {
+  property(name~, schema=boolean_schema(description?), required~)
 }
 
 ///|
@@ -253,8 +265,8 @@ pub fn array(
   items~ : Json,
   description? : String,
   required? : Bool = false,
-) -> Property {
-  field(name~, schema=array_schema(items~, description?), required~)
+) -> Property raise SchemaError {
+  property(name~, schema=array_schema(items~, description?), required~)
 }
 
 ///|
@@ -264,8 +276,8 @@ pub fn string_enum(
   values~ : Array[String],
   description? : String,
   required? : Bool = false,
-) -> Property {
-  field(name~, schema=string_enum_schema(values, description?), required~)
+) -> Property raise SchemaError {
+  property(name~, schema=string_enum_schema(values, description?), required~)
 }
 
 ///|
