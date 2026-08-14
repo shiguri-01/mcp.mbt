@@ -1,29 +1,8 @@
 ///|
 pub struct ProtectedResourceMetadata {
-  priv resource : String
-  priv authorization_servers : Array[String]
-  priv scopes_supported : Array[String]?
-}
-
-///|
-pub fn ProtectedResourceMetadata::resource(
-  self : ProtectedResourceMetadata,
-) -> String {
-  self.resource
-}
-
-///|
-pub fn ProtectedResourceMetadata::authorization_servers(
-  self : ProtectedResourceMetadata,
-) -> Array[String] {
-  self.authorization_servers.copy()
-}
-
-///|
-pub fn ProtectedResourceMetadata::scopes_supported(
-  self : ProtectedResourceMetadata,
-) -> Array[String]? {
-  self.scopes_supported.map(values => values.copy())
+  resource : String
+  authorization_servers : Array[String]
+  scopes_supported : Array[String]?
 }
 
 ///|
@@ -136,78 +115,15 @@ pub fn parse_protected_resource_metadata(
 
 ///|
 pub struct AuthorizationServerMetadata {
-  priv issuer : String
-  priv authorization_endpoint : String
-  priv token_endpoint : String
-  priv registration_endpoint : String?
-  priv scopes_supported : Array[String]?
-  priv token_endpoint_auth_methods_supported : Array[String]
-  priv client_id_metadata_document_supported : Bool
-  priv authorization_response_iss_parameter_supported : Bool
-  priv code_challenge_methods_supported : Array[String]
-}
-
-///|
-pub fn AuthorizationServerMetadata::issuer(
-  self : AuthorizationServerMetadata,
-) -> String {
-  self.issuer
-}
-
-///|
-pub fn AuthorizationServerMetadata::authorization_endpoint(
-  self : AuthorizationServerMetadata,
-) -> String {
-  self.authorization_endpoint
-}
-
-///|
-pub fn AuthorizationServerMetadata::token_endpoint(
-  self : AuthorizationServerMetadata,
-) -> String {
-  self.token_endpoint
-}
-
-///|
-pub fn AuthorizationServerMetadata::registration_endpoint(
-  self : AuthorizationServerMetadata,
-) -> String? {
-  self.registration_endpoint
-}
-
-///|
-pub fn AuthorizationServerMetadata::scopes_supported(
-  self : AuthorizationServerMetadata,
-) -> Array[String]? {
-  self.scopes_supported.map(values => values.copy())
-}
-
-///|
-pub fn AuthorizationServerMetadata::token_endpoint_auth_methods_supported(
-  self : AuthorizationServerMetadata,
-) -> Array[String] {
-  self.token_endpoint_auth_methods_supported.copy()
-}
-
-///|
-pub fn AuthorizationServerMetadata::client_id_metadata_document_supported(
-  self : AuthorizationServerMetadata,
-) -> Bool {
-  self.client_id_metadata_document_supported
-}
-
-///|
-pub fn AuthorizationServerMetadata::authorization_response_iss_parameter_supported(
-  self : AuthorizationServerMetadata,
-) -> Bool {
-  self.authorization_response_iss_parameter_supported
-}
-
-///|
-pub fn AuthorizationServerMetadata::code_challenge_methods_supported(
-  self : AuthorizationServerMetadata,
-) -> Array[String] {
-  self.code_challenge_methods_supported.copy()
+  issuer : String
+  authorization_endpoint : String
+  token_endpoint : String
+  registration_endpoint : String?
+  scopes_supported : Array[String]?
+  token_endpoint_auth_methods_supported : Array[String]
+  client_id_metadata_document_supported : Bool
+  authorization_response_iss_parameter_supported : Bool
+  code_challenge_methods_supported : Array[String]
 }
 
 ///|

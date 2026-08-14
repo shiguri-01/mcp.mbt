@@ -5,7 +5,7 @@ pub fn dynamic_registration_request(
   redirect_uris~ : Array[String],
   wants_refresh_token? : Bool = false,
 ) -> HttpRequest raise AuthError {
-  guard metadata.registration_endpoint() is Some(endpoint) else {
+  guard metadata.registration_endpoint is Some(endpoint) else {
     raise UnsupportedRegistration(
       "authorization server has no registration endpoint",
     )

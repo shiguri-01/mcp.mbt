@@ -279,33 +279,6 @@ pub fn RequestContext::RequestContext(
 }
 
 ///|
-pub fn RequestContext::request_id(self : RequestContext) -> Json {
-  self.request_id
-}
-
-///|
-pub fn RequestContext::method_name(self : RequestContext) -> String {
-  self.method_name
-}
-
-///|
-pub fn RequestContext::meta(self : RequestContext) -> RequestMeta {
-  self.meta
-}
-
-///|
-pub fn RequestContext::input_responses(
-  self : RequestContext,
-) -> Map[String, InputResponse]? {
-  self.input_responses
-}
-
-///|
-pub fn RequestContext::request_state(self : RequestContext) -> String? {
-  self.request_state
-}
-
-///|
 pub fn RequestContext::is_cancelled(self : RequestContext) -> Bool {
   (self.hooks.is_cancelled)()
 }

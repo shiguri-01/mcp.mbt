@@ -20,24 +20,9 @@ pub fn pkce_challenge(code_verifier : String) -> String raise AuthError {
 
 ///|
 pub struct PkceSession {
-  priv code_verifier : String
-  priv code_challenge : String
-  priv state : String
-}
-
-///|
-pub fn PkceSession::code_verifier(self : PkceSession) -> String {
-  self.code_verifier
-}
-
-///|
-pub fn PkceSession::code_challenge(self : PkceSession) -> String {
-  self.code_challenge
-}
-
-///|
-pub fn PkceSession::state(self : PkceSession) -> String {
-  self.state
+  code_verifier : String
+  code_challenge : String
+  state : String
 }
 
 ///|

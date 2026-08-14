@@ -6,10 +6,10 @@ pub(all) enum HttpMethod {
 
 ///|
 pub struct HttpRequest {
-  priv request_method : HttpMethod
-  priv url : String
-  priv headers : Map[String, String]
-  priv body : String
+  request_method : HttpMethod
+  url : String
+  headers : Map[String, String]
+  body : String
 }
 
 ///|
@@ -24,30 +24,10 @@ pub fn HttpRequest::HttpRequest(
 }
 
 ///|
-pub fn HttpRequest::request_method(self : HttpRequest) -> HttpMethod {
-  self.request_method
-}
-
-///|
-pub fn HttpRequest::url(self : HttpRequest) -> String {
-  self.url
-}
-
-///|
-pub fn HttpRequest::headers(self : HttpRequest) -> Map[String, String] {
-  self.headers.copy()
-}
-
-///|
-pub fn HttpRequest::body(self : HttpRequest) -> String {
-  self.body
-}
-
-///|
 pub struct HttpResponse {
-  priv status : Int
-  priv headers : Map[String, String]
-  priv body : String
+  status : Int
+  headers : Map[String, String]
+  body : String
 }
 
 ///|
@@ -60,16 +40,6 @@ pub fn HttpResponse::HttpResponse(
 }
 
 ///|
-pub fn HttpResponse::status(self : HttpResponse) -> Int {
-  self.status
-}
-
-///|
-pub fn HttpResponse::headers(self : HttpResponse) -> Map[String, String] {
-  self.headers.copy()
-}
-
-///|
 pub fn HttpResponse::header(self : HttpResponse, name : String) -> String? {
   for header_name, value in self.headers {
     if header_name.equal_ignore_ascii_case(name) {
@@ -77,11 +47,6 @@ pub fn HttpResponse::header(self : HttpResponse, name : String) -> String? {
     }
   }
   None
-}
-
-///|
-pub fn HttpResponse::body(self : HttpResponse) -> String {
-  self.body
 }
 
 ///|
@@ -153,7 +118,7 @@ pub async fn AuthorizationProvider::send(
   if @async.is_being_cancelled() {
     raise TransportFailure("authorization transport cancelled")
   }
-  (self.validate_destination)(request.url())
+  (self.validate_destination)(request.url)
   (self.send_request)(request)
 }
 

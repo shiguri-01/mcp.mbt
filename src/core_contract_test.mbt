@@ -94,7 +94,7 @@ test "protocol objects retain independent copies of mutable inputs" {
     capabilities=@mcp.ClientCapabilities(extensions~),
   )
   settings["enabled"] = Json::boolean(false)
-  guard client.capabilities().to_json()
+  guard client.capabilities.to_json()
     is Object(
       {
         "extensions": Object(

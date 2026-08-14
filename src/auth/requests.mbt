@@ -19,15 +19,15 @@ pub fn authorization_request_url(
     ("response_type", "code"),
     ("client_id", credentials.client_id()),
     ("redirect_uri", redirect_uri),
-    ("code_challenge", pkce.code_challenge()),
+    ("code_challenge", pkce.code_challenge),
     ("code_challenge_method", "S256"),
-    ("state", pkce.state()),
+    ("state", pkce.state),
     ("resource", resource_parameter(resource, exact_resource)),
   ]
   if !scopes.is_empty() {
     parameters.push(("scope", scopes.join(" ")))
   }
-  append_query(metadata.authorization_endpoint(), parameters)
+  append_query(metadata.authorization_endpoint, parameters)
 }
 
 ///|
@@ -67,9 +67,7 @@ pub fn authorization_code_token_request(
     ClientSecretPost => "client_secret_post"
     None => "none"
   }
-  if !metadata
-    .token_endpoint_auth_methods_supported()
-    .contains(auth_method_name) {
+  if !metadata.token_endpoint_auth_methods_supported.contains(auth_method_name) {
     raise AuthorizationFailed(
       "client token authentication is not supported by the authorization server",
     )
@@ -96,7 +94,7 @@ pub fn authorization_code_token_request(
   }
   HttpRequest(
     request_method=Post,
-    url=metadata.token_endpoint(),
+    url=metadata.token_endpoint,
     headers~,
     body=encode_form_parameters(parameters),
   )
@@ -116,9 +114,7 @@ pub fn refresh_token_request(
     ClientSecretPost => "client_secret_post"
     None => "none"
   }
-  if !metadata
-    .token_endpoint_auth_methods_supported()
-    .contains(auth_method_name) {
+  if !metadata.token_endpoint_auth_methods_supported.contains(auth_method_name) {
     raise AuthorizationFailed(
       "client token authentication is not supported by the authorization server",
     )
@@ -146,7 +142,7 @@ pub fn refresh_token_request(
   }
   HttpRequest(
     request_method=Post,
-    url=metadata.token_endpoint(),
+    url=metadata.token_endpoint,
     headers~,
     body=encode_form_parameters(parameters),
   )

@@ -10,7 +10,7 @@ async test "each request carries the client context used by the server" {
     name="whoami",
     description="Return the request client name",
     fn(context, _arguments) -> @mcp.HandlerOutcome[@mcp.CallToolResult] {
-      let name = context.meta().client_info
+      let name = context.meta.client_info
         .map(info => info.name)
         .unwrap_or("anonymous")
       @mcp.Complete(@mcp.CallToolResult::text(name))
@@ -139,8 +139,8 @@ async test "MRTR retries echo opaque state and supply input responses" {
     context,
     _arguments,
   ) -> @mcp.HandlerOutcome[@mcp.CallToolResult] {
-    if context.request_state() is Some("opaque") &&
-      context.input_responses() is Some(responses) &&
+    if context.request_state is Some("opaque") &&
+      context.input_responses is Some(responses) &&
       responses.contains("answer") {
       return @mcp.Complete(@mcp.CallToolResult::text("accepted"))
     }

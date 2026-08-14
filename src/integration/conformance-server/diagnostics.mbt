@@ -12,7 +12,7 @@ fn register_stateless_diagnostics(server : @mcp.Server) -> Unit {
     description="Require the client sampling capability.",
     input_schema=empty_object_schema(),
     (context, _arguments) => {
-      let capabilities = context.meta().client_capabilities
+      let capabilities = context.meta.client_capabilities
       if capabilities.deprecated is Some(deprecated) &&
         deprecated.sampling is Some(_) {
         @mcp.Complete(@mcp.CallToolResult::text("sampling is available"))

@@ -56,8 +56,8 @@ test "list results preserve descriptors pagination caching and metadata" {
   )
   assert_eq(result.tools[0].name, "echo")
   assert_eq(result.next_cursor, Some("next-page"))
-  assert_eq(result.cache_policy.ttl_ms(), 2500L)
-  assert_eq(result.cache_policy.scope(), @mcp.Public)
+  assert_eq(result.cache_policy.ttl_ms, 2500L)
+  assert_eq(result.cache_policy.scope, @mcp.Public)
   assert_true(result.meta is Some(_))
 }
 

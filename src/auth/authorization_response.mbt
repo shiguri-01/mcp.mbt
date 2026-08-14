@@ -1,17 +1,7 @@
 ///|
 pub struct AuthorizationCode {
-  priv code : String
-  priv issuer : String?
-}
-
-///|
-pub fn AuthorizationCode::code(self : AuthorizationCode) -> String {
-  self.code
-}
-
-///|
-pub fn AuthorizationCode::issuer(self : AuthorizationCode) -> String? {
-  self.issuer
+  code : String
+  issuer : String?
 }
 
 ///|

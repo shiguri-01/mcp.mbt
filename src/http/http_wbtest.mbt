@@ -1091,7 +1091,7 @@ async test "401 without a challenge falls back to protected-resource discovery" 
   let provider = @auth.AuthorizationProvider(
     send_request=request => {
       auth_requests.push(request)
-      match request.url() {
+      match request.url {
         "https://rs.example/.well-known/oauth-protected-resource" =>
           @auth.HttpResponse(
             status=200,
@@ -1164,7 +1164,7 @@ async test "401 without a challenge falls back to protected-resource discovery" 
     abort("missing token request")
   }
   assert_true(
-    token_request.body().contains("resource=https%3A%2F%2Frs.example%2Fmcp"[:]),
+    token_request.body.contains("resource=https%3A%2F%2Frs.example%2Fmcp"[:]),
   )
 }
 

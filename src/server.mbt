@@ -495,7 +495,7 @@ fn Server::ensure_supported_version(
   self : Server,
   context : RequestContext,
 ) -> Unit raise McpError {
-  let requested = context.meta().protocol_version
+  let requested = context.meta.protocol_version
   if !self.supported_versions.contains(requested) {
     raise UnsupportedProtocolVersion(
       requested~,
@@ -542,7 +542,7 @@ fn Server::validate_input_requests(
       match request.method_name {
         "elicitation/create" => {
           let required = required_elicitation_capability(request)
-          let actual = context.meta().client_capabilities.elicitation
+          let actual = context.meta.client_capabilities.elicitation
           let accepted = match (required.elicitation, actual) {
             (Some({ url: Some(_), .. }), Some({ url: Some(_), .. })) => true
             (Some({ form: Some(_), .. }), Some({ form: Some(_), .. })) => true
@@ -557,7 +557,7 @@ fn Server::validate_input_requests(
           }
         }
         "roots/list" | "sampling/createMessage" as method_name => {
-          let actual = context.meta().client_capabilities.deprecated
+          let actual = context.meta.client_capabilities.deprecated
           let accepted = match (method_name, actual) {
             ("roots/list", Some({ roots: Some(_), .. })) => true
             ("sampling/createMessage", Some({ sampling: Some(_), .. })) => true

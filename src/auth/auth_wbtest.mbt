@@ -214,7 +214,7 @@ test "authorization response enforces exact state and RFC 9207 issuer" {
   ) catch {
     _ => abort("valid response rejected")
   }
-  assert_eq(accepted.code(), "ok")
+  assert_eq(accepted.code, "ok")
   try
     ignore(
       validate_authorization_response(
@@ -295,7 +295,7 @@ test "exact resource mode preserves a semantically significant trailing slash" {
     _ => abort("token request rejected")
   }
   assert_true(
-    request.body().contains("resource=https%3A%2F%2Frs.example%2Fmcp%2F"[:]),
+    request.body.contains("resource=https%3A%2F%2Frs.example%2Fmcp%2F"[:]),
   )
   try
     ignore(
@@ -328,7 +328,7 @@ test "origin-wide PRM may name only the same-origin root resource" {
   ) catch {
     _ => abort("same-origin root metadata rejected")
   }
-  assert_eq(accepted.resource(), "https://rs.example")
+  assert_eq(accepted.resource, "https://rs.example")
   for
     mismatched_resource in ["https://other.example", "https://rs.example/other"] {
     try
@@ -468,13 +468,13 @@ test "token request uses selected client authentication and RFC 8707 resource" {
   ) catch {
     _ => abort("request rejected")
   }
-  assert_eq(request.request_method(), Post)
+  assert_eq(request.request_method, Post)
   assert_eq(
-    request.headers().get("authorization"),
+    request.headers.get("authorization"),
     Some("Basic Y2xpZW50K2lkOnMlM0FlY3JldA=="),
   )
   assert_true(
-    request.body().contains("resource=https%3A%2F%2Frs.example%2Fmcp"[:]),
+    request.body.contains("resource=https%3A%2F%2Frs.example%2Fmcp"[:]),
   )
 }
 
@@ -500,8 +500,8 @@ test "dynamic registration declares code flow and optional refresh grant" {
   ) catch {
     _ => abort("registration request rejected")
   }
-  assert_eq(request.url(), "https://as.example/register")
-  let body = @json.parse(request.body()) catch { _ => abort("invalid JSON") }
+  assert_eq(request.url, "https://as.example/register")
+  let body = @json.parse(request.body) catch { _ => abort("invalid JSON") }
   guard body is Object(fields) else { abort("expected object") }
   assert_eq(
     fields.get("grant_types"),
@@ -570,7 +570,7 @@ async test "provider calls host functions without recursive method dispatch" {
   let provider = AuthorizationProvider(
     send_request=request => {
       HttpResponse(
-        status=if request.url() == "https://as.example/metadata" {
+        status=if request.url == "https://as.example/metadata" {
           200
         } else {
           500
@@ -588,7 +588,7 @@ async test "provider calls host functions without recursive method dispatch" {
     _ => abort("request rejected")
   }
   assert_eq(
-    (provider.send(request) catch { _ => abort("send failed") }).status(),
+    (provider.send(request) catch { _ => abort("send failed") }).status,
     200,
   )
   assert_eq(
@@ -598,9 +598,7 @@ async test "provider calls host functions without recursive method dispatch" {
     "https://as.example/authorize?x=1&code=ok",
   )
   assert_eq(
-    (provider.new_pkce_session() catch { _ => abort("PKCE failed") })
-    .code_verifier()
-    .length(),
+    (provider.new_pkce_session() catch { _ => abort("PKCE failed") }).code_verifier.length(),
     43,
   )
 }
@@ -610,8 +608,8 @@ async test "metadata discovery falls back from path-specific to origin-wide" {
   let requested : Array[String] = []
   let provider = AuthorizationProvider(
     send_request=request => {
-      requested.push(request.url())
-      if request.url() ==
+      requested.push(request.url)
+      if request.url ==
         "https://rs.example/.well-known/oauth-protected-resource" {
         HttpResponse(
           status=200,
@@ -633,7 +631,7 @@ async test "metadata discovery falls back from path-specific to origin-wide" {
   ) catch {
     _ => abort("metadata discovery failed")
   }
-  assert_eq(metadata.resource(), "https://rs.example/mcp")
+  assert_eq(metadata.resource, "https://rs.example/mcp")
   assert_eq(requested, [
     "https://rs.example/.well-known/oauth-protected-resource/mcp", "https://rs.example/.well-known/oauth-protected-resource",
   ])
@@ -684,9 +682,9 @@ async test "refresh response omission preserves refresh token and granted scope"
   assert_eq(tokens.refresh_token(), Some("bound-refresh"))
   assert_eq(tokens.scope(), ["read", "offline_access"])
   guard requests is [request] else { abort("expected one token request") }
-  assert_true(request.body().contains("grant_type=refresh_token"[:]))
+  assert_true(request.body.contains("grant_type=refresh_token"[:]))
   assert_true(
-    request.body().contains("resource=https%3A%2F%2Frs.example%2Fmcp"[:]),
+    request.body.contains("resource=https%3A%2F%2Frs.example%2Fmcp"[:]),
   )
 }
 
@@ -705,7 +703,7 @@ async test "insecure loopback opt-in recognizes bracketed IPv6 with a port" {
   ) catch {
     _ => abort("opted-in loopback request rejected")
   }
-  assert_eq(response.status(), 204)
+  assert_eq(response.status, 204)
 }
 
 ///|
@@ -767,7 +765,7 @@ test "DCR response omission preserves the requested token authentication method"
   ) catch {
     _ => abort("none-auth token request rejected")
   }
-  assert_true(token_request.headers().get("authorization") is None)
-  assert_true(token_request.body().contains("client_id=dynamic-client"[:]))
-  assert_false(token_request.body().contains("server-issued-but-unused"[:]))
+  assert_true(token_request.headers.get("authorization") is None)
+  assert_true(token_request.body.contains("client_id=dynamic-client"[:]))
+  assert_false(token_request.body.contains("server-issued-but-unused"[:]))
 }

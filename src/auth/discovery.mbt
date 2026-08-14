@@ -21,7 +21,7 @@ fn response_json(response : HttpResponse) -> Json raise AuthError {
       "JSON response must use application/json Content-Type",
     )
   }
-  @json.parse(response.body()) catch {
+  @json.parse(response.body) catch {
     _ => raise InvalidMetadata("metadata response is not valid JSON")
   }
 }
@@ -50,7 +50,7 @@ pub async fn discover_protected_resource_metadata(
   let origin_fallback = protected_resource_metadata_urls(resource_uri).last()
   for url in candidates {
     let response = provider.send(discovery_get(url))
-    if response.status() == 200 {
+    if response.status == 200 {
       return parse_protected_resource_metadata(
         response_json(response),
         expected_resource=resource_uri,
@@ -73,7 +73,7 @@ pub async fn discover_authorization_server_metadata(
 ) -> AuthorizationServerMetadata raise AuthError {
   for url in authorization_server_metadata_urls(issuer) {
     let response = provider.send(discovery_get(url))
-    if response.status() == 200 {
+    if response.status == 200 {
       return parse_authorization_server_metadata(
         response_json(response),
         expected_issuer=issuer,

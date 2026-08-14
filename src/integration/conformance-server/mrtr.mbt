@@ -45,7 +45,7 @@ fn roots_request() -> @mcp.InputRequest {
 
 ///|
 fn has_response(context : @mcp.RequestContext, key : String) -> Bool {
-  match context.input_responses() {
+  match context.input_responses {
     Some(responses) => responses.contains(key)
     None => false
   }
@@ -113,8 +113,8 @@ fn register_mrtr_fixtures(server : @mcp.Server) -> Unit {
     description="Require an exact opaque requestState echo.",
     input_schema=empty_object_schema(),
     (context, _arguments) => {
-      if context.input_responses() is Some(_) {
-        if context.request_state() != Some("request-state-v1") {
+      if context.input_responses is Some(_) {
+        if context.request_state != Some("request-state-v1") {
           raise @mcp.InvalidParams("requestState integrity check failed")
         }
         complete_text("state-ok")
@@ -146,7 +146,7 @@ fn register_multiple_and_round_mrtr(server : @mcp.Server) -> Unit {
         has_response(context, "greeting") &&
         has_response(context, "client_roots")
       if all_present {
-        if context.request_state() != Some("multiple-state-v1") {
+        if context.request_state != Some("multiple-state-v1") {
           raise @mcp.InvalidParams("requestState integrity check failed")
         }
         complete_text("All input responses were received.")
@@ -171,7 +171,7 @@ fn register_multiple_and_round_mrtr(server : @mcp.Server) -> Unit {
     description="Return two input-required rounds with distinct requestState values.",
     input_schema=empty_object_schema(),
     (context, _arguments) => {
-      match context.request_state() {
+      match context.request_state {
         None =>
           @mcp.InputRequired(
             @mcp.InputRequiredResult(
@@ -218,7 +218,7 @@ fn register_capability_and_tamper_mrtr(server : @mcp.Server) -> Unit {
     description="Reject any requestState other than the issued opaque value.",
     input_schema=empty_object_schema(),
     (context, _arguments) => {
-      match context.request_state() {
+      match context.request_state {
         None =>
           @mcp.InputRequired(
             @mcp.InputRequiredResult(
@@ -241,7 +241,7 @@ fn register_capability_and_tamper_mrtr(server : @mcp.Server) -> Unit {
     description="Only request input methods declared by the client.",
     input_schema=empty_object_schema(),
     (context, _arguments) => {
-      let capabilities = context.meta().client_capabilities
+      let capabilities = context.meta.client_capabilities
       let requests : Map[String, @mcp.InputRequest] = Map([])
       if capabilities.deprecated is Some(deprecated) &&
         deprecated.sampling is Some(_) {

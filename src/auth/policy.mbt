@@ -268,7 +268,7 @@ pub fn choose_registration(
   if pre_registered is Some(credentials) {
     return PreRegistered(credentials)
   }
-  if metadata.client_id_metadata_document_supported() &&
+  if metadata.client_id_metadata_document_supported &&
     client_id_metadata_url is Some(url) {
     let document = validate_secure_uri(
       url,
@@ -281,7 +281,7 @@ pub fn choose_registration(
     }
     return ClientIdMetadataDocument(url)
   }
-  match metadata.registration_endpoint() {
+  match metadata.registration_endpoint {
     Some(endpoint) => Dynamic(endpoint)
     None =>
       raise UnsupportedRegistration("no supported client registration method")

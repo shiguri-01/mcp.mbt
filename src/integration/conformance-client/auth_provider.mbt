@@ -2,10 +2,10 @@
 async fn send_auth_request(
   request : @auth.HttpRequest,
 ) -> @auth.HttpResponse raise @auth.AuthError {
-  let headers = request.headers()
-  match request.request_method() {
+  let headers = request.headers
+  match request.request_method {
     @auth.Get => {
-      let (response, stream) = @async_http.get_stream(request.url(), headers~) catch {
+      let (response, stream) = @async_http.get_stream(request.url, headers~) catch {
         error => raise @auth.TransportFailure(error.to_string())
       }
       defer stream.close()
@@ -15,9 +15,9 @@ async fn send_auth_request(
       @auth.HttpResponse(status=response.code, headers=response.headers, body~)
     }
     @auth.Post => {
-      let body_bytes = @utf8.encode(request.body())
+      let body_bytes = @utf8.encode(request.body)
       headers["Content-Length"] = body_bytes.length().to_string()
-      let stream = @async_http.post_stream(request.url(), headers~) catch {
+      let stream = @async_http.post_stream(request.url, headers~) catch {
         error => raise @auth.TransportFailure(error.to_string())
       }
       defer stream.close()

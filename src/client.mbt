@@ -4,10 +4,10 @@
 /// The client keeps only defaults and a request-id counter. Every request is
 /// self-contained and receives a fresh copy of protocol metadata.
 pub struct Client {
-  priv info : Implementation
-  priv capabilities : ClientCapabilities
-  priv extension_result_types : Map[String, String]
-  priv protocol_version : String
+  info : Implementation
+  capabilities : ClientCapabilities
+  extension_result_types : Map[String, String]
+  protocol_version : String
   priv mut next_request_id : Int
 }
 
@@ -45,21 +45,6 @@ pub fn Client::Client(
     protocol_version,
     next_request_id: 1,
   }
-}
-
-///|
-pub fn Client::protocol_version(self : Client) -> String {
-  self.protocol_version
-}
-
-///|
-pub fn Client::capabilities(self : Client) -> ClientCapabilities {
-  self.capabilities.copy()
-}
-
-///|
-pub fn Client::info(self : Client) -> Implementation {
-  self.info.copy()
 }
 
 ///|

@@ -47,7 +47,7 @@ async fn pre_registered_credentials(
   let metadata = @auth.discover_protected_resource_metadata(provider, resource) catch {
     error => raise @mcp.InvalidRequest(auth_error_message(error))
   }
-  guard metadata.authorization_servers() is [issuer, ..] else {
+  guard metadata.authorization_servers is [issuer, ..] else {
     raise @mcp.InvalidRequest(
       "pre-registration resource metadata has no authorization server",
     )

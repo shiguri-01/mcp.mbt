@@ -159,14 +159,6 @@ pub fn CachePolicy::CachePolicy(
 }
 
 ///|
-pub fn CachePolicy::ttl_ms(self : CachePolicy) -> Int64 {
-  self.ttl_ms
-}
-
-///|
-pub fn CachePolicy::scope(self : CachePolicy) -> CacheScope {
-  self.scope
-}
 
 ///|
 pub impl ToJson for CachePolicy with fn to_json(self : CachePolicy) -> Json {

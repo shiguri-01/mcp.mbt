@@ -281,7 +281,7 @@ async fn Client::authorize_challenge(
   ) catch {
     error => raise auth_error_to_mcp(error)
   }
-  guard resource_metadata.authorization_servers() is [issuer, ..] else {
+  guard resource_metadata.authorization_servers is [issuer, ..] else {
     raise @mcp.InvalidRequest(
       "protected resource metadata has no authorization server",
     )
@@ -329,10 +329,10 @@ async fn Client::authorize_challenge(
           ) catch {
             error => raise auth_error_to_mcp(error)
           }
-          if !(registration_response.status() is (200..<300)) {
+          if !(registration_response.status is (200..<300)) {
             raise @mcp.InvalidRequest("dynamic registration was rejected")
           }
-          let registration_json = @json.parse(registration_response.body()) catch {
+          let registration_json = @json.parse(registration_response.body) catch {
             _ =>
               raise @mcp.InvalidRequest(
                 "dynamic registration returned invalid JSON",
@@ -396,8 +396,8 @@ async fn Client::authorize_challenge(
     _ =>
       @auth.initial_scopes(
         challenge_scope?,
-        resource_scopes?=resource_metadata.scopes_supported(),
-        authorization_server_scopes?=metadata.scopes_supported(),
+        resource_scopes?=resource_metadata.scopes_supported,
+        authorization_server_scopes?=metadata.scopes_supported,
         wants_refresh_token=options.wants_refresh_token,
       )
   }

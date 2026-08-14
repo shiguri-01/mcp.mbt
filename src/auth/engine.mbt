@@ -37,25 +37,25 @@ pub async fn AuthorizationEngine::authorize(
   let callback_uri = self.provider.authorize(authorization_url)
   let code = validate_authorization_response(
     callback_uri,
-    expected_state=pkce.state(),
-    expected_issuer=metadata.issuer(),
-    issuer_parameter_required=metadata.authorization_response_iss_parameter_supported(),
+    expected_state=pkce.state,
+    expected_issuer=metadata.issuer,
+    issuer_parameter_required=metadata.authorization_response_iss_parameter_supported,
     expected_redirect_uri=redirect_uri,
   )
   let response = self.provider.send(
     authorization_code_token_request(
       metadata,
       credentials,
-      code=code.code(),
+      code=code.code,
       redirect_uri~,
-      code_verifier=pkce.code_verifier(),
+      code_verifier=pkce.code_verifier,
       resource~,
       exact_resource~,
     ),
   )
-  if response.status() != 200 {
+  if response.status != 200 {
     raise AuthorizationFailed(
-      "token endpoint returned HTTP " + response.status().to_string(),
+      "token endpoint returned HTTP " + response.status.to_string(),
     )
   }
   let tokens = parse_token_response(response_json(response))
@@ -110,9 +110,9 @@ pub async fn AuthorizationEngine::refresh(
       exact_resource~,
     ),
   )
-  if response.status() != 200 {
+  if response.status != 200 {
     raise AuthorizationFailed(
-      "token endpoint returned HTTP " + response.status().to_string(),
+      "token endpoint returned HTTP " + response.status.to_string(),
     )
   }
   let refreshed = parse_token_response(response_json(response))
