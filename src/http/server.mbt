@@ -419,7 +419,7 @@ fn validate_post_request(
   // The MCP dispatcher owns the server's version policy. HTTP only checks
   // header/body agreement here; an empty list disables the helper's default
   // standalone policy.
-  validate_standard_headers(request, message, supported_versions=[])
+  validate_standard_headers_without_version_policy(request, message)
   validate_tool_call_headers(server, request, message)
 }
 

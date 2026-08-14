@@ -513,10 +513,20 @@ fn standard_request_headers(
 }
 
 ///|
-fn validate_standard_headers(
+/// Validate HTTP/body agreement without applying a transport-local version
+/// list. The MCP server dispatcher owns that policy.
+fn validate_standard_headers_without_version_policy(
   request : @async_http.Request,
   message : Json,
-  supported_versions? : Array[String] = [@mcp.latest_protocol_version],
+) -> Unit raise @mcp.McpError {
+  validate_standard_headers_with_policy(request, message, None)
+}
+
+///|
+fn validate_standard_headers_with_policy(
+  request : @async_http.Request,
+  message : Json,
+  supported_versions : Array[String]?,
 ) -> Unit raise @mcp.McpError {
   let header_version = match
     unique_header(request.headers, "MCP-Protocol-Version") {
@@ -540,11 +550,10 @@ fn validate_standard_headers(
       )
     None => ()
   }
-  if !supported_versions.is_empty() &&
-    !supported_versions.contains(header_version) {
+  if supported_versions is Some(versions) && !versions.contains(header_version) {
     raise @mcp.UnsupportedProtocolVersion(
       requested=header_version,
-      supported=supported_versions,
+      supported=versions,
     )
   }
   let header_method = match unique_header(request.headers, "Mcp-Method") {

@@ -28,7 +28,11 @@ fn standard_validation_error(
   message : Json,
 ) -> @mcp.McpError? {
   try {
-    validate_standard_headers(request, message)
+    validate_standard_headers_with_policy(
+      request,
+      message,
+      Some([@mcp.latest_protocol_version]),
+    )
     None
   } catch {
     error => Some(error)
@@ -399,7 +403,11 @@ test "standard header values ignore surrounding HTTP whitespace" {
   })
   let headers = standard_request_headers(request, @mcp.latest_protocol_version)
   headers["Mcp-Name"] = "  greet\t"
-  try! validate_standard_headers(post_request(headers~), request)
+  try! validate_standard_headers_with_policy(
+    post_request(headers~),
+    request,
+    Some([@mcp.latest_protocol_version]),
+  )
 }
 
 ///|
