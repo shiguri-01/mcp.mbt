@@ -70,10 +70,10 @@ pub fn Schema::any_of(Array[Self]) -> Self raise SchemaError
 pub fn Schema::array(items~ : Self) -> Self
 pub fn Schema::array_constraints(items~ : Self, min_items? : Int, max_items? : Int, unique_items? : Bool) -> Self raise SchemaError
 pub fn Schema::boolean() -> Self
-pub fn Schema::const_value(Json) -> Self
+pub fn[T : ToJson] Schema::const_value(T) -> Self
 pub fn Schema::description(Self, String) -> Self
 pub fn Schema::document(Self) -> Document raise SchemaError
-pub fn Schema::enum_values(Array[Json]) -> Self raise SchemaError
+pub fn[T : ToJson] Schema::enum_values(Array[T]) -> Self raise SchemaError
 pub fn Schema::integer() -> Self
 pub fn Schema::never() -> Self
 pub fn Schema::not(Self) -> Self

@@ -54,6 +54,18 @@ test "raw Json has an explicit unconstrained schema" {
 }
 
 ///|
+test "const and enum assertions accept MoonBit values" {
+  let constant = Schema::const_value(42)
+  let enumeration = try! Schema::enum_values(["draft", "published"])
+  let constant_validator = try! constant.document().compile()
+  let enum_validator = try! enumeration.document().compile()
+  assert_true(constant_validator.validate(Json::number(42.0)).valid)
+  assert_false(constant_validator.validate(Json::number(41.0)).valid)
+  assert_true(enum_validator.validate(Json::string("draft")).valid)
+  assert_false(enum_validator.validate(Json::string("other")).valid)
+}
+
+///|
 test "description preserves boolean schema assertion semantics" {
   let described_never = Schema::description(Schema::never(), "not allowed")
   let validator = try! described_never.document().compile()

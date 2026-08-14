@@ -126,23 +126,26 @@ pub fn Schema::array_constraints(
 }
 
 ///|
-pub fn Schema::const_value(value : Json) -> Schema {
-  schema(Const(value))
+pub fn[T : ToJson] Schema::const_value(value : T) -> Schema {
+  schema(Const(value.to_json()))
 }
 
 ///|
-pub fn Schema::enum_values(values : Array[Json]) -> Schema raise SchemaError {
+pub fn[T : ToJson] Schema::enum_values(
+  values : Array[T],
+) -> Schema raise SchemaError {
   if values.is_empty() {
     raise InvalidSchema("JSON Schema enum must not be empty")
   }
+  let encoded : Array[Json] = values.map(value => value.to_json())
   let seen : Array[Json] = []
-  for value in values {
+  for value in encoded {
     if seen.contains(value) {
       raise InvalidSchema("JSON Schema enum values must be unique")
     }
     seen.push(value)
   }
-  schema(Enum(values.copy()))
+  schema(Enum(encoded))
 }
 
 ///|

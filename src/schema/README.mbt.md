@@ -33,3 +33,7 @@ Common constraints are also typed constructors, for example
 `Schema::object_constraints(properties={ "items": item_schema },
 min_properties=1)`. These constructors reject invalid bounds before a
 document is compiled.
+
+Value assertions are typed as well: `Schema::const_value(42)` and
+`Schema::enum_values(["draft", "published"])` use `ToJson`, so callers do not
+need to pre-encode ordinary MoonBit values as `Json`.
