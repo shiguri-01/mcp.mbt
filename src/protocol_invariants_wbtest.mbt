@@ -17,7 +17,7 @@ test "request metadata owns reserved fields and preserves extension fields" {
 test "metadata keys follow the MCP prefix and name grammar" {
   let client = try! Client(name="client", version="1")
   try
-    client.request(
+    client.request_raw(
       method_name="example/run",
       options=RequestOptions(meta={ "bad/key/extra": Json::boolean(true) }),
     )
@@ -28,7 +28,7 @@ test "metadata keys follow the MCP prefix and name grammar" {
     _ => fail("invalid metadata key must be rejected")
   }
   ignore(
-    try! client.request(
+    try! client.request_raw(
       method_name="example/run",
       options=RequestOptions(meta={ "com.example/trace-id": Json::string("1") }),
     ),

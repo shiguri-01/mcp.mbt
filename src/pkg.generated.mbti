@@ -144,7 +144,7 @@ pub fn Client::list_tools_request(Self, cursor? : String, options? : RequestOpti
 pub fn Client::listen_request(Self, notifications~ : SubscriptionFilter, options? : RequestOptions) -> Json raise McpError
 pub fn Client::protocol_version(Self) -> String
 pub fn Client::read_resource_request(Self, uri~ : String, options? : RequestOptions) -> Json raise McpError
-pub fn Client::request(Self, method_name~ : String, params? : Map[String, Json], options? : RequestOptions) -> Json raise McpError
+pub fn Client::request_raw(Self, method_name~ : String, params? : Map[String, Json], options? : RequestOptions) -> Json raise McpError
 
 pub(all) struct ClientCapabilities {
   elicitation : ElicitationCapability?

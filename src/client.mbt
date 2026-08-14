@@ -70,8 +70,12 @@ fn Client::fresh_id(self : Client) -> Json {
 }
 
 ///|
-/// Build a custom extension request with mandatory modern request metadata.
-pub fn Client::request(
+/// Build a raw custom/extension request with mandatory modern request metadata.
+///
+/// Standard MCP operations should use the typed transport clients. This escape
+/// hatch is intentionally named `request_raw` so JSON construction is visible
+/// at the call site.
+pub fn Client::request_raw(
   self : Client,
   method_name~ : String,
   params? : Map[String, Json] = Map([]),
@@ -94,7 +98,7 @@ pub fn Client::discover_request(
   self : Client,
   options? : RequestOptions = RequestOptions(),
 ) -> Json raise McpError {
-  self.request(method_name="server/discover", options~)
+  self.request_raw(method_name="server/discover", options~)
 }
 
 ///|
@@ -105,7 +109,7 @@ pub fn Client::list_tools_request(
 ) -> Json raise McpError {
   let params : Map[String, Json] = Map([])
   put_optional_string(params, "cursor", cursor)
-  self.request(method_name="tools/list", params~, options~)
+  self.request_raw(method_name="tools/list", params~, options~)
 }
 
 ///|
@@ -116,7 +120,7 @@ pub fn Client::call_tool_request(
   options? : RequestOptions = RequestOptions(),
 ) -> Json raise McpError {
   ignore(expect_object(arguments, "tool arguments"))
-  self.request(
+  self.request_raw(
     method_name="tools/call",
     params={ "name": Json::string(name), "arguments": arguments },
     options~,
@@ -131,7 +135,7 @@ pub fn Client::list_resources_request(
 ) -> Json raise McpError {
   let params : Map[String, Json] = Map([])
   put_optional_string(params, "cursor", cursor)
-  self.request(method_name="resources/list", params~, options~)
+  self.request_raw(method_name="resources/list", params~, options~)
 }
 
 ///|
@@ -142,7 +146,7 @@ pub fn Client::list_resource_templates_request(
 ) -> Json raise McpError {
   let params : Map[String, Json] = Map([])
   put_optional_string(params, "cursor", cursor)
-  self.request(method_name="resources/templates/list", params~, options~)
+  self.request_raw(method_name="resources/templates/list", params~, options~)
 }
 
 ///|
@@ -151,7 +155,7 @@ pub fn Client::read_resource_request(
   uri~ : String,
   options? : RequestOptions = RequestOptions(),
 ) -> Json raise McpError {
-  self.request(
+  self.request_raw(
     method_name="resources/read",
     params={ "uri": Json::string(uri) },
     options~,
@@ -166,7 +170,7 @@ pub fn Client::list_prompts_request(
 ) -> Json raise McpError {
   let params : Map[String, Json] = Map([])
   put_optional_string(params, "cursor", cursor)
-  self.request(method_name="prompts/list", params~, options~)
+  self.request_raw(method_name="prompts/list", params~, options~)
 }
 
 ///|
@@ -177,7 +181,7 @@ pub fn Client::get_prompt_request(
   options? : RequestOptions = RequestOptions(),
 ) -> Json raise McpError {
   ignore(expect_object(arguments, "prompt arguments"))
-  self.request(
+  self.request_raw(
     method_name="prompts/get",
     params={ "name": Json::string(name), "arguments": arguments },
     options~,
@@ -207,7 +211,7 @@ pub fn Client::complete_request(
     }
     params["context"] = Json::object({ "arguments": Json::object(values) })
   }
-  self.request(method_name="completion/complete", params~, options~)
+  self.request_raw(method_name="completion/complete", params~, options~)
 }
 
 ///|
@@ -216,7 +220,7 @@ pub fn Client::listen_request(
   notifications~ : SubscriptionFilter,
   options? : RequestOptions = RequestOptions(),
 ) -> Json raise McpError {
-  self.request(
+  self.request_raw(
     method_name="subscriptions/listen",
     params={ "notifications": notifications.to_json() },
     options~,
