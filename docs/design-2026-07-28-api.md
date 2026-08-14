@@ -64,7 +64,7 @@ try! server.register_tool(
 There is one registration function per MCP feature (`register_tool`,
 `register_resource`, `register_resource_template`, `register_prompt`, and
 `register_completion`). A raw escape hatch is named `register_method` and is
-explicitly documented as a wire-level API. `tool`, `tool_json`, and multiple
+explicitly documented as a wire-level API. `tool`, `tool_raw`, and multiple
 `simple_*` variants are not part of the public surface.
 
 The server automatically implements `server/discover`, `tools/list`,
@@ -110,33 +110,31 @@ constructors (`Schema::string`, `Schema::object`, `Schema::array`,
 interop escape hatch, not as the only way to create a schema. Both paths
 produce the same `Document` model.
 
-The type trait describes the serialized representation, not the in-memory
-MoonBit representation. `FromJson`/`ToJson` and `JsonSchema` are therefore
-separate traits: a type can be decoded without being able to publish a schema,
-and a schema can be authored without a generated decoder. MCP's typed tool API
-requires both traits at registration time.
+`JsonSchema` returns the typed `Schema` AST, not a hand-built `Json` value.
+`FromJson`/`ToJson` and `JsonSchema` are separate traits: a type can be decoded
+without being able to publish a schema, and a schema can be authored without a
+generated decoder. MCP's typed tool API requires both traits at registration
+time.
 
 ### 1. Typed schema and document model
 
 `schema::Schema` is a typed schema AST for the common 2020-12 vocabulary.
-Boolean schemas are represented directly. Each typed keyword has a constructor
-that validates its local invariant; extension keywords are stored explicitly in
-an `extra` map. `Schema::to_json` is the only conversion used to create a
-document.
+Boolean schemas are represented directly. Each modeled keyword has a
+constructor that validates its local invariant. `Schema::raw` is the explicit
+escape hatch for a valid keyword not yet modeled by the AST, and
+`Schema::to_json` is the only conversion used to create a document.
 
-`schema::Document` is an immutable, constructor-created JSON Schema document.
-It preserves `$id`, `$ref`, `$defs`, `$dynamicAnchor`, `$dynamicRef`,
-`$vocabulary`, and embedded resources without silently normalizing them.
-`Document(value)` performs only document-shape checks and resource/index
-construction. It never fetches a network reference.
+`schema::Document` is a constructor-created JSON Schema document. It preserves
+the input JSON without silently normalizing it. `Document::Document(value)`
+performs document-shape checks and never fetches a network reference.
 
 ### 2. Compilation
 
 `Document::compile(options)` returns `CompiledSchema` or `SchemaError`.
-Compilation resolves only references inside the supplied compound document,
-uses RFC 3986 URI resolution and RFC 6901 JSON Pointer, and rejects an
-unsupported dialect/vocabulary explicitly. The options contain resource and
-evaluation limits; there is no global mutable resolver.
+Compilation resolves local references inside the supplied document using JSON
+Pointer and rejects network references by default. Unsupported dialects are
+reported explicitly. The options contain depth and node limits; there is no
+global mutable resolver.
 
 ### 3. Instance validation
 
@@ -146,10 +144,10 @@ annotations required by `unevaluatedProperties` and `unevaluatedItems`.
 MCP maps this result to protocol errors or tool execution errors at the
 dispatcher boundary. Schema validation never raises `McpError` directly.
 
-The first supported dialect is JSON Schema 2020-12 with a documented subset
-of ECMA-262 regular expressions. Unsupported regex constructs are rejected at
-compilation; they are never approximated. Full ECMA-262 compatibility is a
-separate milestone, not an undocumented claim.
+The first supported dialect is JSON Schema 2020-12 with the implemented
+assertion subset documented by the package tests. Unsupported keywords and
+regex constructs are not silently approximated; full vocabulary and ECMA-262
+compatibility remain separate milestones.
 
 ## Error and codec rules
 
