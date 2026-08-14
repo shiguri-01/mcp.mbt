@@ -310,33 +310,27 @@ async fn read_messages(
 
 ///|
 fn request_id(message : Json) -> Json raise @mcp.McpError {
-  match message {
-    Object(
-      {
-        "jsonrpc": String("2.0"),
-        "id": String(_)
-        | Number(_) as id,
-        "method": String(_),
-        "params": Object(_),
-        ..
-      }
-    ) => id
+  let decoded = @jsonrpc.decode(message) catch {
+    _ => raise InvalidRequest("stdio request is not a JSON-RPC request")
+  }
+  match decoded {
+    @jsonrpc.Message::Request(request) => request.id().as_json()
     _ => raise InvalidRequest("stdio request must be a JSON-RPC request")
   }
 }
 
 ///|
 fn response_id(message : Json) -> Json? raise @mcp.McpError {
-  match message {
-    Object({ "jsonrpc": String("2.0"), "method": String(_), "id"? : None, .. }) =>
-      None
-    Object({ "jsonrpc": String("2.0"), "method": String(_), "id": _, .. }) =>
+  let decoded = @jsonrpc.decode(message) catch {
+    _ => raise InvalidRequest("invalid JSON-RPC message from stdio server")
+  }
+  match decoded {
+    @jsonrpc.Message::Notification(_) => None
+    @jsonrpc.Message::Request(_) =>
       raise InvalidRequest(
         "server-to-client JSON-RPC requests are not valid in MCP 2026-07-28",
       )
-    Object({ "jsonrpc": String("2.0"), "id": String(_) | Number(_) as id, .. }) =>
-      Some(id)
-    _ => raise InvalidRequest("invalid JSON-RPC message from stdio server")
+    @jsonrpc.Message::Response(response) => Some(response.id().as_json())
   }
 }
 

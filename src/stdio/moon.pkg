@@ -6,6 +6,7 @@ import {
   "moonbitlang/async/stdio" @async_stdio,
   "moonbitlang/core/json",
   "shiguri-01/mcp",
+  "shiguri-01/mcp/jsonrpc",
 }
 
 supported_targets = "+native"

@@ -398,37 +398,41 @@ fn request_method_name(message : Json) -> String? {
 
 ///|
 fn request_id(message : Json) -> Json? {
-  match message {
-    Object(fields) => fields.get("id")
-    _ => None
+  match decode_jsonrpc_message(message) {
+    Some(@jsonrpc.Message::Request(request)) => Some(request.id().as_json())
+    Some(@jsonrpc.Message::Response(response)) => Some(response.id().as_json())
+    Some(@jsonrpc.Message::Notification(_)) | None => None
   }
 }
 
 ///|
 fn is_jsonrpc_request(message : Json) -> Bool {
-  match message {
-    Object({ "jsonrpc": String("2.0"), "method": String(_), "id": _, .. }) =>
-      true
+  match decode_jsonrpc_message(message) {
+    Some(@jsonrpc.Message::Request(_)) => true
     _ => false
   }
 }
 
 ///|
 fn is_jsonrpc_notification(message : Json) -> Bool {
-  match message {
-    Object({ "jsonrpc": String("2.0"), "method": String(_), "id"? : None, .. }) =>
-      true
+  match decode_jsonrpc_message(message) {
+    Some(@jsonrpc.Message::Notification(_)) => true
     _ => false
   }
 }
 
 ///|
 fn is_jsonrpc_response(message : Json) -> Bool {
-  match message {
-    Object({ "jsonrpc": String("2.0"), "id": _, "result": _, .. }) => true
-    Object({ "jsonrpc": String("2.0"), "id": _, "error": Object(_), .. }) =>
-      true
+  match decode_jsonrpc_message(message) {
+    Some(@jsonrpc.Message::Response(_)) => true
     _ => false
+  }
+}
+
+///|
+fn decode_jsonrpc_message(message : Json) -> @jsonrpc.Message? {
+  Some(@jsonrpc.decode(message)) catch {
+    _ => None
   }
 }
 
