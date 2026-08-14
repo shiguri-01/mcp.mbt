@@ -358,21 +358,6 @@ pub fn[T : ToJson] CallToolResult::structured(value : T) -> CallToolResult {
 }
 
 ///|
-pub fn CallToolResult::text_json(
-  text : String,
-  value : Json,
-  annotations? : Annotations,
-  meta? : Json,
-) -> CallToolResult {
-  {
-    content: [ContentBlock::text(text, annotations?, meta?)],
-    structured_content: Some(value),
-    is_error: false,
-    meta: None,
-  }
-}
-
-///|
 /// Return a tool error as MCP content, not as a JSON-RPC protocol error.
 pub fn CallToolResult::error_text(
   text : String,

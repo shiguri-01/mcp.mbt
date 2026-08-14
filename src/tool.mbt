@@ -114,14 +114,3 @@ pub impl ToJson for Tool with fn to_json(self : Tool) -> Json {
   put_optional_json(fields, "_meta", self.meta)
   Json::object(fields)
 }
-
-///|
-pub fn Tool::text(
-  name~ : String,
-  title? : String,
-  description? : String,
-  input_schema? : Json = empty_object_schema(),
-  annotations? : ToolAnnotations,
-) -> Tool raise McpError {
-  Tool(name~, title?, description?, input_schema~, annotations?)
-}
