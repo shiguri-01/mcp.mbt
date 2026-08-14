@@ -1,15 +1,15 @@
 import {
+  "moonbitlang/async",
+  "moonbitlang/async/aqueue",
   "moonbitlang/core/json",
   "shiguri-01/mcp/jsonrpc",
   "shiguri-01/mcp/schema",
 }
 
 import {
-  "moonbitlang/async",
   "moonbitlang/core/test",
 } for "test"
 
 import {
-  "moonbitlang/async",
   "moonbitlang/core/test",
 } for "wbtest"

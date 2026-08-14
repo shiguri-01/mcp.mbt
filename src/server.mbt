@@ -973,3 +973,164 @@ pub async fn Server::handle_jsonrpc_with_hooks(
       }
   }
 }
+
+///|
+/// Check if a message is a `subscriptions/listen` request.
+pub fn is_subscription_request(message : Json) -> Bool {
+  match decode_message_opt(message) {
+    Some(Request(request)) => request.method_name == "subscriptions/listen"
+    _ => false
+  }
+}
+
+///|
+pub fn Server::is_subscription_request(self : Server, message : Json) -> Bool {
+  ignore(self)
+  is_subscription_request(message)
+}
+
+///|
+/// Check if a message is a `notifications/cancelled` notification.
+pub fn is_cancelled_notification(message : Json) -> Bool {
+  match decode_message_opt(message) {
+    Some(Notification(notification)) =>
+      notification.method_name == "notifications/cancelled"
+    _ => false
+  }
+}
+
+///|
+pub fn Server::is_cancelled_notification(self : Server, message : Json) -> Bool {
+  ignore(self)
+  is_cancelled_notification(message)
+}
+
+///|
+priv struct ServerActiveTask {
+  cancelled : Array[Bool]
+  task : @async.Task[Unit]
+}
+
+///|
+fn ServerActiveTask::cancel(self : ServerActiveTask) -> Unit {
+  self.cancelled[0] = true
+  self.task.cancel()
+}
+
+///|
+/// Serve a bidirectional stream of MCP messages.
+///
+/// Handles concurrent request dispatch, `subscriptions/listen` stream lifecycles,
+/// `notifications/cancelled` task cancellation, and progress notifications.
+pub async fn Server::serve_framed(
+  self : Server,
+  read_message~ : async () -> Json?,
+  send_message~ : async (Json) -> Unit,
+  on_subscription? : async (Subscription, async (Json) -> Unit) -> Unit = fn(
+    _,
+    _,
+  ) {
+    ()
+  },
+) -> Unit {
+  @async.with_task_group(group => {
+    let output : @aqueue.Queue[Json?] = Queue(kind=Unbounded)
+    let writer = group.spawn(async fn() {
+      while output.get() is Some(msg) {
+        send_message(msg)
+      }
+    })
+    let handlers : Array[@async.Task[Unit]] = []
+    let active_tasks : Map[String, ServerActiveTask] = Map([])
+
+    while read_message() is Some(message) {
+      let decoded = decode_message_opt(message)
+      match decoded {
+        Some(Request(request)) if request.method_name == "subscriptions/listen" => {
+          let subscription = try self.accept_subscription(message) catch {
+            error => {
+              output.put(
+                Some(
+                  error_response_from_json_id(id=request.id.as_json(), error),
+                ),
+              )
+              continue
+            }
+          } noraise {
+            subscription => subscription
+          }
+          output.put(Some(subscription.acknowledgement()))
+          let key = subscription.id.stringify()
+          let cancelled = [false]
+          let task = group.spawn(async fn() {
+            on_subscription(subscription, async fn(notification) {
+              if subscription.allows_event(notification) {
+                output.put(Some(notification))
+              }
+            }) catch {
+              _ => ()
+            }
+            if !cancelled[0] {
+              output.put(Some(subscription.close_response()))
+            }
+            ignore(active_tasks.remove(key))
+          })
+          active_tasks[key] = { cancelled, task }
+        }
+        Some(Notification(notification)) if notification.method_name ==
+          "notifications/cancelled" =>
+          try {
+            let params = CancelledNotificationParams::from_json(
+              notification.params,
+            )
+            let key = params.request_id.stringify()
+            if active_tasks.get(key) is Some(active) {
+              active_tasks.remove(key)
+              active.cancel()
+            }
+          } catch {
+            _ => ()
+          }
+        _ => {
+          let req_id = match decoded {
+            Some(Request(request)) => Some(request.id.as_json())
+            _ => None
+          }
+          let key_opt = req_id.map(fn(id) { id.stringify() })
+          let cancelled = [false]
+          let task = group.spawn(async fn() {
+            let hooks = RequestHooks(
+              emit_notification=async fn(notification) raise McpError {
+                output.put(Some(notification)) catch {
+                  error => raise InternalError(error.to_string())
+                }
+              },
+              is_cancelled=fn() { cancelled[0] },
+            )
+            match self.handle_jsonrpc_with_hooks(message, hooks~) {
+              Some(response) => output.put(Some(response))
+              None => ()
+            }
+            if key_opt is Some(key) {
+              ignore(active_tasks.remove(key))
+            }
+          })
+          handlers.push(task)
+          if key_opt is Some(key) {
+            active_tasks[key] = { cancelled, task }
+          }
+        }
+      }
+    }
+    for _, active in active_tasks {
+      active.cancel()
+    }
+    for task in handlers {
+      task.wait() catch {
+        _ => ()
+      }
+    }
+    output.put(None)
+    writer.wait()
+  })
+}

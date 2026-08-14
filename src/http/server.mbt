@@ -478,7 +478,7 @@ async fn handle_post(
     send_empty(conn, 202, "Accepted")
     return
   }
-  if request_method_name(message) == Some("subscriptions/listen") {
+  if server.is_subscription_request(message) {
     let subscription = server.accept_subscription(message) catch {
       error => {
         send_json(
