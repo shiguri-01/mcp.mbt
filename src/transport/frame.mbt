@@ -8,15 +8,29 @@ pub(all) suberror TransportError {
 } derive(Debug, Eq)
 
 ///|
+/// A received frame and transport metadata. Metadata is deliberately generic:
+/// an HTTP adapter may include status and headers, while another adapter can
+/// use its own keys without forcing protocol knowledge into this package.
+pub struct FrameResponse {
+  body : String
+  metadata : Map[String, String]
+} derive(Debug, Eq)
+
+///|
+/// Construct a received frame from an opaque body and adapter metadata.
+pub fn FrameResponse::FrameResponse(
+  body~ : String,
+  metadata? : Map[String, String] = Map([]),
+) -> FrameResponse {
+  { body, metadata: metadata.copy() }
+}
+
+///|
 /// A transport exchanges opaque bytes/text and transport metadata. It never
 /// receives an MCP or JSON-RPC value, so custom transports do not need to know
 /// either protocol.
 pub(open) trait FrameTransport {
-  async fn exchange(self : Self, body : String, headers : Map[String, String]) -> (
-    Int,
-    Map[String, String],
-    String,
-  ) raise TransportError
+  async fn exchange(self : Self, body : String, metadata : Map[String, String]) -> FrameResponse raise TransportError
 }
 
 ///|

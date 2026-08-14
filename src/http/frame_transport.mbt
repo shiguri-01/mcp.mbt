@@ -31,10 +31,10 @@ pub fn FrameTransport::FrameTransport(
 pub impl @transport.FrameTransport for FrameTransport with fn exchange(
   self : FrameTransport,
   body_text : String,
-  headers : Map[String, String],
-) -> (Int, Map[String, String], String) raise @transport.TransportError {
+  metadata : Map[String, String],
+) -> @transport.FrameResponse raise @transport.TransportError {
   let body = @utf8.encode(body_text)
-  let stream = @async_http.post_stream(self.endpoint, headers~) catch {
+  let stream = @async_http.post_stream(self.endpoint, headers=metadata) catch {
     error => raise @transport.TransportError::Io(error.to_string())
   }
   defer stream.close()
@@ -55,7 +55,9 @@ pub impl @transport.FrameTransport for FrameTransport with fn exchange(
       raise @transport.TransportError::InvalidFrame(subject)
     BodyReadFailed(message~, ..) => raise @transport.TransportError::Io(message)
   }
-  (response.code, response.headers, response_body)
+  let response_metadata = response.headers.copy()
+  response_metadata["status"] = response.code.to_string()
+  @transport.FrameResponse(body=response_body, metadata=response_metadata)
 }
 
 ///|

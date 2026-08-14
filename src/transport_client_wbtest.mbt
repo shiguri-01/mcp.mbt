@@ -15,7 +15,7 @@ impl @transport.FrameTransport for EchoFrame with fn exchange(
   self : EchoFrame,
   body : String,
   _headers : Map[String, String],
-) -> (Int, Map[String, String], String) raise @transport.TransportError {
+) -> @transport.FrameResponse raise @transport.TransportError {
   let request : Json = @json.parse(body) catch {
     error => raise @transport.TransportError::InvalidFrame(error.to_string())
   }
@@ -27,7 +27,7 @@ impl @transport.FrameTransport for EchoFrame with fn exchange(
     "id": id,
     "result": self.response_result,
   })
-  (200, Map([]), response.stringify())
+  @transport.FrameResponse(body=response.stringify())
 }
 
 ///|

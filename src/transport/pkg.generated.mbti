@@ -16,6 +16,11 @@ pub(all) suberror TransportError {
 } derive(Eq, @debug.Debug)
 
 // Types and methods
+pub struct FrameResponse {
+  body : String
+  metadata : Map[String, String]
+} derive(Eq, @debug.Debug)
+pub fn FrameResponse::FrameResponse(body~ : String, metadata? : Map[String, String]) -> Self
 
 // Type aliases
 
@@ -26,5 +31,5 @@ pub(open) trait FrameStream {
 }
 
 pub(open) trait FrameTransport {
-  async fn exchange(Self, String, Map[String, String]) -> (Int, Map[String, String], String) raise TransportError
+  async fn exchange(Self, String, Map[String, String]) -> FrameResponse raise TransportError
 }
