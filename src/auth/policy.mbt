@@ -89,9 +89,9 @@ pub(all) enum TokenEndpointAuthMethod {
 
 ///|
 pub struct ClientCredentials {
-  priv client_id : String
-  priv client_secret : String?
-  priv token_endpoint_auth_method : TokenEndpointAuthMethod
+  client_id : String
+  client_secret : String?
+  token_endpoint_auth_method : TokenEndpointAuthMethod
 } derive(Eq)
 
 ///|
@@ -113,21 +113,6 @@ pub fn ClientCredentials::ClientCredentials(
 }
 
 ///|
-pub fn ClientCredentials::client_id(self : ClientCredentials) -> String {
-  self.client_id
-}
-
-///|
-pub fn ClientCredentials::client_secret(self : ClientCredentials) -> String? {
-  self.client_secret
-}
-
-///|
-pub fn ClientCredentials::token_endpoint_auth_method(
-  self : ClientCredentials,
-) -> TokenEndpointAuthMethod {
-  self.token_endpoint_auth_method
-}
 
 ///|
 /// Credentials are issuer-bound. Looking up a different issuer never falls
@@ -160,11 +145,11 @@ pub fn CredentialCache::get(
 
 ///|
 pub struct OAuthTokens {
-  priv access_token : String
-  priv token_type : String
-  priv refresh_token : String?
-  priv scope : Array[String]
-  priv expires_in : Int?
+  access_token : String
+  token_type : String
+  refresh_token : String?
+  scope : Array[String]
+  expires_in : Int?
 }
 
 ///|
@@ -195,26 +180,6 @@ pub fn OAuthTokens::OAuthTokens(
 ///|
 pub fn OAuthTokens::authorization_header(self : OAuthTokens) -> String {
   self.token_type + " " + self.access_token
-}
-
-///|
-pub fn OAuthTokens::access_token(self : OAuthTokens) -> String {
-  self.access_token
-}
-
-///|
-pub fn OAuthTokens::refresh_token(self : OAuthTokens) -> String? {
-  self.refresh_token
-}
-
-///|
-pub fn OAuthTokens::scope(self : OAuthTokens) -> Array[String] {
-  self.scope.copy()
-}
-
-///|
-pub fn OAuthTokens::expires_in(self : OAuthTokens) -> Int? {
-  self.expires_in
 }
 
 ///|

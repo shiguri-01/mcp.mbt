@@ -59,31 +59,27 @@ pub async fn AuthorizationEngine::authorize(
     )
   }
   let tokens = parse_token_response(response_json(response))
-  if !tokens.scope().is_empty() || scopes.is_empty() {
+  if !tokens.scope.is_empty() || scopes.is_empty() {
     tokens
   } else {
-    match (tokens.refresh_token(), tokens.expires_in()) {
+    match (tokens.refresh_token, tokens.expires_in) {
       (Some(refresh_token), Some(expires_in)) =>
         OAuthTokens(
-          access_token=tokens.access_token(),
+          access_token=tokens.access_token,
           refresh_token~,
           scope=scopes,
           expires_in~,
         )
       (Some(refresh_token), None) =>
         OAuthTokens(
-          access_token=tokens.access_token(),
+          access_token=tokens.access_token,
           refresh_token~,
           scope=scopes,
         )
       (None, Some(expires_in)) =>
-        OAuthTokens(
-          access_token=tokens.access_token(),
-          scope=scopes,
-          expires_in~,
-        )
+        OAuthTokens(access_token=tokens.access_token, scope=scopes, expires_in~)
       (None, None) =>
-        OAuthTokens(access_token=tokens.access_token(), scope=scopes)
+        OAuthTokens(access_token=tokens.access_token, scope=scopes)
     }
   }
 }
@@ -118,18 +114,14 @@ pub async fn AuthorizationEngine::refresh(
   let refreshed = parse_token_response(response_json(response))
   // RFC 6749 permits omission of refresh_token in a refresh response; keep
   // the bound token instead of silently discarding refresh capability.
-  if refreshed.refresh_token() is Some(_) && !refreshed.scope().is_empty() {
+  if refreshed.refresh_token is Some(_) && !refreshed.scope.is_empty() {
     refreshed
   } else {
     OAuthTokens(
-      access_token=refreshed.access_token(),
-      refresh_token=refreshed.refresh_token().unwrap_or(refresh_token),
-      scope=if refreshed.scope().is_empty() {
-        scopes
-      } else {
-        refreshed.scope()
-      },
-      expires_in?=refreshed.expires_in(),
+      access_token=refreshed.access_token,
+      refresh_token=refreshed.refresh_token.unwrap_or(refresh_token),
+      scope=if refreshed.scope.is_empty() { scopes } else { refreshed.scope },
+      expires_in?=refreshed.expires_in,
     )
   }
 }

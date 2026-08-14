@@ -17,7 +17,7 @@ pub fn authorization_request_url(
   )
   let parameters = [
     ("response_type", "code"),
-    ("client_id", credentials.client_id()),
+    ("client_id", credentials.client_id),
     ("redirect_uri", redirect_uri),
     ("code_challenge", pkce.code_challenge),
     ("code_challenge_method", "S256"),
@@ -45,10 +45,8 @@ fn resource_parameter(
 
 ///|
 fn basic_credentials(credentials : ClientCredentials) -> String {
-  let user = form_encode_component(credentials.client_id())
-  let password = form_encode_component(
-    credentials.client_secret().unwrap_or(""),
-  )
+  let user = form_encode_component(credentials.client_id)
+  let password = form_encode_component(credentials.client_secret.unwrap_or(""))
   "Basic " + @base64.encode(@utf8.encode(user + ":" + password))
 }
 
@@ -62,7 +60,7 @@ pub fn authorization_code_token_request(
   resource~ : String,
   exact_resource? : Bool = false,
 ) -> HttpRequest raise AuthError {
-  let auth_method_name = match credentials.token_endpoint_auth_method() {
+  let auth_method_name = match credentials.token_endpoint_auth_method {
     ClientSecretBasic => "client_secret_basic"
     ClientSecretPost => "client_secret_post"
     None => "none"
@@ -83,14 +81,14 @@ pub fn authorization_code_token_request(
     ("content-type", "application/x-www-form-urlencoded"),
     ("accept", "application/json"),
   ])
-  match credentials.token_endpoint_auth_method() {
+  match credentials.token_endpoint_auth_method {
     ClientSecretBasic =>
       headers["authorization"] = basic_credentials(credentials)
     ClientSecretPost => {
-      parameters.push(("client_id", credentials.client_id()))
-      parameters.push(("client_secret", credentials.client_secret().unwrap()))
+      parameters.push(("client_id", credentials.client_id))
+      parameters.push(("client_secret", credentials.client_secret.unwrap()))
     }
-    None => parameters.push(("client_id", credentials.client_id()))
+    None => parameters.push(("client_id", credentials.client_id))
   }
   HttpRequest(
     request_method=Post,
@@ -109,7 +107,7 @@ pub fn refresh_token_request(
   scopes? : Array[String] = [],
   exact_resource? : Bool = false,
 ) -> HttpRequest raise AuthError {
-  let auth_method_name = match credentials.token_endpoint_auth_method() {
+  let auth_method_name = match credentials.token_endpoint_auth_method {
     ClientSecretBasic => "client_secret_basic"
     ClientSecretPost => "client_secret_post"
     None => "none"
@@ -131,14 +129,14 @@ pub fn refresh_token_request(
     ("content-type", "application/x-www-form-urlencoded"),
     ("accept", "application/json"),
   ])
-  match credentials.token_endpoint_auth_method() {
+  match credentials.token_endpoint_auth_method {
     ClientSecretBasic =>
       headers["authorization"] = basic_credentials(credentials)
     ClientSecretPost => {
-      parameters.push(("client_id", credentials.client_id()))
-      parameters.push(("client_secret", credentials.client_secret().unwrap()))
+      parameters.push(("client_id", credentials.client_id))
+      parameters.push(("client_secret", credentials.client_secret.unwrap()))
     }
-    None => parameters.push(("client_id", credentials.client_id()))
+    None => parameters.push(("client_id", credentials.client_id))
   }
   HttpRequest(
     request_method=Post,

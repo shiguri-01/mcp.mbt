@@ -364,14 +364,14 @@ async fn Client::authorize_challenge(
   }
   if challenge_error == Some("invalid_token") &&
     previous_tokens is Some(tokens) &&
-    tokens.refresh_token() is Some(refresh_token) {
+    tokens.refresh_token is Some(refresh_token) {
     let refreshed = try
       @auth.AuthorizationEngine(options.provider).refresh(
         metadata,
         credentials,
         refresh_token~,
         resource=self.authorization_resource,
-        scopes=tokens.scope(),
+        scopes=tokens.scope,
         exact_resource=self.authorization_resource_exact,
       )
     catch {
@@ -389,7 +389,7 @@ async fn Client::authorize_challenge(
       return
     }
   }
-  let previous_scopes = previous_tokens.map(tokens => tokens.scope())
+  let previous_scopes = previous_tokens.map(tokens => tokens.scope)
   let scopes = match (challenge_error, challenge_scope, previous_scopes) {
     (Some("insufficient_scope"), Some(required), Some(previous)) =>
       @auth.step_up_scopes(previous, required)

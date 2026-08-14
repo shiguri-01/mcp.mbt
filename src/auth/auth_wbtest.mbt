@@ -562,7 +562,7 @@ test "token response retains a positive expires_in policy value" {
   ) catch {
     _ => abort("token response rejected")
   }
-  assert_eq(tokens.expires_in(), Some(60))
+  assert_eq(tokens.expires_in, Some(60))
 }
 
 ///|
@@ -678,9 +678,9 @@ async test "refresh response omission preserves refresh token and granted scope"
   ) catch {
     _ => abort("refresh failed")
   }
-  assert_eq(tokens.access_token(), "new-access")
-  assert_eq(tokens.refresh_token(), Some("bound-refresh"))
-  assert_eq(tokens.scope(), ["read", "offline_access"])
+  assert_eq(tokens.access_token, "new-access")
+  assert_eq(tokens.refresh_token, Some("bound-refresh"))
+  assert_eq(tokens.scope, ["read", "offline_access"])
   guard requests is [request] else { abort("expected one token request") }
   assert_true(request.body.contains("grant_type=refresh_token"[:]))
   assert_true(
@@ -741,8 +741,8 @@ test "DCR response omission preserves the requested token authentication method"
   ) catch {
     _ => abort("valid DCR response rejected")
   }
-  assert_eq(credentials.token_endpoint_auth_method(), None)
-  assert_eq(credentials.client_secret(), Some("server-issued-but-unused"))
+  assert_eq(credentials.token_endpoint_auth_method, None)
+  assert_eq(credentials.client_secret, Some("server-issued-but-unused"))
   let metadata = parse_authorization_server_metadata(
     Json::object({
       "issuer": "https://as.example",
