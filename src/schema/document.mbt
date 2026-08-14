@@ -458,8 +458,7 @@ fn validate_supported_keywords(
     Object(fields) => {
       for
         keyword in [
-          "pattern", "multipleOf", "minItems", "maxItems", "uniqueItems", "contains",
-          "prefixItems", "minProperties", "maxProperties", "patternProperties", "propertyNames",
+          "pattern", "contains", "prefixItems", "patternProperties", "propertyNames",
           "dependentRequired", "dependentSchemas", "if", "then", "else", "unevaluatedItems",
           "unevaluatedProperties", "format", "contentEncoding", "contentMediaType",
           "$dynamicRef",
@@ -512,6 +511,24 @@ fn validate_keyword_shapes(
         }
       }
       for keyword in ["minLength", "maxLength"] {
+        match fields.get(keyword) {
+          Some(Number(value, ..)) if !value.is_nan() &&
+            !value.is_inf() &&
+            value >= 0.0 &&
+            value == value.to_int().to_double() => ()
+          Some(_) =>
+            raise InvalidSchema("{keyword} must be a non-negative integer")
+          None => ()
+        }
+      }
+      match fields.get("multipleOf") {
+        Some(Number(value, ..)) if !value.is_nan() &&
+          !value.is_inf() &&
+          value > 0.0 => ()
+        Some(_) => raise InvalidSchema("multipleOf must be a positive number")
+        None => ()
+      }
+      for keyword in ["minItems", "maxItems", "minProperties", "maxProperties"] {
         match fields.get(keyword) {
           Some(Number(value, ..)) if !value.is_nan() &&
             !value.is_inf() &&
@@ -742,6 +759,49 @@ fn validate_instance(
   match (fields.get("maxLength"), instance) {
     (Some(Number(limit, ..)), String(value)) if value.length() > limit.to_int() =>
       add_error(errors, path, "string is longer than maxLength")
+    _ => ()
+  }
+  match (fields.get("multipleOf"), instance) {
+    (Some(Number(divisor, ..)), Number(value, ..)) if divisor > 0.0 => {
+      let quotient = value / divisor
+      if quotient != quotient.to_int().to_double() {
+        add_error(errors, path, "number is not a multipleOf value")
+      }
+    }
+    _ => ()
+  }
+  match (fields.get("minItems"), instance) {
+    (Some(Number(limit, ..)), Array(values)) if values.length() < limit.to_int() =>
+      add_error(errors, path, "array is shorter than minItems")
+    _ => ()
+  }
+  match (fields.get("maxItems"), instance) {
+    (Some(Number(limit, ..)), Array(values)) if values.length() > limit.to_int() =>
+      add_error(errors, path, "array is longer than maxItems")
+    _ => ()
+  }
+  match (fields.get("uniqueItems"), instance) {
+    (Some(True), Array(values)) => {
+      let seen : Array[Json] = []
+      for value in values {
+        if seen.contains(value) {
+          add_error(errors, path, "array items must be unique")
+        }
+        seen.push(value)
+      }
+    }
+    _ => ()
+  }
+  match (fields.get("minProperties"), instance) {
+    (Some(Number(limit, ..)), Object(values)) if values.length() <
+      limit.to_int() =>
+      add_error(errors, path, "object has fewer than minProperties")
+    _ => ()
+  }
+  match (fields.get("maxProperties"), instance) {
+    (Some(Number(limit, ..)), Object(values)) if values.length() >
+      limit.to_int() =>
+      add_error(errors, path, "object has more than maxProperties")
     _ => ()
   }
   match fields.get("allOf") {

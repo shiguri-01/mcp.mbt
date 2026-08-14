@@ -186,7 +186,6 @@ test "document compilation rejects malformed supported keywords" {
     Json::object({ "properties": Json::string("not-an-object") }),
     Json::object({ "items": Json::string("not-a-schema") }),
     Json::object({ "anyOf": Json::array([]) }),
-    Json::object({ "multipleOf": Json::number(2.0) }),
     Json::object({ "$dynamicRef": Json::string("#/$defs/value") }),
   ]
   for value in invalid_schemas {
@@ -210,6 +209,35 @@ test "instance data is not mistaken for a schema" {
   let compiled = try! document.compile()
   assert_true(
     compiled.validate(Json::object({ "pattern": Json::string("literal") })).valid,
+  )
+}
+
+///|
+test "array, object, and multipleOf constraints are evaluated" {
+  let document = try! Document::Document(
+    Json::object({
+      "type": Json::string("object"),
+      "minProperties": Json::number(1.0),
+      "properties": Json::object({
+        "values": Json::object({
+          "type": Json::string("array"),
+          "minItems": Json::number(2.0),
+          "maxItems": Json::number(3.0),
+          "uniqueItems": Json::boolean(true),
+          "items": Json::object({
+            "type": Json::string("number"),
+            "multipleOf": Json::number(2.0),
+          }),
+        }),
+      }),
+    }),
+  )
+  let compiled = try! document.compile()
+  assert_true(
+    compiled.validate(Json::object({ "values": [2.0, 4.0].to_json() })).valid,
+  )
+  assert_false(
+    compiled.validate(Json::object({ "values": [2.0, 3.0].to_json() })).valid,
   )
 }
 
