@@ -1,6 +1,6 @@
 ///|
 /// Client support for server-initiated elicitation during an MRTR.
-pub(all) struct ElicitationCapability {
+pub struct ElicitationCapability {
   form : Json?
   url : Json?
 } derive(Debug, Eq)
@@ -33,7 +33,7 @@ pub impl ToJson for ElicitationCapability with fn to_json(
 ///|
 /// Wire-compatible capabilities retained only for deprecated MRTR methods.
 /// New applications should prefer elicitation and extension methods.
-pub(all) struct DeprecatedClientCapabilities {
+pub struct DeprecatedClientCapabilities {
   roots : Json?
   sampling : Json?
 } derive(Debug, Eq)
@@ -55,7 +55,7 @@ fn DeprecatedClientCapabilities::copy(
 
 ///|
 /// Capabilities declared independently on every request.
-pub(all) struct ClientCapabilities {
+pub struct ClientCapabilities {
   elicitation : ElicitationCapability?
   deprecated : DeprecatedClientCapabilities?
   extensions : Map[String, Json]
@@ -253,7 +253,7 @@ fn parse_client_capabilities(
 }
 
 ///|
-pub(all) struct ToolsCapability {
+pub struct ToolsCapability {
   list_changed : Bool?
 } derive(Debug, Eq)
 
@@ -272,7 +272,7 @@ pub impl ToJson for ToolsCapability with fn to_json(self : ToolsCapability) -> J
 }
 
 ///|
-pub(all) struct PromptsCapability {
+pub struct PromptsCapability {
   list_changed : Bool?
 } derive(Debug, Eq)
 
@@ -291,7 +291,7 @@ pub impl ToJson for PromptsCapability with fn to_json(self : PromptsCapability) 
 }
 
 ///|
-pub(all) struct ResourcesCapability {
+pub struct ResourcesCapability {
   subscribe : Bool?
   list_changed : Bool?
 } derive(Debug, Eq)
@@ -317,7 +317,7 @@ pub impl ToJson for ResourcesCapability with fn to_json(
 ///|
 /// Core server capabilities. Deprecated logging and extension-defined task
 /// capabilities intentionally do not appear here.
-pub(all) struct ServerCapabilities {
+pub struct ServerCapabilities {
   tools : ToolsCapability?
   resources : ResourcesCapability?
   prompts : PromptsCapability?

@@ -60,7 +60,7 @@ fn parse_completion_reference(
 }
 
 ///|
-pub(all) struct CompletionRequest {
+pub struct CompletionRequest {
   reference : CompletionReference
   argument_name : String
   argument_value : String
@@ -131,7 +131,7 @@ fn parse_completion_request(params : Json?) -> CompletionRequest raise McpError 
 }
 
 ///|
-pub(all) struct CompleteResult {
+pub struct CompleteResult {
   values : Array[String]
   total : Int?
   has_more : Bool

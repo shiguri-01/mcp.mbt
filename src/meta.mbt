@@ -1,6 +1,6 @@
 ///|
 /// Metadata required on every MCP 2026-07-28 request.
-pub(all) struct RequestMeta {
+pub struct RequestMeta {
   protocol_version : String
   client_info : Implementation?
   client_capabilities : ClientCapabilities
@@ -171,7 +171,7 @@ pub fn RequestMeta::decode(value : Json) -> RequestMeta raise McpError {
 
 ///|
 /// Per-call overrides and MRTR retry data used by request builders.
-pub(all) struct RequestOptions {
+pub struct RequestOptions {
   progress_token : Json?
   log_level : LoggingLevel?
   input_responses : Map[String, InputResponse]?

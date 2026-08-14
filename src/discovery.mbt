@@ -1,6 +1,6 @@
 ///|
 /// Result of the stateless `server/discover` method.
-pub(all) struct DiscoverResult {
+pub struct DiscoverResult {
   supported_versions : Array[String]
   capabilities : ServerCapabilities
   instructions : String?

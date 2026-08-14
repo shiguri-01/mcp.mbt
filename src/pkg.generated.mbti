@@ -83,7 +83,7 @@ pub fn McpError::message(Self) -> String
 pub impl ToJson for McpError
 
 // Types and methods
-pub(all) struct Annotations {
+pub struct Annotations {
   audience : Array[Role]
   priority : Double?
   last_modified : String?
@@ -107,12 +107,13 @@ pub(all) enum CacheScope {
 pub fn CacheScope::to_string(Self) -> String
 pub impl ToJson for CacheScope
 
-pub(all) struct CallToolResult {
+pub struct CallToolResult {
   content : Array[ContentBlock]
   structured_content : Json?
   is_error : Bool
   meta : ResultMeta?
 } derive(Eq, @debug.Debug)
+pub fn CallToolResult::CallToolResult(content~ : Array[ContentBlock], structured_content? : Json, is_error? : Bool, meta? : ResultMeta) -> Self
 pub fn CallToolResult::error_text(String, annotations? : Annotations, meta? : Json) -> Self
 pub fn CallToolResult::json(Json) -> Self
 pub fn[T : ToJson] CallToolResult::structured(T) -> Self
@@ -143,7 +144,7 @@ pub fn Client::protocol_version(Self) -> String
 pub fn Client::read_resource_request(Self, uri~ : String, options? : RequestOptions) -> Json raise McpError
 pub fn Client::request_raw(Self, method_name~ : String, params? : Map[String, Json], options? : RequestOptions) -> Json raise McpError
 
-pub(all) struct ClientCapabilities {
+pub struct ClientCapabilities {
   elicitation : ElicitationCapability?
   deprecated : DeprecatedClientCapabilities?
   extensions : Map[String, Json]
@@ -154,7 +155,7 @@ pub fn ClientCapabilities::ClientCapabilities(elicitation? : ElicitationCapabili
 pub fn ClientCapabilities::empty() -> Self
 pub impl ToJson for ClientCapabilities
 
-pub(all) struct CompleteResult {
+pub struct CompleteResult {
   values : Array[String]
   total : Int?
   has_more : Bool
@@ -171,7 +172,7 @@ pub fn CompletionReference::prompt(name~ : String, title? : String) -> Self
 pub fn CompletionReference::resource(uri~ : String) -> Self
 pub impl ToJson for CompletionReference
 
-pub(all) struct CompletionRequest {
+pub struct CompletionRequest {
   reference : CompletionReference
   argument_name : String
   argument_value : String
@@ -193,13 +194,13 @@ pub fn ContentBlock::resource_link(ResourceLink) -> Self
 pub fn ContentBlock::text(String, annotations? : Annotations, meta? : Json) -> Self
 pub impl ToJson for ContentBlock
 
-pub(all) struct DeprecatedClientCapabilities {
+pub struct DeprecatedClientCapabilities {
   roots : Json?
   sampling : Json?
 } derive(Eq, @debug.Debug)
 pub fn DeprecatedClientCapabilities::DeprecatedClientCapabilities(roots? : Json, sampling? : Json) -> Self
 
-pub(all) struct DiscoverResult {
+pub struct DiscoverResult {
   supported_versions : Array[String]
   capabilities : ServerCapabilities
   instructions : String?
@@ -211,18 +212,19 @@ pub fn DiscoverResult::decode(Json) -> Self raise McpError
 pub impl ToJson for DiscoverResult
 pub impl @json.FromJson for DiscoverResult
 
-pub(all) struct ElicitationCapability {
+pub struct ElicitationCapability {
   form : Json?
   url : Json?
 } derive(Eq, @debug.Debug)
 pub fn ElicitationCapability::ElicitationCapability(form? : Json, url? : Json) -> Self
 pub impl ToJson for ElicitationCapability
 
-pub(all) struct GetPromptResult {
+pub struct GetPromptResult {
   description : String?
   messages : Array[PromptMessage]
   meta : ResultMeta?
 } derive(Eq, @debug.Debug)
+pub fn GetPromptResult::GetPromptResult(messages~ : Array[PromptMessage], description? : String, meta? : ResultMeta) -> Self
 pub fn GetPromptResult::user(String, description? : String) -> Self
 pub impl ToJson for GetPromptResult
 
@@ -232,7 +234,7 @@ pub(all) enum HandlerOutcome[T] {
   ExtensionResult(String, Json)
 }
 
-pub(all) struct Icon {
+pub struct Icon {
   src : String
   mime_type : String?
   sizes : Array[String]
@@ -249,7 +251,7 @@ pub(all) enum IconTheme {
 pub fn IconTheme::to_string(Self) -> String
 pub impl ToJson for IconTheme
 
-pub(all) struct Implementation {
+pub struct Implementation {
   name : String
   title : String?
   version : String
@@ -289,28 +291,28 @@ pub fn InputResponse::InputResponse(Json) -> Self
 pub fn InputResponse::result(Self) -> Json
 pub impl ToJson for InputResponse
 
-pub(all) struct ListPromptsResult {
+pub struct ListPromptsResult {
   prompts : Array[Prompt]
   next_cursor : String?
   cache_policy : CachePolicy
   meta : ResultMeta?
 } derive(Eq, @debug.Debug)
 
-pub(all) struct ListResourceTemplatesResult {
+pub struct ListResourceTemplatesResult {
   resource_templates : Array[ResourceTemplate]
   next_cursor : String?
   cache_policy : CachePolicy
   meta : ResultMeta?
 } derive(Eq, @debug.Debug)
 
-pub(all) struct ListResourcesResult {
+pub struct ListResourcesResult {
   resources : Array[Resource]
   next_cursor : String?
   cache_policy : CachePolicy
   meta : ResultMeta?
 } derive(Eq, @debug.Debug)
 
-pub(all) struct ListToolsResult {
+pub struct ListToolsResult {
   tools : Array[Tool]
   next_cursor : String?
   cache_policy : CachePolicy
@@ -332,7 +334,7 @@ pub impl ToJson for LoggingLevel
 
 type Page[T] derive(Eq, @debug.Debug)
 
-pub(all) struct Prompt {
+pub struct Prompt {
   name : String
   title : String?
   description : String?
@@ -343,7 +345,7 @@ pub(all) struct Prompt {
 pub fn Prompt::Prompt(name~ : String, title? : String, description? : String, arguments? : Array[PromptArgument], icons? : Array[Icon], meta? : Json) -> Self
 pub impl ToJson for Prompt
 
-pub(all) struct PromptArgument {
+pub struct PromptArgument {
   name : String
   title : String?
   description : String?
@@ -352,7 +354,7 @@ pub(all) struct PromptArgument {
 pub fn PromptArgument::PromptArgument(name~ : String, title? : String, description? : String, required? : Bool) -> Self
 pub impl ToJson for PromptArgument
 
-pub(all) struct PromptMessage {
+pub struct PromptMessage {
   role : Role
   content : ContentBlock
 } derive(Eq, @debug.Debug)
@@ -361,17 +363,18 @@ pub fn PromptMessage::assistant(String) -> Self
 pub fn PromptMessage::user(String) -> Self
 pub impl ToJson for PromptMessage
 
-pub(all) struct PromptsCapability {
+pub struct PromptsCapability {
   list_changed : Bool?
 } derive(Eq, @debug.Debug)
 pub fn PromptsCapability::PromptsCapability(list_changed? : Bool) -> Self
 pub impl ToJson for PromptsCapability
 
-pub(all) struct ReadResourceResult {
+pub struct ReadResourceResult {
   contents : Array[ResourceContent]
   cache_policy : CachePolicy?
   meta : ResultMeta?
 } derive(Eq, @debug.Debug)
+pub fn ReadResourceResult::ReadResourceResult(contents~ : Array[ResourceContent], cache_policy? : CachePolicy, meta? : ResultMeta) -> Self
 pub fn ReadResourceResult::text(uri~ : String, text~ : String, mime_type? : String) -> Self
 pub impl ToJson for ReadResourceResult
 
@@ -406,7 +409,7 @@ pub struct RequestHooks {
 }
 pub fn RequestHooks::RequestHooks(emit_notification? : async (Json) -> Unit raise McpError, is_cancelled? : () -> Bool, transport_meta? : Json) -> Self
 
-pub(all) struct RequestMeta {
+pub struct RequestMeta {
   protocol_version : String
   client_info : Implementation?
   client_capabilities : ClientCapabilities
@@ -418,7 +421,7 @@ pub fn RequestMeta::RequestMeta(protocol_version? : String, client_info? : Imple
 pub fn RequestMeta::decode(Json) -> Self raise McpError
 pub impl ToJson for RequestMeta
 
-pub(all) struct RequestOptions {
+pub struct RequestOptions {
   progress_token : Json?
   log_level : LoggingLevel?
   input_responses : Map[String, InputResponse]?
@@ -429,7 +432,7 @@ pub fn RequestOptions::RequestOptions(progress_token? : Json, log_level? : Loggi
 pub fn RequestOptions::request_meta(Self, client_capabilities~ : ClientCapabilities, client_info? : Implementation, protocol_version? : String) -> RequestMeta raise McpError
 pub fn RequestOptions::request_params(Self, Map[String, Json], client_capabilities~ : ClientCapabilities, client_info? : Implementation, protocol_version? : String) -> Json raise McpError
 
-pub(all) struct Resource {
+pub struct Resource {
   uri : String
   name : String
   title : String?
@@ -452,7 +455,7 @@ pub fn ResourceContent::blob(uri~ : String, blob~ : String, mime_type? : String,
 pub fn ResourceContent::text(uri~ : String, text~ : String, mime_type? : String, meta? : Json) -> Self
 pub impl ToJson for ResourceContent
 
-pub(all) struct ResourceLink {
+pub struct ResourceLink {
   uri : String
   name : String
   title : String?
@@ -466,7 +469,7 @@ pub(all) struct ResourceLink {
 pub fn ResourceLink::ResourceLink(uri~ : String, name~ : String, title? : String, description? : String, mime_type? : String, icons? : Array[Icon], annotations? : Annotations, size? : Int64, meta? : Json) -> Self raise McpError
 pub impl ToJson for ResourceLink
 
-pub(all) struct ResourceTemplate {
+pub struct ResourceTemplate {
   uri_template : String
   name : String
   title : String?
@@ -479,14 +482,14 @@ pub(all) struct ResourceTemplate {
 pub fn ResourceTemplate::ResourceTemplate(uri_template~ : String, name~ : String, title? : String, description? : String, mime_type? : String, icons? : Array[Icon], annotations? : Annotations, meta? : Json) -> Self
 pub impl ToJson for ResourceTemplate
 
-pub(all) struct ResourcesCapability {
+pub struct ResourcesCapability {
   subscribe : Bool?
   list_changed : Bool?
 } derive(Eq, @debug.Debug)
 pub fn ResourcesCapability::ResourcesCapability(subscribe? : Bool, list_changed? : Bool) -> Self
 pub impl ToJson for ResourcesCapability
 
-pub(all) struct ResultMeta {
+pub struct ResultMeta {
   server_info : Implementation?
   extra : Map[String, Json]
 } derive(Eq, @debug.Debug)
@@ -528,7 +531,7 @@ pub fn[A : @json.FromJson + @schema.JsonSchema] Server::tool(Self, name~ : Strin
 pub fn Server::tool_input_schema(Self, String) -> Json?
 pub fn Server::tool_json(Self, name~ : String, title? : String, description? : String, input_schema? : Json, output_schema? : Json, annotations? : ToolAnnotations, icons? : Array[Icon], meta? : Json, async (RequestContext, Json) -> HandlerOutcome[CallToolResult] raise McpError) -> Unit raise McpError
 
-pub(all) struct ServerCapabilities {
+pub struct ServerCapabilities {
   tools : ToolsCapability?
   resources : ResourcesCapability?
   prompts : PromptsCapability?
@@ -549,7 +552,7 @@ pub fn Subscription::close_response(Self) -> Json
 pub fn Subscription::id(Self) -> Json
 pub fn Subscription::notifications(Self) -> SubscriptionFilter
 
-pub(all) struct SubscriptionFilter {
+pub struct SubscriptionFilter {
   tools_list_changed : Bool
   prompts_list_changed : Bool
   resources_list_changed : Bool
@@ -577,16 +580,17 @@ pub fn Tool::Tool(name~ : String, title? : String, description? : String, input_
 pub fn Tool::text(name~ : String, title? : String, description? : String, input_schema? : Json, annotations? : ToolAnnotations) -> Self raise McpError
 pub impl ToJson for Tool
 
-pub(all) struct ToolAnnotations {
+pub struct ToolAnnotations {
   title : String?
   read_only_hint : Bool?
   destructive_hint : Bool?
   idempotent_hint : Bool?
   open_world_hint : Bool?
 } derive(Eq, @debug.Debug)
+pub fn ToolAnnotations::ToolAnnotations(title? : String, read_only_hint? : Bool, destructive_hint? : Bool, idempotent_hint? : Bool, open_world_hint? : Bool) -> Self
 pub impl ToJson for ToolAnnotations
 
-pub(all) struct ToolsCapability {
+pub struct ToolsCapability {
   list_changed : Bool?
 } derive(Eq, @debug.Debug)
 pub fn ToolsCapability::ToolsCapability(list_changed? : Bool) -> Self

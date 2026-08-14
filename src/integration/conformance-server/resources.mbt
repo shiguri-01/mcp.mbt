@@ -19,17 +19,15 @@ fn register_resource_fixtures(server : @mcp.Server) -> Unit {
     description="Deterministic PNG bytes encoded as base64.",
     mime_type="image/png",
     fn(_context, uri) {
-      @mcp.Complete({
-        contents: [
+      @mcp.Complete(
+        @mcp.ReadResourceResult(contents=[
           @mcp.ResourceContent::blob(
             uri~,
             blob=pixel_png,
             mime_type="image/png",
           ),
-        ],
-        cache_policy: None,
-        meta: None,
-      })
+        ]),
+      )
     },
   )
   try! server.resource_template(

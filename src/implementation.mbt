@@ -19,7 +19,7 @@ pub impl ToJson for IconTheme with fn to_json(self : IconTheme) -> Json {
 
 ///|
 /// Icon metadata for an MCP implementation.
-pub(all) struct Icon {
+pub struct Icon {
   src : String
   mime_type : String?
   sizes : Array[String]
@@ -88,7 +88,7 @@ pub impl @json.FromJson for Icon with fn from_json(
 
 ///|
 /// MCP implementation metadata repeated in each stateless request or result.
-pub(all) struct Implementation {
+pub struct Implementation {
   name : String
   title : String?
   version : String

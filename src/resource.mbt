@@ -3,7 +3,7 @@
 ///
 /// `size`, when known, is the raw resource byte length before base64 encoding
 /// or tokenization.
-pub(all) struct Resource {
+pub struct Resource {
   uri : String
   name : String
   title : String?
@@ -79,7 +79,7 @@ pub fn Resource::text(
 }
 
 ///|
-pub(all) struct ResourceTemplate {
+pub struct ResourceTemplate {
   uri_template : String
   name : String
   title : String?
@@ -192,11 +192,21 @@ pub fn ResourceContent::blob(
 }
 
 ///|
-pub(all) struct ReadResourceResult {
+pub struct ReadResourceResult {
   contents : Array[ResourceContent]
   cache_policy : CachePolicy?
   meta : ResultMeta?
 } derive(Debug, Eq)
+
+///|
+/// Construct a resource read result and retain an owned content array.
+pub fn ReadResourceResult::ReadResourceResult(
+  contents~ : Array[ResourceContent],
+  cache_policy? : CachePolicy,
+  meta? : ResultMeta,
+) -> ReadResourceResult {
+  { contents: contents.copy(), cache_policy, meta }
+}
 
 ///|
 pub impl ToJson for ReadResourceResult with fn to_json(

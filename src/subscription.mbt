@@ -3,7 +3,7 @@
 ///
 /// Every field is opt-in. False booleans and an empty resource list are
 /// omitted from the wire representation.
-pub(all) struct SubscriptionFilter {
+pub struct SubscriptionFilter {
   tools_list_changed : Bool
   prompts_list_changed : Bool
   resources_list_changed : Bool

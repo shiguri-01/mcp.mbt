@@ -32,7 +32,7 @@ pub impl @json.FromJson for Role with fn from_json(value, path) -> Role {
 }
 
 ///|
-pub(all) struct Annotations {
+pub struct Annotations {
   audience : Array[Role]
   priority : Double?
   last_modified : String?
@@ -83,7 +83,7 @@ pub impl ToJson for Annotations with fn to_json(self : Annotations) -> Json {
 ///
 /// `size`, when known, is the raw resource byte length before base64 encoding
 /// or tokenization.
-pub(all) struct ResourceLink {
+pub struct ResourceLink {
   uri : String
   name : String
   title : String?
@@ -292,12 +292,23 @@ pub fn ContentBlock::resource_link(
 }
 
 ///|
-pub(all) struct CallToolResult {
+pub struct CallToolResult {
   content : Array[ContentBlock]
   structured_content : Json?
   is_error : Bool
   meta : ResultMeta?
 } derive(Debug, Eq)
+
+///|
+/// Construct a tool result with validated ownership of its content array.
+pub fn CallToolResult::CallToolResult(
+  content~ : Array[ContentBlock],
+  structured_content? : Json,
+  is_error? : Bool = false,
+  meta? : ResultMeta,
+) -> CallToolResult {
+  { content: content.copy(), structured_content, is_error, meta }
+}
 
 ///|
 pub impl ToJson for CallToolResult with fn to_json(self : CallToolResult) -> Json {

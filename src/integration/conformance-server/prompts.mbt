@@ -28,9 +28,8 @@ fn register_prompt_fixtures(server : @mcp.Server) -> Unit {
     arguments=[@mcp.PromptArgument(name="resourceUri", required=true)],
     fn(_context, arguments) {
       let uri = arguments.get("resourceUri").unwrap_or("")
-      @mcp.Complete({
-        description: None,
-        messages: [
+      @mcp.Complete(
+        @mcp.GetPromptResult(messages=[
           @mcp.PromptMessage(
             role=@mcp.Role::User,
             content=@mcp.ContentBlock::embedded_resource(
@@ -44,18 +43,16 @@ fn register_prompt_fixtures(server : @mcp.Server) -> Unit {
           @mcp.PromptMessage::user(
             "Please process the embedded resource above.",
           ),
-        ],
-        meta: None,
-      })
+        ]),
+      )
     },
   )
   try! server.prompt(
     name="test_prompt_with_image",
     description="Return image content followed by a text instruction.",
     fn(_context, _arguments) {
-      @mcp.Complete({
-        description: None,
-        messages: [
+      @mcp.Complete(
+        @mcp.GetPromptResult(messages=[
           @mcp.PromptMessage(
             role=@mcp.Role::User,
             content=@mcp.ContentBlock::image(
@@ -64,9 +61,8 @@ fn register_prompt_fixtures(server : @mcp.Server) -> Unit {
             ),
           ),
           @mcp.PromptMessage::user("Please analyze the image above."),
-        ],
-        meta: None,
-      })
+        ]),
+      )
     },
   )
 }

@@ -30,7 +30,7 @@ pub fn parse_result_type(value : Json) -> ResultType raise McpError {
 }
 
 ///|
-pub(all) struct ResultMeta {
+pub struct ResultMeta {
   server_info : Implementation?
   extra : Map[String, Json]
 } derive(Debug, Eq)
@@ -184,7 +184,7 @@ fn CachePolicy::put(self : CachePolicy, fields : Map[String, Json]) -> Unit {
 
 ///|
 /// Canonical decoded result of `tools/list`.
-pub(all) struct ListToolsResult {
+pub struct ListToolsResult {
   tools : Array[Tool]
   next_cursor : String?
   cache_policy : CachePolicy
@@ -193,7 +193,7 @@ pub(all) struct ListToolsResult {
 
 ///|
 /// Canonical decoded result of `resources/list`.
-pub(all) struct ListResourcesResult {
+pub struct ListResourcesResult {
   resources : Array[Resource]
   next_cursor : String?
   cache_policy : CachePolicy
@@ -202,7 +202,7 @@ pub(all) struct ListResourcesResult {
 
 ///|
 /// Canonical decoded result of `resources/templates/list`.
-pub(all) struct ListResourceTemplatesResult {
+pub struct ListResourceTemplatesResult {
   resource_templates : Array[ResourceTemplate]
   next_cursor : String?
   cache_policy : CachePolicy
@@ -211,7 +211,7 @@ pub(all) struct ListResourceTemplatesResult {
 
 ///|
 /// Canonical decoded result of `prompts/list`.
-pub(all) struct ListPromptsResult {
+pub struct ListPromptsResult {
   prompts : Array[Prompt]
   next_cursor : String?
   cache_policy : CachePolicy

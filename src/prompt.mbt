@@ -1,5 +1,5 @@
 ///|
-pub(all) struct PromptArgument {
+pub struct PromptArgument {
   name : String
   title : String?
   description : String?
@@ -51,7 +51,7 @@ pub impl ToJson for PromptArgument with fn to_json(self : PromptArgument) -> Jso
 }
 
 ///|
-pub(all) struct Prompt {
+pub struct Prompt {
   name : String
   title : String?
   description : String?
@@ -97,7 +97,7 @@ pub impl ToJson for Prompt with fn to_json(self : Prompt) -> Json {
 }
 
 ///|
-pub(all) struct PromptMessage {
+pub struct PromptMessage {
   role : Role
   content : ContentBlock
 } derive(Debug, Eq)
@@ -129,11 +129,21 @@ pub impl ToJson for PromptMessage with fn to_json(self : PromptMessage) -> Json 
 }
 
 ///|
-pub(all) struct GetPromptResult {
+pub struct GetPromptResult {
   description : String?
   messages : Array[PromptMessage]
   meta : ResultMeta?
 } derive(Debug, Eq)
+
+///|
+/// Construct a prompt result and retain an owned message array.
+pub fn GetPromptResult::GetPromptResult(
+  messages~ : Array[PromptMessage],
+  description? : String,
+  meta? : ResultMeta,
+) -> GetPromptResult {
+  { description, messages: messages.copy(), meta }
+}
 
 ///|
 pub impl ToJson for GetPromptResult with fn to_json(self : GetPromptResult) -> Json {

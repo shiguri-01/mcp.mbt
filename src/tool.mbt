@@ -1,11 +1,23 @@
 ///|
-pub(all) struct ToolAnnotations {
+pub struct ToolAnnotations {
   title : String?
   read_only_hint : Bool?
   destructive_hint : Bool?
   idempotent_hint : Bool?
   open_world_hint : Bool?
 } derive(Debug, Eq)
+
+///|
+/// Construct optional tool behavior annotations.
+pub fn ToolAnnotations::ToolAnnotations(
+  title? : String,
+  read_only_hint? : Bool,
+  destructive_hint? : Bool,
+  idempotent_hint? : Bool,
+  open_world_hint? : Bool,
+) -> ToolAnnotations {
+  { title, read_only_hint, destructive_hint, idempotent_hint, open_world_hint }
+}
 
 ///|
 pub impl ToJson for ToolAnnotations with fn to_json(self : ToolAnnotations) -> Json {

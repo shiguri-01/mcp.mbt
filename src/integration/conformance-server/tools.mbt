@@ -21,14 +21,11 @@ fn register_tool_fixtures(server : @mcp.Server) -> Unit {
     description="Return a minimal PNG image content block.",
     input_schema=empty_object_schema(),
     fn(_context, _arguments) {
-      @mcp.Complete({
-        content: [
+      @mcp.Complete(
+        @mcp.CallToolResult(content=[
           @mcp.ContentBlock::image(data=pixel_png, mime_type="image/png"),
-        ],
-        structured_content: None,
-        is_error: false,
-        meta: None,
-      })
+        ]),
+      )
     },
   )
   try! server.tool_json(
@@ -36,14 +33,11 @@ fn register_tool_fixtures(server : @mcp.Server) -> Unit {
     description="Return a minimal WAV audio content block.",
     input_schema=empty_object_schema(),
     fn(_context, _arguments) {
-      @mcp.Complete({
-        content: [
+      @mcp.Complete(
+        @mcp.CallToolResult(content=[
           @mcp.ContentBlock::audio(data=silent_wav, mime_type="audio/wav"),
-        ],
-        structured_content: None,
-        is_error: false,
-        meta: None,
-      })
+        ]),
+      )
     },
   )
   try! server.tool_json(
@@ -51,8 +45,8 @@ fn register_tool_fixtures(server : @mcp.Server) -> Unit {
     description="Return one embedded text resource.",
     input_schema=empty_object_schema(),
     fn(_context, _arguments) {
-      @mcp.Complete({
-        content: [
+      @mcp.Complete(
+        @mcp.CallToolResult(content=[
           @mcp.ContentBlock::embedded_resource(
             resource=@mcp.ResourceContent::text(
               uri="test://embedded-resource",
@@ -60,11 +54,8 @@ fn register_tool_fixtures(server : @mcp.Server) -> Unit {
               mime_type="text/plain",
             ),
           ),
-        ],
-        structured_content: None,
-        is_error: false,
-        meta: None,
-      })
+        ]),
+      )
     },
   )
   try! server.tool_json(
@@ -72,8 +63,8 @@ fn register_tool_fixtures(server : @mcp.Server) -> Unit {
     description="Return text, image, and embedded resource content together.",
     input_schema=empty_object_schema(),
     fn(_context, _arguments) {
-      @mcp.Complete({
-        content: [
+      @mcp.Complete(
+        @mcp.CallToolResult(content=[
           @mcp.ContentBlock::text("Multiple content types test:"),
           @mcp.ContentBlock::image(data=pixel_png, mime_type="image/png"),
           @mcp.ContentBlock::embedded_resource(
@@ -83,11 +74,8 @@ fn register_tool_fixtures(server : @mcp.Server) -> Unit {
               mime_type="application/json",
             ),
           ),
-        ],
-        structured_content: None,
-        is_error: false,
-        meta: None,
-      })
+        ]),
+      )
     },
   )
   try! server.tool_json(
