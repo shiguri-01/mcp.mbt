@@ -356,39 +356,6 @@ pub fn Server::resource(
 }
 
 ///|
-pub fn Server::simple_resource(
-  self : Server,
-  uri~ : String,
-  name? : String,
-  title? : String,
-  description? : String,
-  mime_type? : String,
-  icons? : Array[Icon] = [],
-  annotations? : Annotations,
-  size? : Int64,
-  meta? : Json,
-  handler : async (String) -> ReadResourceResult raise McpError,
-) -> Unit raise McpError {
-  self.resource(
-    uri~,
-    name?,
-    title?,
-    description?,
-    mime_type?,
-    icons~,
-    annotations?,
-    size?,
-    meta?,
-    async fn(
-      _context,
-      value,
-    ) -> HandlerOutcome[ReadResourceResult] raise McpError {
-      Complete(handler(value))
-    },
-  )
-}
-
-///|
 pub fn Server::resource_template(
   self : Server,
   uri_template~ : String,
@@ -447,25 +414,6 @@ pub fn Server::prompt(
     prompt: Prompt(name~, title?, description?, arguments~, icons~, meta?),
     handler,
   }
-}
-
-///|
-pub fn Server::simple_prompt(
-  self : Server,
-  name~ : String,
-  title? : String,
-  description? : String,
-  arguments? : Array[PromptArgument] = [],
-  icons? : Array[Icon] = [],
-  meta? : Json,
-  handler : async (Map[String, String]) -> GetPromptResult raise McpError,
-) -> Unit raise McpError {
-  self.prompt(name~, title?, description?, arguments~, icons~, meta?, async fn(
-    _context,
-    values,
-  ) -> HandlerOutcome[GetPromptResult] raise McpError {
-    Complete(handler(values))
-  })
 }
 
 ///|

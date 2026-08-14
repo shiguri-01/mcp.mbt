@@ -1,24 +1,28 @@
 ///|
 fn register_prompt_fixtures(server : @mcp.Server) -> Unit {
-  try! server.simple_prompt(
+  try! server.prompt(
     name="test_simple_prompt",
     description="Return one user text message.",
-    fn(_arguments) {
-      @mcp.GetPromptResult::user("This is a simple prompt for testing.")
+    fn(_context, _arguments) {
+      @mcp.Complete(
+        @mcp.GetPromptResult::user("This is a simple prompt for testing."),
+      )
     },
   )
-  try! server.simple_prompt(
+  try! server.prompt(
     name="test_prompt_with_arguments",
     description="Include both required arguments in the returned prompt.",
     arguments=[
       @mcp.PromptArgument(name="arg1", required=true),
       @mcp.PromptArgument(name="arg2", required=true),
     ],
-    fn(arguments) {
+    fn(_context, arguments) {
       let arg1 = arguments.get("arg1").unwrap_or("")
       let arg2 = arguments.get("arg2").unwrap_or("")
-      @mcp.GetPromptResult::user(
-        "Prompt with arguments: arg1='\{arg1}', arg2='\{arg2}'",
+      @mcp.Complete(
+        @mcp.GetPromptResult::user(
+          "Prompt with arguments: arg1='\{arg1}', arg2='\{arg2}'",
+        ),
       )
     },
   )

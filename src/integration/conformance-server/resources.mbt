@@ -1,15 +1,17 @@
 ///|
 fn register_resource_fixtures(server : @mcp.Server) -> Unit {
-  try! server.simple_resource(
+  try! server.resource(
     uri="test://static-text",
     name="Static text resource",
     description="Deterministic UTF-8 text used by conformance checks.",
     mime_type="text/plain",
-    fn(uri) {
-      @mcp.ReadResourceResult::text(
-        uri~,
-        text="This is the content of the static text resource.",
-        mime_type="text/plain",
+    fn(_context, uri) {
+      @mcp.Complete(
+        @mcp.ReadResourceResult::text(
+          uri~,
+          text="This is the content of the static text resource.",
+          mime_type="text/plain",
+        ),
       )
     },
   )
