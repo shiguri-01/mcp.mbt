@@ -23,6 +23,11 @@ pub fn Client::Client(
   extension_result_types? : Map[String, String] = Map([]),
   protocol_version? : String = latest_protocol_version,
 ) -> Client raise McpError {
+  if name.is_empty() || version.is_empty() || protocol_version.is_empty() {
+    raise InvalidParams(
+      "client name, version, and protocol version must not be empty",
+    )
+  }
   validate_extension_map(
     capabilities.extensions,
     "client capabilities.extensions",

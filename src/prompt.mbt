@@ -142,7 +142,11 @@ pub fn GetPromptResult::GetPromptResult(
   description? : String,
   meta? : ResultMeta,
 ) -> GetPromptResult {
-  { description, messages: messages.copy(), meta }
+  {
+    description,
+    messages: messages.copy(),
+    meta: copy_optional_result_meta(meta),
+  }
 }
 
 ///|

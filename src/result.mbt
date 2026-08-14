@@ -41,7 +41,24 @@ pub fn ResultMeta::ResultMeta(
   extra? : Map[String, Json] = {},
 ) -> ResultMeta raise McpError {
   validate_meta_map(extra)
-  { server_info, extra }
+  {
+    server_info: server_info.map(value => value.copy()),
+    extra: copy_json_map(extra),
+  }
+}
+
+///|
+/// Copy result metadata before retaining it in another protocol value.
+fn ResultMeta::copy(self : ResultMeta) -> ResultMeta {
+  {
+    server_info: self.server_info.map(value => value.copy()),
+    extra: copy_json_map(self.extra),
+  }
+}
+
+///|
+fn copy_optional_result_meta(value : ResultMeta?) -> ResultMeta? {
+  value.map(meta => meta.copy())
 }
 
 ///|

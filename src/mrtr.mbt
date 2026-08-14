@@ -104,7 +104,7 @@ pub struct InputResponse {
 
 ///|
 pub fn InputResponse::InputResponse(result : Json) -> InputResponse {
-  { result, }
+  { result: copy_json(result) }
 }
 
 ///|
@@ -146,7 +146,22 @@ pub fn InputRequiredResult::InputRequiredResult(
       "input_required result needs non-empty inputRequests or requestState",
     )
   }
-  { input_requests, request_state, meta }
+  {
+    input_requests: input_requests.map(fn(
+      requests,
+    ) -> Map[String, InputRequest] raise McpError {
+      let copied : Map[String, InputRequest] = Map([])
+      for key, request in requests {
+        copied[key] = InputRequest(
+          method_name=request.method_name,
+          params=copy_json(request.params),
+        )
+      }
+      copied
+    }),
+    request_state,
+    meta: copy_optional_result_meta(meta),
+  }
 }
 
 ///|

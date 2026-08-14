@@ -244,3 +244,84 @@ test "decoded prompt argument descriptor names are unique" {
     )
   })
 }
+
+///|
+test "protocol result constructors own nested metadata and JSON values" {
+  let structured : Map[String, Json] = { "answer": Json::string("ok") }
+  let extra : Map[String, Json] = {
+    "com.example/result": Json::object({ "enabled": Json::boolean(true) }),
+  }
+  let result_meta = try! @mcp.ResultMeta(extra~)
+  let result = @mcp.CallToolResult(
+    content=[],
+    structured_content=Json::object(structured),
+    meta=result_meta,
+  )
+  structured["answer"] = Json::string("changed")
+  extra["com.example/result"] = Json::null()
+  guard result.to_json()
+    is Object(
+      {
+        "structuredContent": Object({ "answer": String("ok"), .. }),
+        "_meta": Object(
+          { "com.example/result": Object({ "enabled": True, .. }), .. }
+        ),
+        ..
+      }
+    ) else {
+    fail("tool result retained caller-owned nested JSON")
+  }
+}
+
+///|
+test "request options own retry responses and metadata" {
+  let responses : Map[String, @mcp.InputResponse] = Map([
+    (
+      "answer",
+      @mcp.InputResponse(Json::object({ "value": Json::string("ok") })),
+    ),
+  ])
+  let meta : Map[String, Json] = {
+    "com.example/request": Json::object({ "enabled": Json::boolean(true) }),
+  }
+  let options = @mcp.RequestOptions(input_responses=responses, meta~)
+  responses["answer"] = @mcp.InputResponse(Json::null())
+  meta["com.example/request"] = Json::null()
+  let params = try! options.request_params(
+    {},
+    client_capabilities=@mcp.ClientCapabilities::empty(),
+  )
+  guard params
+    is Object(
+      {
+        "inputResponses": Object(
+          { "answer": Object({ "value": String("ok"), .. }), .. }
+        ),
+        "_meta": Object(
+          { "com.example/request": Object({ "enabled": True, .. }), .. }
+        ),
+        ..
+      }
+    ) else {
+    fail("request options retained caller-owned retry data")
+  }
+}
+
+///|
+test "client and server constructors reject empty protocol identities" {
+  assert_invalid_params(fn() -> Unit raise @mcp.McpError {
+    ignore(@mcp.Client(name="", version="1"))
+  })
+  assert_invalid_params(fn() -> Unit raise @mcp.McpError {
+    ignore(@mcp.Client(name="client", version="", protocol_version=""))
+  })
+  assert_invalid_params(fn() -> Unit raise @mcp.McpError {
+    ignore(@mcp.Server(name="", version="1"))
+  })
+  assert_invalid_params(fn() -> Unit raise @mcp.McpError {
+    ignore(@mcp.Server(name="server", version="1", supported_versions=[""]))
+  })
+  assert_invalid_params(fn() -> Unit raise @mcp.McpError {
+    ignore(@mcp.RequestMeta(protocol_version=""))
+  })
+}

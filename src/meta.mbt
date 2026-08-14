@@ -68,6 +68,9 @@ pub fn RequestMeta::RequestMeta(
   log_level? : LoggingLevel,
   extra? : Map[String, Json] = {},
 ) -> RequestMeta raise McpError {
+  if protocol_version.is_empty() {
+    raise InvalidParams("protocol version must not be empty")
+  }
   validate_meta_map(extra)
   {
     protocol_version,
@@ -188,7 +191,22 @@ pub fn RequestOptions::RequestOptions(
   request_state? : String,
   meta? : Map[String, Json] = {},
 ) -> RequestOptions {
-  { progress_token, log_level, input_responses, request_state, meta }
+  let copied_responses : Map[String, InputResponse]? = input_responses.map(fn(
+    responses,
+  ) {
+    let copied : Map[String, InputResponse] = Map([])
+    for key, response in responses {
+      copied[key] = InputResponse(response.result)
+    }
+    copied
+  })
+  {
+    progress_token: copy_optional_json(progress_token),
+    log_level,
+    input_responses: copied_responses,
+    request_state,
+    meta: copy_json_map(meta),
+  }
 }
 
 ///|

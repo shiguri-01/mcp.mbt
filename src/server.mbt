@@ -172,7 +172,11 @@ pub fn Server::Server(
   extension_result_types? : Map[String, String] = Map([]),
   experimental? : Map[String, Json] = Map([]),
 ) -> Server raise McpError {
-  if supported_versions.is_empty() {
+  if name.is_empty() || version.is_empty() {
+    raise InvalidParams("server name and version must not be empty")
+  }
+  if supported_versions.is_empty() ||
+    supported_versions.any(fn(value) { value.is_empty() }) {
     raise InvalidParams("supported_versions must not be empty")
   }
   validate_extension_map(extensions, "server capabilities.extensions")

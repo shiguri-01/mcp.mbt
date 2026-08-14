@@ -205,7 +205,11 @@ pub fn ReadResourceResult::ReadResourceResult(
   cache_policy? : CachePolicy,
   meta? : ResultMeta,
 ) -> ReadResourceResult {
-  { contents: contents.copy(), cache_policy, meta }
+  {
+    contents: contents.copy(),
+    cache_policy,
+    meta: copy_optional_result_meta(meta),
+  }
 }
 
 ///|

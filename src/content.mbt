@@ -307,7 +307,12 @@ pub fn CallToolResult::CallToolResult(
   is_error? : Bool = false,
   meta? : ResultMeta,
 ) -> CallToolResult {
-  { content: content.copy(), structured_content, is_error, meta }
+  {
+    content: content.copy(),
+    structured_content: copy_optional_json(structured_content),
+    is_error,
+    meta: copy_optional_result_meta(meta),
+  }
 }
 
 ///|
