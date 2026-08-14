@@ -29,8 +29,8 @@ struct GreetInput {
 } derive(FromJson)
 
 ///|
-impl @schema.JsonSchema for GreetInput with fn json_schema() {
-  @schema.schema([@schema.string(name="name", required=true)])
+impl @schema.JsonSchema for GreetInput with fn json_schema() -> @schema.Schema {
+  @schema.object([@schema.string(name="name", required=true)])
 }
 
 ///|

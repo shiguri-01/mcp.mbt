@@ -1,6 +1,7 @@
 # shiguri-01/mcp/schema
 
-Small JSON Schema builders for MCP tool input types.
+Typed JSON Schema 2020-12 construction and validation. The package is
+independent of MCP and can be used for any JSON document.
 
 Use this package next to the MoonBit input struct that derives `FromJson`:
 
@@ -11,16 +12,14 @@ struct HelloInput {
 } derive(FromJson)
 
 ///|
-impl @schema.JsonSchema for HelloInput with fn json_schema() {
-  @schema.schema([
+impl @schema.JsonSchema for HelloInput with fn json_schema() -> @schema.Schema {
+  @schema.object([
     @schema.string(name="name", description="Name to greet", required=true),
   ])
 }
 ```
 
-The builders intentionally return `Json`, so advanced schemas can still be
-written directly with `Json::object(...)` and wrapped with `field(...)`.
-
-`string()` builds an object field descriptor for `schema([...])`.
-`string_schema()` builds a reusable JSON Schema fragment for places such as
-`array(name="tags", items=string_schema())` or custom `field(...)` calls.
+`Schema` is the typed AST. `Schema::document()` validates the document shape,
+and `Document::compile()` produces an instance validator. Use `Schema::raw`
+only for keywords not yet modeled by the typed AST. `schema_of((None : T?))`
+obtains a schema from a `JsonSchema` implementation without constructing `T`.

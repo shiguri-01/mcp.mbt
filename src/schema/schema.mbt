@@ -1,32 +1,32 @@
 ///|
 /// JSON Schema provider for typed tool inputs.
 pub(open) trait JsonSchema {
-  fn json_schema() -> Json raise SchemaError
+  fn json_schema() -> Schema raise SchemaError
 }
 
 ///|
-pub impl JsonSchema for String with fn json_schema() -> Json {
-  Schema::string().to_json()
+pub impl JsonSchema for String with fn json_schema() -> Schema {
+  Schema::string()
 }
 
 ///|
-pub impl JsonSchema for Bool with fn json_schema() -> Json {
-  Schema::boolean().to_json()
+pub impl JsonSchema for Bool with fn json_schema() -> Schema {
+  Schema::boolean()
 }
 
 ///|
-pub impl JsonSchema for Int with fn json_schema() -> Json {
-  Schema::integer().to_json()
+pub impl JsonSchema for Int with fn json_schema() -> Schema {
+  Schema::integer()
 }
 
 ///|
-pub impl JsonSchema for Int64 with fn json_schema() -> Json {
-  Schema::integer().to_json()
+pub impl JsonSchema for Int64 with fn json_schema() -> Schema {
+  Schema::integer()
 }
 
 ///|
-pub impl JsonSchema for Double with fn json_schema() -> Json {
-  Schema::number().to_json()
+pub impl JsonSchema for Double with fn json_schema() -> Schema {
+  Schema::number()
 }
 
 ///|
@@ -51,7 +51,7 @@ pub struct Property {
 ///|
 /// Obtain a typed schema without constructing a runtime value of `A`.
 pub fn[A : JsonSchema] schema_of(_witness : A?) -> Schema raise SchemaError {
-  Schema::raw(A::json_schema())
+  A::json_schema()
 }
 
 ///|

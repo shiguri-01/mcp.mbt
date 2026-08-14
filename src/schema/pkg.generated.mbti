@@ -125,7 +125,7 @@ pub struct ValidationResult {
 
 // Traits
 pub(open) trait JsonSchema {
-  fn json_schema() -> Json raise SchemaError
+  fn json_schema() -> Schema raise SchemaError
 }
 pub impl JsonSchema for Bool
 pub impl JsonSchema for Int

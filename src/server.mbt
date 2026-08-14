@@ -110,9 +110,10 @@ struct RegisteredPrompt {
 
 ///|
 fn[A : @schema.JsonSchema] schema_for(_witness : A?) -> Json raise McpError {
-  A::json_schema() catch {
+  let schema = A::json_schema() catch {
     _ => raise InvalidParams("typed tool produced an invalid JSON Schema")
   }
+  schema.to_json()
 }
 
 ///|
