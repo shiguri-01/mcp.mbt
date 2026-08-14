@@ -43,3 +43,10 @@ test "container JsonSchema implementations are built without JSON literals" {
   assert_true(optional.validate(Json::null()).valid)
   assert_true(optional.validate(Json::number(1.0)).valid)
 }
+
+///|
+test "description preserves boolean schema assertion semantics" {
+  let described_never = Schema::description(Schema::never(), "not allowed")
+  let validator = try! described_never.document().compile()
+  assert_false(validator.validate(Json::string("value")).valid)
+}

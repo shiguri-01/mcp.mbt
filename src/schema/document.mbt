@@ -196,7 +196,10 @@ fn schema_node_to_json(node : SchemaNode) -> Json {
     Ref(reference) => Json::object({ "$ref": Json::string(reference) })
     Description(value, description) => {
       guard schema_node_to_json(value) is Object(fields) else {
-        return Json::object({ "description": Json::string(description) })
+        return Json::object({
+          "allOf": Json::array([schema_node_to_json(value)]),
+          "description": Json::string(description),
+        })
       }
       fields["description"] = Json::string(description)
       Json::object(fields)
