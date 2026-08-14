@@ -152,6 +152,32 @@ test "unsupported pattern validation is rejected instead of ignored" {
 }
 
 ///|
+test "typed schema constructors reject duplicate names and enum values" {
+  try Schema::enum_values([Json::string("same"), Json::string("same")]) catch {
+    InvalidSchema(_) => ()
+    _ => fail("duplicate enum values must be rejected")
+  } noraise {
+    _ => fail("duplicate enum values must be rejected")
+  }
+  try
+    Schema::object(properties={ "name": Schema::string() }, required=[
+      "name", "name",
+    ])
+  catch {
+    InvalidSchema(_) => ()
+    _ => fail("duplicate required names must be rejected")
+  } noraise {
+    _ => fail("duplicate required names must be rejected")
+  }
+  try object([string(name="name"), string(name="name")]) catch {
+    InvalidSchema(_) => ()
+    _ => fail("duplicate property names must be rejected")
+  } noraise {
+    _ => fail("duplicate property names must be rejected")
+  }
+}
+
+///|
 test "typed combinators preserve JSON Schema assertion semantics" {
   let positive = Schema::any_of([
     Schema::const_value(Json::string("yes")),

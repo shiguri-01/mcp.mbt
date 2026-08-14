@@ -107,6 +107,13 @@ pub fn Schema::enum_values(values : Array[Json]) -> Schema raise SchemaError {
   if values.is_empty() {
     raise InvalidSchema("JSON Schema enum must not be empty")
   }
+  let seen : Array[Json] = []
+  for value in values {
+    if seen.contains(value) {
+      raise InvalidSchema("JSON Schema enum values must be unique")
+    }
+    seen.push(value)
+  }
   schema(Enum(values.copy()))
 }
 
@@ -156,7 +163,12 @@ pub fn Schema::object(
   required? : Array[String] = [],
   additional_properties? : Bool = true,
 ) -> Schema raise SchemaError {
+  let required_names : Map[String, Bool] = Map([])
   for name in required {
+    if required_names.contains(name) {
+      raise InvalidSchema("required property names must be unique")
+    }
+    required_names[name] = true
     if properties.get(name) is None {
       raise InvalidSchema("required property is not declared: \{name}")
     }

@@ -89,6 +89,9 @@ pub fn object(
   let property_schemas : Map[String, Schema] = Map([])
   let required : Array[String] = []
   for property in properties {
+    if property_schemas.contains(property.name) {
+      raise InvalidSchema("property names must be unique: \{property.name}")
+    }
     property_schemas[property.name] = property.schema
     if property.required {
       required.push(property.name)
