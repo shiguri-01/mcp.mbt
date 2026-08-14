@@ -19,6 +19,8 @@ pub fn decode_complete_result(Json) -> CompleteResult raise McpError
 
 pub fn decode_content_block(Json) -> ContentBlock raise McpError
 
+pub fn decode_discover_result(Json) -> DiscoverResult raise McpError
+
 pub fn decode_get_prompt_result(Json) -> GetPromptResult raise McpError
 
 pub fn decode_list_prompts_result(Json) -> ListPromptsResult raise McpError
@@ -207,7 +209,6 @@ pub struct DiscoverResult {
   meta : ResultMeta?
 } derive(@debug.Debug)
 pub fn DiscoverResult::DiscoverResult(supported_versions? : Array[String], capabilities~ : ServerCapabilities, instructions? : String, cache_policy~ : CachePolicy, meta? : ResultMeta) -> Self raise McpError
-pub fn DiscoverResult::decode(Json) -> Self raise McpError
 pub impl ToJson for DiscoverResult
 pub impl @json.FromJson for DiscoverResult
 

@@ -468,7 +468,7 @@ pub async fn Client::discover(
 ) -> @mcp.DiscoverResult raise @mcp.McpError {
   let request = self.core.discover_request(options~)
   let outcome = self.request(request)
-  @mcp.DiscoverResult::decode(require_complete(outcome, "server/discover"))
+  @mcp.decode_discover_result(require_complete(outcome, "server/discover"))
 }
 
 ///|

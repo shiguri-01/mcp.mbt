@@ -58,7 +58,8 @@ fn parse_ttl_ms(
 }
 
 ///|
-pub fn DiscoverResult::decode(value : Json) -> DiscoverResult raise McpError {
+/// Decode a `server/discover` result after the JSON-RPC envelope is removed.
+pub fn decode_discover_result(value : Json) -> DiscoverResult raise McpError {
   let context = "discover result"
   let fields = expect_object(value, context)
   match fields.get("resultType") {
@@ -105,7 +106,7 @@ pub impl @json.FromJson for DiscoverResult with fn from_json(
   value : Json,
   path : @json.JsonPath,
 ) -> DiscoverResult raise {
-  DiscoverResult::decode(value) catch {
+  decode_discover_result(value) catch {
     error => raise JsonDecodeError((path, error.message()))
   }
 }

@@ -290,7 +290,7 @@ test "cancellation identifiers are never null" {
 
 ///|
 test "discover accepts complete results without resultType" {
-  let result = DiscoverResult::decode(
+  let result = decode_discover_result(
     Json::object({
       "supportedVersions": Json::array([Json::string(latest_protocol_version)]),
       "capabilities": Json::object({

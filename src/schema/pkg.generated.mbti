@@ -82,6 +82,7 @@ pub fn Schema::one_of(Array[Self]) -> Self raise SchemaError
 pub fn Schema::raw(Json) -> Self raise SchemaError
 pub fn Schema::reference(String) -> Self raise SchemaError
 pub fn Schema::string() -> Self
+pub fn Schema::string_constraints(min_length? : Int, max_length? : Int, pattern? : String) -> Self raise SchemaError
 pub fn Schema::to_json(Self) -> Json
 pub impl ToJson for Schema
 
