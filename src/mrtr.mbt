@@ -77,16 +77,6 @@ fn validate_core_input_request(
 }
 
 ///|
-pub fn InputRequest::method_name(self : InputRequest) -> String {
-  self.method_name
-}
-
-///|
-pub fn InputRequest::params(self : InputRequest) -> Json {
-  self.params
-}
-
-///|
 pub impl ToJson for InputRequest with fn to_json(self : InputRequest) -> Json {
   Json::object({
     "method": Json::string(self.method_name),
@@ -115,11 +105,6 @@ pub struct InputResponse {
 ///|
 pub fn InputResponse::InputResponse(result : Json) -> InputResponse {
   { result, }
-}
-
-///|
-pub fn InputResponse::result(self : InputResponse) -> Json {
-  self.result
 }
 
 ///|
@@ -165,25 +150,6 @@ pub fn InputRequiredResult::InputRequiredResult(
 }
 
 ///|
-pub fn InputRequiredResult::input_requests(
-  self : InputRequiredResult,
-) -> Map[String, InputRequest]? {
-  self.input_requests
-}
-
-///|
-pub fn InputRequiredResult::request_state(
-  self : InputRequiredResult,
-) -> String? {
-  self.request_state
-}
-
-///|
-pub fn InputRequiredResult::meta(self : InputRequiredResult) -> ResultMeta? {
-  self.meta
-}
-
-///|
 /// Build retry options while preserving the server's opaque request state.
 /// Every requested input must have exactly one response; callers never need to
 /// inspect or copy `requestState` themselves.
@@ -206,9 +172,9 @@ pub fn InputRequiredResult::retry_options(
       }
       for key, request in requests {
         validate_core_input_response(
-          request.method_name(),
-          request.params(),
-          responses[key].result(),
+          request.method_name,
+          request.params,
+          responses[key].result,
         )
       }
     }

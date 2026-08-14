@@ -63,7 +63,7 @@ test "elicitation input is accepted with the required confirmation content" {
     ),
   })
   assert_true(
-    responses["confirmation"].result()
+    responses["confirmation"].result
     is Object(
       {
         "action": String("accept"),

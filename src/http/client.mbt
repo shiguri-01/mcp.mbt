@@ -1438,7 +1438,7 @@ pub async fn Client::call_tool_resolving_raw(
       ) {
       @mcp.Complete(result) => return result
       @mcp.InputRequired(required) => {
-        let requests = required.input_requests().unwrap_or(Map([]))
+        let requests = required.input_requests.unwrap_or(Map([]))
         retry_options = required.retry_options(
           resolve(requests),
           base=retry_options,
@@ -1495,7 +1495,7 @@ pub async fn Client::read_resource_resolving_raw(
     match self.read_resource_raw(uri~, options=retry_options) {
       @mcp.Complete(result) => return result
       @mcp.InputRequired(required) => {
-        let requests = required.input_requests().unwrap_or(Map([]))
+        let requests = required.input_requests.unwrap_or(Map([]))
         retry_options = required.retry_options(
           resolve(requests),
           base=retry_options,
@@ -1543,7 +1543,7 @@ pub async fn Client::get_prompt_resolving_raw(
     match self.get_prompt_raw(name~, arguments~, options=retry_options) {
       @mcp.Complete(result) => return result
       @mcp.InputRequired(required) => {
-        let requests = required.input_requests().unwrap_or(Map([]))
+        let requests = required.input_requests.unwrap_or(Map([]))
         retry_options = required.retry_options(
           resolve(requests),
           base=retry_options,

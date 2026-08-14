@@ -4,7 +4,7 @@ fn accept_elicitation_requests(
 ) -> Map[String, @mcp.InputResponse] raise @mcp.McpError {
   let responses : Map[String, @mcp.InputResponse] = Map([])
   for key, request in requests {
-    if request.method_name() != "elicitation/create" {
+    if request.method_name != "elicitation/create" {
       raise @mcp.InvalidRequest(
         "request-state fixture only supports elicitation/create",
       )
@@ -26,7 +26,7 @@ async fn complete_echo_state_round(
   match client.call_tool(name="test_mrtr_echo_state") {
     @mcp.InputRequired(required) => {
       ignore(client.call_tool(name="test_mrtr_unrelated"))
-      let requests = required.input_requests().unwrap_or(Map([]))
+      let requests = required.input_requests.unwrap_or(Map([]))
       let options = required.retry_options(
         accept_elicitation_requests(requests),
       )
@@ -45,7 +45,7 @@ async fn complete_no_state_round(
 ) -> Unit raise @mcp.McpError {
   match client.call_tool(name="test_mrtr_no_state") {
     @mcp.InputRequired(required) => {
-      let requests = required.input_requests().unwrap_or(Map([]))
+      let requests = required.input_requests.unwrap_or(Map([]))
       let options = required.retry_options(
         accept_elicitation_requests(requests),
       )

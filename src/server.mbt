@@ -508,7 +508,7 @@ fn Server::ensure_supported_version(
 fn required_elicitation_capability(
   request : InputRequest,
 ) -> ClientCapabilities {
-  let is_url = request.params() is Object({ "mode": String("url"), .. })
+  let is_url = request.params is Object({ "mode": String("url"), .. })
   ClientCapabilities(
     elicitation=if is_url {
       ElicitationCapability(url=Json::object({}))
@@ -537,9 +537,9 @@ fn Server::validate_input_requests(
   result : InputRequiredResult,
 ) -> Unit raise McpError {
   ignore(self)
-  if result.input_requests() is Some(requests) {
+  if result.input_requests is Some(requests) {
     for _, request in requests {
-      match request.method_name() {
+      match request.method_name {
         "elicitation/create" => {
           let required = required_elicitation_capability(request)
           let actual = context.meta().client_capabilities.elicitation

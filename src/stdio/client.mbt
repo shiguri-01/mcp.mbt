@@ -721,7 +721,7 @@ async fn Client::resolve_mrtr(
       if rounds_left <= 0 {
         raise InvalidRequest("MRTR exceeded max_rounds")
       }
-      let requests = pending.input_requests().unwrap_or(Map([]))
+      let requests = pending.input_requests.unwrap_or(Map([]))
       let responses = resolve(requests)
       self.resolve_mrtr(
         build,

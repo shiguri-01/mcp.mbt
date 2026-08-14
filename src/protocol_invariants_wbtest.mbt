@@ -216,7 +216,7 @@ test "MRTR decoding preserves result metadata" {
     }),
   )
   assert_true(
-    result.meta()
+    result.meta
     is Some({ extra: { "com.example/trace": String("trace-1"), .. }, .. }),
   )
 }
