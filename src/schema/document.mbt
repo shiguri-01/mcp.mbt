@@ -9,7 +9,7 @@ priv enum SchemaNode {
   Integer
   Number
   String
-  StringConstraints(Int?, Int?, String?)
+  StringConstraints(Int?, Int?)
   Array(SchemaNode)
   Object(Map[String, SchemaNode], Array[String], Bool)
   Const(Json)
@@ -75,12 +75,10 @@ pub fn Schema::string() -> Schema {
 /// Build a string schema with the standard JSON Schema string constraints.
 /// The constraint values are checked while constructing the typed schema;
 /// callers do not need a later validation pass just to discover invalid
-/// bounds. A pattern is retained as a JSON Schema regular expression for
-/// consumers that provide a compatible regular-expression engine.
+/// bounds.
 pub fn Schema::string_constraints(
   min_length? : Int,
   max_length? : Int,
-  pattern? : String,
 ) -> Schema raise SchemaError {
   if min_length is Some(value) && value < 0 {
     raise InvalidSchema("minLength must be non-negative")
@@ -91,7 +89,7 @@ pub fn Schema::string_constraints(
   if min_length is Some(min) && max_length is Some(max) && min > max {
     raise InvalidSchema("minLength must not exceed maxLength")
   }
-  schema(StringConstraints(min_length, max_length, pattern))
+  schema(StringConstraints(min_length, max_length))
 }
 
 ///|
@@ -191,7 +189,7 @@ fn schema_node_to_json(node : SchemaNode) -> Json {
     Integer => Json::object({ "type": Json::string("integer") })
     Number => Json::object({ "type": Json::string("number") })
     String => Json::object({ "type": Json::string("string") })
-    StringConstraints(min_length, max_length, pattern) => {
+    StringConstraints(min_length, max_length) => {
       let fields : Map[String, Json] = { "type": Json::string("string") }
       match min_length {
         Some(value) =>
@@ -207,10 +205,6 @@ fn schema_node_to_json(node : SchemaNode) -> Json {
             value.to_double(),
             repr=value.to_string(),
           )
-        None => ()
-      }
-      match pattern {
-        Some(value) => fields["pattern"] = Json::string(value)
         None => ()
       }
       Json::object(fields)
