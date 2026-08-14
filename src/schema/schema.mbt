@@ -30,6 +30,12 @@ pub impl JsonSchema for Double with fn json_schema() -> Schema {
 }
 
 ///|
+/// A raw JSON value has no narrower instance constraint.
+pub impl JsonSchema for Json with fn json_schema() -> Schema {
+  Schema::always()
+}
+
+///|
 pub impl[T : JsonSchema] JsonSchema for Array[T] with fn json_schema() -> Schema {
   Schema::array(items=schema_of((None : T?)))
 }
@@ -145,9 +151,6 @@ fn boolean_schema(description? : String) -> Schema {
     None => Schema::boolean()
   }
 }
-
-///|
-/// Build a string property mirrored to `Mcp-Param-{header_name}` by HTTP.
 
 ///|
 /// Build a JSON Schema array type fragment.

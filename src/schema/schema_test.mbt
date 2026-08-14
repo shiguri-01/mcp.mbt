@@ -45,6 +45,15 @@ test "container JsonSchema implementations are built without JSON literals" {
 }
 
 ///|
+test "raw Json has an explicit unconstrained schema" {
+  let schema = try! schema_of((None : Json?))
+  let validator = try! schema.document().compile()
+  assert_true(
+    validator.validate(Json::object({ "any": Json::number(1.0) })).valid,
+  )
+}
+
+///|
 test "description preserves boolean schema assertion semantics" {
   let described_never = Schema::description(Schema::never(), "not allowed")
   let validator = try! described_never.document().compile()
