@@ -11,7 +11,7 @@ pub struct Document {
 } derive(Debug, Eq)
 
 ///|
-pub fn Document::new(value : Json) -> Document raise SchemaError {
+pub fn Document::Document(value : Json) -> Document raise SchemaError {
   if value is (True | False) {
     return { value, dialect: draft_2020_12 }
   }
@@ -40,7 +40,7 @@ pub struct CompileOptions {
 } derive(Debug, Eq)
 
 ///|
-pub fn CompileOptions::new(
+pub fn CompileOptions::CompileOptions(
   max_depth? : Int = 128,
   max_nodes? : Int = 10000,
 ) -> CompileOptions raise SchemaError {

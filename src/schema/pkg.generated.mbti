@@ -55,8 +55,8 @@ pub struct CompileOptions {
   max_depth : Int
   max_nodes : Int
 } derive(Eq, @debug.Debug)
+pub fn CompileOptions::CompileOptions(max_depth? : Int, max_nodes? : Int) -> Self raise SchemaError
 pub fn CompileOptions::default() -> Self
-pub fn CompileOptions::new(max_depth? : Int, max_nodes? : Int) -> Self raise SchemaError
 
 pub struct CompiledSchema {
   document : Document
@@ -68,8 +68,8 @@ pub struct Document {
   value : Json
   dialect : String
 } derive(Eq, @debug.Debug)
+pub fn Document::Document(Json) -> Self raise SchemaError
 pub fn Document::compile(Self, options? : CompileOptions) -> CompiledSchema raise SchemaError
-pub fn Document::new(Json) -> Self raise SchemaError
 
 pub struct Property {
   // private fields

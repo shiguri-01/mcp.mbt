@@ -50,11 +50,11 @@ The server registry is built through one constructor and is sealed before the
 first dispatch. Registration names use MCP concepts directly:
 
 ```moonbit
-let server = try! Server::new(
-  implementation=Implementation::new(name="greeter", version="1.0.0"),
+let server = try! Server::Server(
+  name="greeter", version="1.0.0",
 )
 try! server.register_tool(
-  Tool::new(name="greet", description="Greet a person", input_schema),
+  Tool::Tool(name="greet", description="Greet a person", input_schema~),
   async fn(context : RequestContext, input : GreetInput) {
     Complete(CallToolResult::text("Hello, \\{input.name}!"))
   },
@@ -82,8 +82,8 @@ by the dispatcher, not by application handlers.
 The client has typed verbs matching MCP methods:
 
 ```moonbit
-let client = try! Client::new(
-  implementation=Implementation::new(name="example", version="1.0.0"),
+let client = try! Client::Client(
+  name="example", version="1.0.0",
   capabilities=ClientCapabilities::empty(),
 )
 let discovered = try! client.server_discover()
@@ -107,7 +107,7 @@ The replacement has three explicit layers:
 `schema::Document` is an immutable, constructor-created JSON Schema document.
 It preserves `$id`, `$ref`, `$defs`, `$dynamicAnchor`, `$dynamicRef`,
 `$vocabulary`, and embedded resources without silently normalizing them.
-`Document::new(value)` performs only document-shape checks and resource/index
+`Document::Document(value)` performs only document-shape checks and resource/index
 construction. It never fetches a network reference.
 
 ### 2. Compilation

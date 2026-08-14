@@ -1,6 +1,6 @@
 ///|
 test "document uses MCP's 2020-12 default and validates required fields" {
-  let document = try! Document::new(
+  let document = try! Document::Document(
     Json::object({
       "type": Json::string("object"),
       "properties": Json::object({
@@ -21,7 +21,7 @@ test "document uses MCP's 2020-12 default and validates required fields" {
 ///|
 test "document rejects an unsupported dialect before compilation" {
   try
-    Document::new(
+    Document::Document(
       Json::object({
         "$schema": Json::string("https://example.com/unknown-schema"),
       }),
@@ -35,9 +35,9 @@ test "document rejects an unsupported dialect before compilation" {
 
 ///|
 test "document compilation has explicit resource limits" {
-  let options = try! CompileOptions::new(max_depth=2, max_nodes=3)
+  let options = try! CompileOptions::CompileOptions(max_depth=2, max_nodes=3)
   try
-    Document::new(
+    Document::Document(
       Json::object({
         "properties": Json::object({
           "nested": Json::object({ "type": Json::string("object") }),
@@ -53,7 +53,7 @@ test "document compilation has explicit resource limits" {
 
 ///|
 test "compiled schemas resolve local JSON Pointer references" {
-  let document = try! Document::new(
+  let document = try! Document::Document(
     Json::object({
       "$defs": Json::object({
         "name": Json::object({ "type": Json::string("string") }),
@@ -69,7 +69,7 @@ test "compiled schemas resolve local JSON Pointer references" {
 ///|
 test "network references are rejected during compilation" {
   try
-    Document::new(
+    Document::Document(
       Json::object({ "$ref": Json::string("https://example.com/schema.json") }),
     ).compile()
   catch {
@@ -81,8 +81,8 @@ test "network references are rejected during compilation" {
 
 ///|
 test "boolean schemas retain JSON Schema semantics" {
-  let always_valid = try! Document::new(Json::boolean(true)).compile()
-  let never_valid = try! Document::new(Json::boolean(false)).compile()
+  let always_valid = try! Document::Document(Json::boolean(true)).compile()
+  let never_valid = try! Document::Document(Json::boolean(false)).compile()
   assert_true(always_valid.validate(Json::string("ok")).valid)
   assert_false(never_valid.validate(Json::string("ok")).valid)
 }
