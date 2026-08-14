@@ -6,16 +6,18 @@
 /// when the server selected `text/event-stream`.  The high-level HTTP client
 /// uses its streaming path when progress timing matters; this adapter is the
 /// reusable boundary for custom protocol clients.
-pub struct FrameTransport {
+/// A buffered Streamable HTTP implementation of the transport-neutral frame
+/// contract.
+pub struct StreamableHttpTransport {
   endpoint : String
   max_response_body_bytes : Int
 }
 
 ///|
-pub fn FrameTransport::FrameTransport(
+pub fn StreamableHttpTransport::StreamableHttpTransport(
   endpoint~ : String,
   max_response_body_bytes? : Int = default_max_response_body_bytes,
-) -> FrameTransport raise @transport.TransportError {
+) -> StreamableHttpTransport raise @transport.TransportError {
   if endpoint.is_empty() {
     raise @transport.TransportError::InvalidFrame("HTTP endpoint is empty")
   }
@@ -28,8 +30,8 @@ pub fn FrameTransport::FrameTransport(
 }
 
 ///|
-pub impl @transport.FrameTransport for FrameTransport with fn exchange(
-  self : FrameTransport,
+pub impl @transport.FrameTransport for StreamableHttpTransport with fn exchange(
+  self : StreamableHttpTransport,
   body_text : String,
   metadata : Map[String, String],
 ) -> @transport.FrameResponse raise @transport.TransportError {
@@ -64,8 +66,8 @@ pub impl @transport.FrameTransport for FrameTransport with fn exchange(
 /// Obtain the opaque frame adapter used by custom protocol clients.
 pub fn Client::frame_transport(
   self : Client,
-) -> FrameTransport raise @mcp.McpError {
-  FrameTransport(
+) -> StreamableHttpTransport raise @mcp.McpError {
+  StreamableHttpTransport(
     endpoint=self.endpoint,
     max_response_body_bytes=self.max_response_body_bytes,
   ) catch {
