@@ -17,7 +17,7 @@ priv enum SchemaNode {
   AnyOf(Array[SchemaNode])
   OneOf(Array[SchemaNode])
   Not(SchemaNode)
-  Ref(String)
+  Reference(String)
   Description(SchemaNode, String)
   Raw(Json)
 } derive(Debug, Eq)
@@ -125,7 +125,7 @@ pub fn Schema::reference(reference : String) -> Schema raise SchemaError {
   if !reference.has_prefix("#") {
     raise InvalidSchema("network JSON Schema references are disabled")
   }
-  schema(Ref(reference))
+  schema(Reference(reference))
 }
 
 ///|
@@ -193,7 +193,7 @@ fn schema_node_to_json(node : SchemaNode) -> Json {
     OneOf(values) =>
       Json::object({ "oneOf": values.map(schema_node_to_json).to_json() })
     Not(value) => Json::object({ "not": schema_node_to_json(value) })
-    Ref(reference) => Json::object({ "$ref": Json::string(reference) })
+    Reference(reference) => Json::object({ "$ref": Json::string(reference) })
     Description(value, description) => {
       guard schema_node_to_json(value) is Object(fields) else {
         return Json::object({
