@@ -44,7 +44,10 @@ pub impl[T : JsonSchema] JsonSchema for T? with fn json_schema() -> Schema raise
 pub let draft_2020_12 : String = "https://json-schema.org/draft/2020-12/schema"
 
 ///|
-pub(all) suberror SchemaError {
+/// Errors raised while constructing, compiling, or validating a schema.
+/// The variants are matchable by callers, but construction remains owned by
+/// this package so every public schema constructor can enforce its invariants.
+pub suberror SchemaError {
   InvalidDocument(String)
   UnsupportedDialect(String)
   InvalidSchema(String)
