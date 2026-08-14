@@ -42,7 +42,7 @@ fn validate_core_input_request(
           for _, property_schema in properties {
             validate_elicitation_primitive_schema(property_schema)
           }
-          ignore(compile_json_schema(Json::object(schema)))
+          ignore(compile_mrtr_schema(Json::object(schema)))
         }
         Some(_) =>
           raise InvalidParams("elicitation/create params.mode is invalid")
@@ -218,8 +218,10 @@ fn validate_core_input_response(
                   "elicitation request.requestedSchema is required",
                 )
             }
-            if compile_json_schema(request_schema).validate(content)
-              is Some(error) {
+            let validator = compile_mrtr_schema(request_schema)
+            let validation = validator.validate(content)
+            if !validation.valid {
+              let error = validation.errors.to_json().stringify()
               raise InvalidParams(
                 "elicitation response.content does not match requestedSchema: \{error}",
               )
@@ -250,6 +252,17 @@ fn validate_core_input_response(
       }
     }
     _ => ()
+  }
+}
+
+///|
+/// Compile an MRTR request schema through the independent JSON Schema package.
+fn compile_mrtr_schema(value : Json) -> @schema.CompiledSchema raise McpError {
+  let document = @schema.Document::Document(value) catch {
+    _ => raise InvalidParams("MRTR requestedSchema is not a valid JSON Schema")
+  }
+  document.compile() catch {
+    _ => raise InvalidParams("MRTR requestedSchema is not compilable")
   }
 }
 
