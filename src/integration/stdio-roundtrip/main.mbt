@@ -1,7 +1,7 @@
 ///|
 async fn run_server() -> Unit {
   let server = try! @mcp.Server(name="integration-server", version="1")
-  try! server.json_tool(
+  try! server.tool_json(
     name="echo",
     input_schema=Json::object({
       "type": Json::string("object"),
@@ -15,7 +15,7 @@ async fn run_server() -> Unit {
       @mcp.Complete(@mcp.CallToolResult::text(arguments.stringify()))
     },
   )
-  try! server.json_tool(
+  try! server.tool_json(
     name="wait",
     input_schema=Json::object({
       "type": Json::string("object"),

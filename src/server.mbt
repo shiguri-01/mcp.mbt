@@ -293,37 +293,8 @@ pub fn[A : FromJson + @schema.JsonSchema] Server::tool(
 }
 
 ///|
-/// Register a typed tool that always returns a complete result.
-pub fn[A : FromJson + @schema.JsonSchema] Server::simple_tool(
-  self : Server,
-  name~ : String,
-  title? : String,
-  description? : String,
-  input_schema? : Json,
-  output_schema? : Json,
-  annotations? : ToolAnnotations,
-  icons? : Array[Icon] = [],
-  meta? : Json,
-  handler : async (A) -> CallToolResult raise McpError,
-) -> Unit raise McpError {
-  self.tool(
-    name~,
-    title?,
-    description?,
-    input_schema?,
-    output_schema?,
-    annotations?,
-    icons~,
-    meta?,
-    async fn(_context, input) -> HandlerOutcome[CallToolResult] raise McpError {
-      Complete(handler(input))
-    },
-  )
-}
-
-///|
 /// Register a raw JSON tool while retaining request context and MRTR support.
-pub fn Server::json_tool(
+pub fn Server::tool_json(
   self : Server,
   name~ : String,
   title? : String,

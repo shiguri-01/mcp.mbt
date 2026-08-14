@@ -58,7 +58,7 @@ fn complete_text(text : String) -> @mcp.HandlerOutcome[@mcp.CallToolResult] {
 
 ///|
 fn register_mrtr_fixtures(server : @mcp.Server) -> Unit {
-  try! server.json_tool(
+  try! server.tool_json(
     name="test_input_required_result_elicitation",
     description="Request one elicitation response and complete when it is supplied.",
     input_schema=empty_object_schema(),
@@ -76,7 +76,7 @@ fn register_mrtr_fixtures(server : @mcp.Server) -> Unit {
       }
     },
   )
-  try! server.json_tool(
+  try! server.tool_json(
     name="test_input_required_result_sampling",
     description="Request one sampling response and complete on retry.",
     input_schema=empty_object_schema(),
@@ -92,7 +92,7 @@ fn register_mrtr_fixtures(server : @mcp.Server) -> Unit {
       }
     },
   )
-  try! server.json_tool(
+  try! server.tool_json(
     name="test_input_required_result_list_roots",
     description="Request the client's roots and complete on retry.",
     input_schema=empty_object_schema(),
@@ -108,7 +108,7 @@ fn register_mrtr_fixtures(server : @mcp.Server) -> Unit {
       }
     },
   )
-  try! server.json_tool(
+  try! server.tool_json(
     name="test_input_required_result_request_state",
     description="Require an exact opaque requestState echo.",
     input_schema=empty_object_schema(),
@@ -137,7 +137,7 @@ fn register_mrtr_fixtures(server : @mcp.Server) -> Unit {
 
 ///|
 fn register_multiple_and_round_mrtr(server : @mcp.Server) -> Unit {
-  try! server.json_tool(
+  try! server.tool_json(
     name="test_input_required_result_multiple_inputs",
     description="Request elicitation, sampling, and roots in one result.",
     input_schema=empty_object_schema(),
@@ -166,7 +166,7 @@ fn register_multiple_and_round_mrtr(server : @mcp.Server) -> Unit {
       }
     },
   )
-  try! server.json_tool(
+  try! server.tool_json(
     name="test_input_required_result_multi_round",
     description="Return two input-required rounds with distinct requestState values.",
     input_schema=empty_object_schema(),
@@ -213,7 +213,7 @@ fn register_multiple_and_round_mrtr(server : @mcp.Server) -> Unit {
 
 ///|
 fn register_capability_and_tamper_mrtr(server : @mcp.Server) -> Unit {
-  try! server.json_tool(
+  try! server.tool_json(
     name="test_input_required_result_tampered_state",
     description="Reject any requestState other than the issued opaque value.",
     input_schema=empty_object_schema(),
@@ -236,7 +236,7 @@ fn register_capability_and_tamper_mrtr(server : @mcp.Server) -> Unit {
       }
     },
   )
-  try! server.json_tool(
+  try! server.tool_json(
     name="test_input_required_result_capabilities",
     description="Only request input methods declared by the client.",
     input_schema=empty_object_schema(),

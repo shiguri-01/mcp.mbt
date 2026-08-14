@@ -9,7 +9,9 @@ import {
 // Values
 pub fn decode(Json) -> Message raise JsonRpcDecodeError
 
-pub fn validate(Message) -> Message raise JsonRpcValidationError
+pub fn[Result] response_failure(id~ : RequestId, error~ : ErrorObject) -> Response[Result]
+
+pub fn[Result] response_success(id~ : RequestId, result~ : Result) -> Response[Result]
 
 // Errors
 pub(all) suberror JsonRpcDecodeError {
@@ -43,7 +45,7 @@ pub struct Notification[Params] {
   method_name : String
   params : Params
 }
-pub fn[Params] Notification::Notification(method_name~ : String, params~ : Params) -> Self[Params]
+pub fn[Params] Notification::Notification(method_name~ : String, params~ : Params) -> Self[Params] raise JsonRpcValidationError
 pub fn[Params] Notification::method_name(Self[Params]) -> String
 pub fn[Params] Notification::params(Self[Params]) -> Params
 pub impl[Params : ToJson] ToJson for Notification[Params]
@@ -53,7 +55,7 @@ pub struct Request[Params] {
   method_name : String
   params : Params
 }
-pub fn[Params] Request::Request(id~ : RequestId, method_name~ : String, params~ : Params) -> Self[Params]
+pub fn[Params] Request::Request(id~ : RequestId, method_name~ : String, params~ : Params) -> Self[Params] raise JsonRpcValidationError
 pub fn[Params] Request::id(Self[Params]) -> RequestId
 pub fn[Params] Request::method_name(Self[Params]) -> String
 pub fn[Params] Request::params(Self[Params]) -> Params
@@ -64,7 +66,8 @@ pub enum RequestId {
   Number(value~ : Double, repr~ : String)
 } derive(Eq, @debug.Debug)
 pub fn RequestId::as_json(Self) -> Json
-pub fn RequestId::number(Double, repr? : String) -> Self
+pub fn RequestId::number(Double, repr? : String) -> Self raise JsonRpcValidationError
+pub fn RequestId::string(String) -> Self
 pub impl ToJson for RequestId
 pub impl @json.FromJson for RequestId
 

@@ -332,7 +332,7 @@ test "POST requests require both JSON and SSE response media types" {
 ///|
 test "Mcp-Param headers match annotated tool arguments" {
   let server = try! @mcp.Server(name="tool-header-test", version="0.1.0")
-  try! server.json_tool(name="regional", input_schema=annotated_schema(), (_, _) => {
+  try! server.tool_json(name="regional", input_schema=annotated_schema(), (_, _) => {
     @mcp.Complete(@mcp.CallToolResult::text("ok"))
   })
   let arguments = Json::object({

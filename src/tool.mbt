@@ -20,7 +20,7 @@ pub impl ToJson for ToolAnnotations with fn to_json(self : ToolAnnotations) -> J
 
 ///|
 /// MCP tool descriptor.
-pub(all) struct Tool {
+pub struct Tool {
   name : String
   title : String?
   description : String?
@@ -30,6 +30,12 @@ pub(all) struct Tool {
   icons : Array[Icon]
   meta : Json?
 } derive(Debug, Eq)
+
+///|
+/// The stable identifier used by `tools/list` and `tools/call`.
+pub fn Tool::name(self : Tool) -> String {
+  self.name
+}
 
 ///|
 /// Construct a tool descriptor.

@@ -17,9 +17,12 @@ fn make_server() -> @mcp.Server {
     version="1.0.0",
     instructions="Call greet with a name to receive a greeting.",
   )
-  try! server.simple_tool(name="greet", description="Greet someone by name", (
+  try! server.tool(name="greet", description="Greet someone by name", fn(
+    _context,
     input : GreetInput,
-  ) => @mcp.CallToolResult::text("Hello, \{input.name}!"))
+  ) -> @mcp.HandlerOutcome[@mcp.CallToolResult] {
+    @mcp.Complete(@mcp.CallToolResult::text("Hello, \{input.name}!"))
+  })
   server
 }
 

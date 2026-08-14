@@ -49,13 +49,16 @@ test "JSON-RPC decoder rejects batches and ambiguous responses" {
 }
 
 ///|
-test "JSON-RPC semantic validation is separate from syntax decoding" {
-  let message = decode(
-    @json.parse("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"\",\"params\":{}}"),
-  )
-  try validate(message) catch {
+test "JSON-RPC constructors reject empty method names" {
+  try
+    Request::Request(
+      id=RequestId::number(1.0, repr="1"),
+      method_name="",
+      params=Json::object({}),
+    )
+  catch {
     _ => ()
   } noraise {
-    _ => fail("expected semantic validation to reject an empty method")
+    _ => fail("expected an empty request method to be rejected")
   }
 }

@@ -6,7 +6,7 @@ async test "each request carries the client context used by the server" {
     instructions="Use the echo tool",
     cache_policy=try! @mcp.CachePolicy(ttl_ms=1000L, scope=@mcp.Public),
   )
-  try! server.json_tool(
+  try! server.tool_json(
     name="whoami",
     description="Return the request client name",
     fn(context, _arguments) -> @mcp.HandlerOutcome[@mcp.CallToolResult] {
@@ -135,7 +135,7 @@ async test "JSON-RPC notifications never receive a response" {
 ///|
 async test "MRTR retries echo opaque state and supply input responses" {
   let server = try! @mcp.Server(name="server", version="1")
-  try! server.json_tool(name="confirm", fn(
+  try! server.tool_json(name="confirm", fn(
     context,
     _arguments,
   ) -> @mcp.HandlerOutcome[@mcp.CallToolResult] {
@@ -196,7 +196,7 @@ async test "MRTR retries echo opaque state and supply input responses" {
 ///|
 async test "MRTR requirements without client capabilities return -32021" {
   let server = try! @mcp.Server(name="server", version="1")
-  try! server.json_tool(name="confirm", fn(
+  try! server.tool_json(name="confirm", fn(
     _context,
     _arguments,
   ) -> @mcp.HandlerOutcome[@mcp.CallToolResult] {
@@ -241,7 +241,7 @@ async test "MRTR requirements without client capabilities return -32021" {
 ///|
 async test "progress notifications carry the request progress token" {
   let server = try! @mcp.Server(name="server", version="1")
-  try! server.json_tool(name="work", async fn(
+  try! server.tool_json(name="work", async fn(
     context,
     _arguments,
   ) -> @mcp.HandlerOutcome[@mcp.CallToolResult] raise @mcp.McpError {
@@ -280,7 +280,7 @@ async test "progress notifications carry the request progress token" {
 ///|
 async test "tool input and structured output honor declared JSON Schemas" {
   let server = try! @mcp.Server(name="schema-server", version="1")
-  try! server.json_tool(
+  try! server.tool_json(
     name="bounded",
     input_schema=Json::object({
       "type": Json::string("object"),

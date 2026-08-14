@@ -6,7 +6,7 @@ let silent_wav : String = "UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0Y
 
 ///|
 fn register_tool_fixtures(server : @mcp.Server) -> Unit {
-  try! server.json_tool(
+  try! server.tool_json(
     name="test_simple_text",
     description="Return one deterministic text content block.",
     input_schema=empty_object_schema(),
@@ -16,7 +16,7 @@ fn register_tool_fixtures(server : @mcp.Server) -> Unit {
       )
     },
   )
-  try! server.json_tool(
+  try! server.tool_json(
     name="test_image_content",
     description="Return a minimal PNG image content block.",
     input_schema=empty_object_schema(),
@@ -31,7 +31,7 @@ fn register_tool_fixtures(server : @mcp.Server) -> Unit {
       })
     },
   )
-  try! server.json_tool(
+  try! server.tool_json(
     name="test_audio_content",
     description="Return a minimal WAV audio content block.",
     input_schema=empty_object_schema(),
@@ -46,7 +46,7 @@ fn register_tool_fixtures(server : @mcp.Server) -> Unit {
       })
     },
   )
-  try! server.json_tool(
+  try! server.tool_json(
     name="test_embedded_resource",
     description="Return one embedded text resource.",
     input_schema=empty_object_schema(),
@@ -67,7 +67,7 @@ fn register_tool_fixtures(server : @mcp.Server) -> Unit {
       })
     },
   )
-  try! server.json_tool(
+  try! server.tool_json(
     name="test_multiple_content_types",
     description="Return text, image, and embedded resource content together.",
     input_schema=empty_object_schema(),
@@ -90,7 +90,7 @@ fn register_tool_fixtures(server : @mcp.Server) -> Unit {
       })
     },
   )
-  try! server.json_tool(
+  try! server.tool_json(
     name="test_error_handling",
     description="Return an application-level tool error result.",
     input_schema=empty_object_schema(),
@@ -102,7 +102,7 @@ fn register_tool_fixtures(server : @mcp.Server) -> Unit {
       )
     },
   )
-  try! server.json_tool(
+  try! server.tool_json(
     name="test_tool_with_progress",
     description="Report monotonic progress before returning text.",
     input_schema=empty_object_schema(),

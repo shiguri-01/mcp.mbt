@@ -13,7 +13,18 @@ pub enum RequestId {
 } derive(Eq, Debug)
 
 ///|
-pub fn RequestId::number(value : Double, repr? : String) -> RequestId {
+pub fn RequestId::string(value : String) -> RequestId {
+  String(value)
+}
+
+///|
+pub fn RequestId::number(
+  value : Double,
+  repr? : String,
+) -> RequestId raise JsonRpcValidationError {
+  if value.is_nan() || value.is_inf() {
+    raise JsonRpcValidationError::InvalidEnvelope("JSON-RPC id must be finite")
+  }
   Number(value~, repr=repr.unwrap_or(value.to_string()))
 }
 
@@ -60,7 +71,12 @@ pub fn[Params] Request::Request(
   id~ : RequestId,
   method_name~ : String,
   params~ : Params,
-) -> Request[Params] {
+) -> Request[Params] raise JsonRpcValidationError {
+  if method_name.is_empty() {
+    raise JsonRpcValidationError::InvalidEnvelope(
+      "JSON-RPC request method must not be empty",
+    )
+  }
   { id, method_name, params }
 }
 
@@ -100,7 +116,12 @@ pub struct Notification[Params] {
 pub fn[Params] Notification::Notification(
   method_name~ : String,
   params~ : Params,
-) -> Notification[Params] {
+) -> Notification[Params] raise JsonRpcValidationError {
+  if method_name.is_empty() {
+    raise JsonRpcValidationError::InvalidEnvelope(
+      "JSON-RPC notification method must not be empty",
+    )
+  }
   { method_name, params }
 }
 
@@ -199,6 +220,22 @@ pub enum Response[Result] {
 }
 
 ///|
+pub fn[Result] response_success(
+  id~ : RequestId,
+  result~ : Result,
+) -> Response[Result] {
+  Success(id~, result~)
+}
+
+///|
+pub fn[Result] response_failure(
+  id~ : RequestId,
+  error~ : ErrorObject,
+) -> Response[Result] {
+  Failure(id~, error~)
+}
+
+///|
 pub fn[Result] Response::id(self : Response[Result]) -> RequestId {
   match self {
     Success(id~, ..) => id
@@ -272,8 +309,10 @@ pub fn decode(value : Json) -> Message raise JsonRpcDecodeError {
       }
       match fields.get("id") {
         Some(id) =>
-          Message::Request(Request(id=decode_id(id), method_name~, params~))
-        None => Message::Notification(Notification(method_name~, params~))
+          Message::Request(
+            make_request(id=decode_id(id), method_name~, params~),
+          )
+        None => Message::Notification(make_notification(method_name~, params~))
       }
     }
     None => {
@@ -293,6 +332,33 @@ pub fn decode(value : Json) -> Message raise JsonRpcDecodeError {
       }
     }
     _ => raise JsonRpcDecodeError::InvalidMessage("method must be a string")
+  }
+}
+
+///|
+fn make_request(
+  id~ : RequestId,
+  method_name~ : String,
+  params~ : Json,
+) -> Request[Json] raise JsonRpcDecodeError {
+  Request(id~, method_name~, params~) catch {
+    _ =>
+      raise JsonRpcDecodeError::InvalidMessage(
+        "request method must not be empty",
+      )
+  }
+}
+
+///|
+fn make_notification(
+  method_name~ : String,
+  params~ : Json,
+) -> Notification[Json] raise JsonRpcDecodeError {
+  Notification(method_name~, params~) catch {
+    _ =>
+      raise JsonRpcDecodeError::InvalidMessage(
+        "notification method must not be empty",
+      )
   }
 }
 
@@ -318,22 +384,6 @@ fn decode_error(value : Json) -> ErrorObject raise JsonRpcDecodeError {
       ErrorObject(code~, message~, data?=fields.get("data"))
     }
     _ => raise JsonRpcDecodeError::InvalidMessage("error must be an object")
-  }
-}
-
-///|
-/// Semantic validation performed after syntax decoding.
-pub fn validate(message : Message) -> Message raise JsonRpcValidationError {
-  match message {
-    Request(request) if request.method_name().is_empty() =>
-      raise JsonRpcValidationError::InvalidEnvelope(
-        "request method must not be empty",
-      )
-    Notification(notification) if notification.method_name().is_empty() =>
-      raise JsonRpcValidationError::InvalidEnvelope(
-        "notification method must not be empty",
-      )
-    message => message
   }
 }
 
