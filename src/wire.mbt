@@ -18,6 +18,13 @@ pub fn decode_message(message : Json) -> @jsonrpc.Message raise McpError {
 }
 
 ///|
+pub fn decode_message_opt(message : Json) -> @jsonrpc.Message? {
+  Some(@jsonrpc.decode(message)) catch {
+    _ => None
+  }
+}
+
+///|
 pub fn error_response(id? : @jsonrpc.RequestId, error : McpError) -> Json {
   let response : @jsonrpc.Response[Json] = @jsonrpc.response_failure(
     id?,

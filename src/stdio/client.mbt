@@ -159,13 +159,8 @@ fn routing_key(id : Json) -> String {
 
 ///|
 fn subscription_notification_id(message : Json) -> Json? {
-  let decoded = @jsonrpc.decode(message) catch { _ => return None }
-  let notification = match decoded {
-    @jsonrpc.Message::Notification(notification) => notification
-    _ => return None
-  }
-  match notification.params {
-    Object(params) =>
+  match @mcp.decode_message_opt(message) {
+    Some(Notification({ params: Object(params), .. })) =>
       match params.get("_meta") {
         Some(Object(meta)) => meta.get("io.modelcontextprotocol/subscriptionId")
         _ => None
@@ -176,13 +171,8 @@ fn subscription_notification_id(message : Json) -> Json? {
 
 ///|
 fn request_progress_token(message : Json) -> Json? {
-  let decoded = @jsonrpc.decode(message) catch { _ => return None }
-  let request = match decoded {
-    @jsonrpc.Message::Request(request) => request
-    _ => return None
-  }
-  match request.params {
-    Object(params) =>
+  match @mcp.decode_message_opt(message) {
+    Some(Request({ params: Object(params), .. })) =>
       match params.get("_meta") {
         Some(Object(meta)) =>
           match meta.get("progressToken") {
@@ -197,16 +187,12 @@ fn request_progress_token(message : Json) -> Json? {
 
 ///|
 fn notification_progress_token(message : Json) -> Json? {
-  let decoded = @jsonrpc.decode(message) catch { _ => return None }
-  let notification = match decoded {
-    @jsonrpc.Message::Notification(notification) => notification
-    _ => return None
-  }
-  if notification.method_name != "notifications/progress" {
-    return None
-  }
-  match notification.params {
-    Object(params) =>
+  match @mcp.decode_message_opt(message) {
+    Some(
+      Notification(
+        { method_name: "notifications/progress", params: Object(params) }
+      )
+    ) =>
       match params.get("progressToken") {
         Some(String(_) | Number(_) as token) => Some(token)
         _ => None

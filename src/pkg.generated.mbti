@@ -20,6 +20,8 @@ pub fn[T : @json.FromJson] decode_json(Json, context? : String) -> T raise McpEr
 
 pub fn decode_message(Json) -> @jsonrpc.Message raise McpError
 
+pub fn decode_message_opt(Json) -> @jsonrpc.Message?
+
 pub fn error_response(id? : @jsonrpc.RequestId, McpError) -> Json
 
 pub fn error_response_from_json_id(id? : Json, McpError) -> Json

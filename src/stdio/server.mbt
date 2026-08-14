@@ -1,10 +1,9 @@
 ///|
 fn inbound_id(message : Json) -> Json? {
-  guard (@jsonrpc.decode(message) catch { _ => return None })
-    is Request({ id, .. }) else {
-    None
+  match @mcp.decode_message_opt(message) {
+    Some(Request({ id, .. })) => Some(id.as_json())
+    _ => None
   }
-  Some(id.as_json())
 }
 
 ///|
@@ -14,22 +13,26 @@ fn error_response(id : Json?, error : @mcp.McpError) -> Json {
 
 ///|
 fn is_listen_request(message : Json) -> Bool {
-  (@jsonrpc.decode(message) catch { _ => return false })
-  is Request({ method_name: "subscriptions/listen", .. })
+  match @mcp.decode_message_opt(message) {
+    Some(Request({ method_name: "subscriptions/listen", .. })) => true
+    _ => false
+  }
 }
 
 ///|
 fn cancelled_request_id(message : Json) -> Json? {
-  guard (@jsonrpc.decode(message) catch { _ => return None })
-    is Notification(
-      { method_name: "notifications/cancelled", params: Object(params) }
-    ) else {
-    None
+  match @mcp.decode_message_opt(message) {
+    Some(
+      Notification(
+        { method_name: "notifications/cancelled", params: Object(params) }
+      )
+    ) =>
+      match params.get("requestId") {
+        Some(String(_) | Number(_) as id) => Some(id)
+        _ => None
+      }
+    _ => None
   }
-  guard params.get("requestId") is Some(String(_) | Number(_) as id) else {
-    None
-  }
-  Some(id)
 }
 
 ///|
