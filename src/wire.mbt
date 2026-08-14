@@ -26,12 +26,12 @@ fn parse_rpc_request(message : Json) -> RpcRequest raise McpError {
   }
   match decoded {
     @jsonrpc.Message::Request(request) => {
-      let id = request.id().as_json()
-      let params = request.params()
+      let (request_id, method_name, params) = request.parts()
+      let id = request_id.as_json()
       guard params is Object(_) else {
         raise InvalidParams("request params must be an object")
       }
-      { id, method_name: request.method_name(), params }
+      { id, method_name, params }
     }
     @jsonrpc.Message::Notification(_) =>
       raise InvalidRequest("MCP server methods must be requests")

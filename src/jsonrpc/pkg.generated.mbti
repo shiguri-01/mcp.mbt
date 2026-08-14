@@ -46,8 +46,7 @@ pub struct Notification[Params] {
   params : Params
 }
 pub fn[Params] Notification::Notification(method_name~ : String, params~ : Params) -> Self[Params] raise JsonRpcValidationError
-pub fn[Params] Notification::method_name(Self[Params]) -> String
-pub fn[Params] Notification::params(Self[Params]) -> Params
+pub fn[Params] Notification::parts(Self[Params]) -> (String, Params)
 pub impl[Params : ToJson] ToJson for Notification[Params]
 
 pub struct Request[Params] {
@@ -56,9 +55,7 @@ pub struct Request[Params] {
   params : Params
 }
 pub fn[Params] Request::Request(id~ : RequestId, method_name~ : String, params~ : Params) -> Self[Params] raise JsonRpcValidationError
-pub fn[Params] Request::id(Self[Params]) -> RequestId
-pub fn[Params] Request::method_name(Self[Params]) -> String
-pub fn[Params] Request::params(Self[Params]) -> Params
+pub fn[Params] Request::parts(Self[Params]) -> (RequestId, String, Params)
 pub impl[Params : ToJson] ToJson for Request[Params]
 
 pub enum RequestId {

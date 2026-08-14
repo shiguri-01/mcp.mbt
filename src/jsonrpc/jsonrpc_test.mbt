@@ -7,8 +7,8 @@ test "JSON-RPC request decoding preserves the typed envelope" {
   )
   match message {
     Message::Request(request) => {
-      assert_eq(request.method_name(), "tools/list")
-      assert_eq(request.id(), RequestId::number(1.0, repr="1"))
+      assert_eq(request.parts().1, "tools/list")
+      assert_eq(request.parts().0, RequestId::number(1.0, repr="1"))
     }
     _ => fail("expected JSON-RPC request")
   }
@@ -23,7 +23,7 @@ test "JSON-RPC notification has no request id" {
   )
   match message {
     Message::Notification(notification) =>
-      assert_eq(notification.method_name(), "notifications/cancelled")
+      assert_eq(notification.parts().0, "notifications/cancelled")
     _ => fail("expected JSON-RPC notification")
   }
 }

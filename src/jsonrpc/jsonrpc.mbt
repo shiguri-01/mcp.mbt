@@ -81,18 +81,10 @@ pub fn[Params] Request::Request(
 }
 
 ///|
-pub fn[Params] Request::id(self : Request[Params]) -> RequestId {
-  self.id
-}
-
-///|
-pub fn[Params] Request::method_name(self : Request[Params]) -> String {
-  self.method_name
-}
-
-///|
-pub fn[Params] Request::params(self : Request[Params]) -> Params {
-  self.params
+pub fn[Params] Request::parts(
+  self : Request[Params],
+) -> (RequestId, String, Params) {
+  (self.id, self.method_name, self.params)
 }
 
 ///|
@@ -126,13 +118,10 @@ pub fn[Params] Notification::Notification(
 }
 
 ///|
-pub fn[Params] Notification::method_name(self : Notification[Params]) -> String {
-  self.method_name
-}
-
-///|
-pub fn[Params] Notification::params(self : Notification[Params]) -> Params {
-  self.params
+pub fn[Params] Notification::parts(
+  self : Notification[Params],
+) -> (String, Params) {
+  (self.method_name, self.params)
 }
 
 ///|
