@@ -10,6 +10,12 @@ priv struct ActiveTask {
 }
 
 ///|
+fn ActiveTask::cancel(self : ActiveTask) -> Unit {
+  self.cancelled[0] = true
+  self.task.cancel()
+}
+
+///|
 async fn write_frames(queue : @aqueue.Queue[String?]) -> Unit {
   while queue.get() is Some(frame) {
     @async_stdio.stdout.write(frame)
@@ -33,8 +39,7 @@ pub async fn serve(
     let output : @aqueue.Queue[String?] = Queue(kind=Unbounded)
     let writer = group.spawn(() => write_frames(output))
     let handlers : Array[@async.Task[Unit]] = []
-    let active_subscriptions : Map[String, ActiveTask] = Map([])
-    let active_requests : Map[String, ActiveTask] = Map([])
+    let active_tasks : Map[String, ActiveTask] = Map([])
     while @async_stdio.stdin.read_until("\n") is Some(line) {
       let message = decode_frame(line) catch {
         error => {
@@ -73,40 +78,24 @@ pub async fn serve(
             if !cancelled[0] {
               output.put(Some(encode_frame(subscription.close_response())))
             }
-            ignore(active_subscriptions.remove(key))
+            ignore(active_tasks.remove(key))
           })
-          active_subscriptions[key] = { cancelled, task }
+          active_tasks[key] = { cancelled, task }
         }
         Some(Notification(notification)) if notification.method_name ==
-          "notifications/cancelled" => {
-          let params = Some(
-            @mcp.CancelledNotificationParams::from_json(notification.params),
-          ) catch {
-            _ => None
-          }
-          match params {
-            Some(params) => {
-              let key = params.request_id.stringify()
-              match active_subscriptions.get(key) {
-                Some(active) => {
-                  active_subscriptions.remove(key)
-                  active.cancelled[0] = true
-                  active.task.cancel()
-                }
-                None =>
-                  match active_requests.get(key) {
-                    Some(active) => {
-                      active_requests.remove(key)
-                      active.cancelled[0] = true
-                      active.task.cancel()
-                    }
-                    None => ()
-                  }
-              }
+          "notifications/cancelled" =>
+          try {
+            let params = @mcp.CancelledNotificationParams::from_json(
+              notification.params,
+            )
+            let key = params.request_id.stringify()
+            if active_tasks.get(key) is Some(active) {
+              active_tasks.remove(key)
+              active.cancel()
             }
-            None => ()
+          } catch {
+            _ => ()
           }
-        }
         _ => {
           let req_id = match decoded {
             Some(Request(request)) => Some(request.id.as_json())
@@ -128,23 +117,18 @@ pub async fn serve(
               None => ()
             }
             if key_opt is Some(key) {
-              ignore(active_requests.remove(key))
+              ignore(active_tasks.remove(key))
             }
           })
           handlers.push(task)
           if key_opt is Some(key) {
-            active_requests[key] = { cancelled, task }
+            active_tasks[key] = { cancelled, task }
           }
         }
       }
     }
-    for _, active in active_requests {
-      active.cancelled[0] = true
-      active.task.cancel()
-    }
-    for _, active in active_subscriptions {
-      active.cancelled[0] = true
-      active.task.cancel()
+    for _, active in active_tasks {
+      active.cancel()
     }
     for task in handlers {
       task.wait() catch {
