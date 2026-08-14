@@ -388,12 +388,12 @@ pub struct RequestContext {
   meta : RequestMeta
   input_responses : Map[String, InputResponse]?
   request_state : String?
+  transport_meta : Json?
   hooks : RequestHooks
 }
 pub fn RequestContext::RequestContext(request_id~ : Json, method_name~ : String, meta~ : RequestMeta, input_responses? : Map[String, InputResponse], request_state? : String, hooks? : RequestHooks) -> Self raise McpError
 pub fn RequestContext::is_cancelled(Self) -> Bool
 pub async fn RequestContext::report_progress(Self, progress~ : Double, total? : Double, message? : String) -> Unit raise McpError
-pub fn RequestContext::transport_meta(Self) -> Json?
 
 pub struct RequestHooks {
   // private fields

@@ -261,6 +261,7 @@ pub struct RequestContext {
   meta : RequestMeta
   input_responses : Map[String, InputResponse]?
   request_state : String?
+  transport_meta : Json?
   hooks : RequestHooks
 }
 
@@ -276,17 +277,20 @@ pub fn RequestContext::RequestContext(
   if !(request_id is (String(_) | Number(_))) {
     raise InvalidRequest("request id must be a string or number")
   }
-  { request_id, method_name, meta, input_responses, request_state, hooks }
+  {
+    request_id,
+    method_name,
+    meta,
+    input_responses,
+    request_state,
+    transport_meta: copy_optional_json(hooks.transport_meta),
+    hooks,
+  }
 }
 
 ///|
 pub fn RequestContext::is_cancelled(self : RequestContext) -> Bool {
   (self.hooks.is_cancelled)()
-}
-
-///|
-pub fn RequestContext::transport_meta(self : RequestContext) -> Json? {
-  self.hooks.transport_meta
 }
 
 ///|
