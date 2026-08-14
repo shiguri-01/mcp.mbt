@@ -149,57 +149,6 @@ async fn write_messages(
 }
 
 ///|
-fn routing_key(id : Json) -> String {
-  match id {
-    String(value) => "string:\{value}"
-    Number(value, ..) => "number:\{value.to_string()}"
-    _ => "invalid:\{id.stringify()}"
-  }
-}
-
-///|
-fn subscription_notification_id(message : Json) -> Json? {
-  match @mcp.decode_message_opt(message) {
-    Some(Notification({ params: Object(params), .. })) =>
-      match params.get("_meta") {
-        Some(Object(meta)) => meta.get("io.modelcontextprotocol/subscriptionId")
-        _ => None
-      }
-    _ => None
-  }
-}
-
-///|
-fn request_progress_token(message : Json) -> Json? {
-  match @mcp.decode_message_opt(message) {
-    Some(Request({ params: Object(params), .. })) =>
-      match params.get("_meta") {
-        Some(Object(meta)) =>
-          match meta.get("progressToken") {
-            Some(String(_) | Number(_) as token) => Some(token)
-            _ => None
-          }
-        _ => None
-      }
-    _ => None
-  }
-}
-
-///|
-fn notification_progress_token(message : Json) -> Json? {
-  match @mcp.decode_message_opt(message) {
-    Some(
-      Notification(
-        { method_name: "notifications/progress", params: Object(params) }
-      )
-    ) =>
-      match params.get("progressToken") {
-        Some(String(_) | Number(_) as token) => Some(token)
-        _ => None
-      }
-    _ => None
-  }
-}
 
 ///|
 async fn broadcast_failure(
@@ -237,21 +186,22 @@ async fn route_message(
   progress_routes : Map[String, String],
   message : Json,
 ) -> Unit raise @mcp.McpError {
-  match response_id(message) {
+  match @mcp.response_id(message) {
     Some(id) =>
-      if pending.get(routing_key(id)) is Some(queue) {
+      if pending.get(@mcp.routing_key(id)) is Some(queue) {
         put_inbound(queue, Message(message))
       }
     None =>
-      match subscription_notification_id(message) {
+      match @mcp.extract_subscription_id(message) {
         Some(id) =>
-          if pending.get(routing_key(id)) is Some(queue) {
+          if pending.get(@mcp.routing_key(id)) is Some(queue) {
             put_inbound(queue, Message(message))
           }
         None =>
-          match notification_progress_token(message) {
+          match @mcp.extract_notification_progress_token(message) {
             Some(token) =>
-              if progress_routes.get(routing_key(token)) is Some(request_key) &&
+              if progress_routes.get(@mcp.routing_key(token))
+                is Some(request_key) &&
                 pending.get(request_key) is Some(queue) {
                 put_inbound(queue, Message(message))
               }
@@ -293,35 +243,6 @@ async fn read_messages(
 }
 
 ///|
-fn request_id(message : Json) -> Json raise @mcp.McpError {
-  let decoded = @jsonrpc.decode(message) catch {
-    _ => raise InvalidRequest("stdio request is not a JSON-RPC request")
-  }
-  match decoded {
-    @jsonrpc.Message::Request(request) => request.id.as_json()
-    _ => raise InvalidRequest("stdio request must be a JSON-RPC request")
-  }
-}
-
-///|
-fn response_id(message : Json) -> Json? raise @mcp.McpError {
-  let decoded = @jsonrpc.decode(message) catch {
-    _ => raise InvalidRequest("invalid JSON-RPC message from stdio server")
-  }
-  match decoded {
-    @jsonrpc.Message::Notification(_) => None
-    @jsonrpc.Message::Request(_) =>
-      raise InvalidRequest(
-        "server-to-client JSON-RPC requests are not valid in MCP 2026-07-28",
-      )
-    @jsonrpc.Message::Response(@jsonrpc.Response::Success(id~, ..)) =>
-      Some(id.as_json())
-    @jsonrpc.Message::Response(@jsonrpc.Response::Failure(id~, ..)) =>
-      id.map(fn(id) { id.as_json() })
-  }
-}
-
-///|
 async fn Client::read_response(
   self : Client,
   queue : @aqueue.Queue[Inbound],
@@ -331,7 +252,7 @@ async fn Client::read_response(
   match get_inbound(queue) {
     Failed(error) => raise error
     Message(message) =>
-      match response_id(message) {
+      match @mcp.response_id(message) {
         None => {
           on_notification(message)
           self.read_response(queue, expected_id, on_notification)
@@ -354,12 +275,14 @@ pub async fn Client::request_with_notifications(
   request : Json,
   on_notification~ : (Json) -> Unit,
 ) -> @mcp.HandlerOutcome[Json] raise @mcp.McpError {
-  let id = request_id(request)
-  let key = routing_key(id)
+  let id = @mcp.request_id(request)
+  let key = @mcp.routing_key(id)
   if self.pending.contains(key) {
     raise InvalidRequest("stdio request id is already active")
   }
-  let progress_key = request_progress_token(request).map(routing_key)
+  let progress_key = @mcp.extract_request_progress_token(request).map(
+    @mcp.routing_key,
+  )
   if progress_key is Some(token_key) && self.progress_routes.contains(token_key) {
     raise InvalidRequest("stdio progress token is already active")
   }
@@ -425,25 +348,26 @@ pub async fn Client::cancel(
   reason? : String,
 ) -> Unit raise @mcp.McpError {
   self.notify(@mcp.cancelled_notification(request_id~, reason?))
-  if self.pending.get(routing_key(request_id)) is Some(queue) {
+  if self.pending.get(@mcp.routing_key(request_id)) is Some(queue) {
     put_inbound(queue, Failed(InternalError("request was cancelled")))
   }
 }
 
 ///|
-fn require_complete(
-  outcome : @mcp.HandlerOutcome[Json],
-  method_name : String,
-) -> Json raise @mcp.McpError {
-  match outcome {
-    Complete(result) => result
-    InputRequired(_) =>
-      raise InvalidRequest("\{method_name} cannot return input_required")
-    ExtensionResult(result_type, _) =>
-      raise InvalidRequest(
-        "\{method_name} cannot return extension result type \{result_type}",
-      )
-  }
+pub impl @mcp.ClientTransport for Client with fn request_with_notifications(
+  self : Client,
+  request : Json,
+  on_notification~ : (Json) -> Unit,
+) -> @mcp.HandlerOutcome[Json] raise @mcp.McpError {
+  self.request_with_notifications(request, on_notification~)
+}
+
+///|
+pub impl @mcp.ClientTransport for Client with fn notify(
+  self : Client,
+  notification : Json,
+) -> Unit raise @mcp.McpError {
+  self.notify(notification)
 }
 
 ///|
@@ -451,9 +375,7 @@ pub async fn Client::discover(
   self : Client,
   options? : @mcp.RequestOptions = RequestOptions(),
 ) -> @mcp.DiscoverResult raise @mcp.McpError {
-  let request = self.core.discover_request(options~)
-  let outcome = self.request(request)
-  @mcp.DiscoverResult::from_json(require_complete(outcome, "server/discover"))
+  self.core.discover(self, options~)
 }
 
 ///|
@@ -462,10 +384,7 @@ pub async fn Client::list_tools_raw(
   cursor? : String,
   options? : @mcp.RequestOptions = RequestOptions(),
 ) -> Json raise @mcp.McpError {
-  require_complete(
-    self.request(self.core.list_tools_request(cursor?, options~)),
-    "tools/list",
-  )
+  self.core.list_tools_raw(self, cursor?, options~)
 }
 
 ///|
@@ -476,7 +395,7 @@ pub async fn Client::list_tools(
   cursor? : String,
   options? : @mcp.RequestOptions = RequestOptions(),
 ) -> @mcp.ListToolsResult raise @mcp.McpError {
-  @mcp.ListToolsResult::from_json(self.list_tools_raw(cursor?, options~))
+  self.core.list_tools(self, cursor?, options~)
 }
 
 ///|
@@ -486,7 +405,7 @@ pub async fn Client::call_tool_raw(
   arguments? : Json = Json::object({}),
   options? : @mcp.RequestOptions = RequestOptions(),
 ) -> @mcp.HandlerOutcome[Json] raise @mcp.McpError {
-  self.request(self.core.call_tool_request(name~, arguments~, options~))
+  self.core.call_tool_raw(self, name~, arguments~, options~)
 }
 
 ///|
@@ -496,11 +415,7 @@ pub async fn Client::call_tool(
   arguments? : Json = Json::object({}),
   options? : @mcp.RequestOptions = RequestOptions(),
 ) -> @mcp.HandlerOutcome[@mcp.CallToolResult] raise @mcp.McpError {
-  match self.call_tool_raw(name~, arguments~, options~) {
-    Complete(result) => Complete(@mcp.CallToolResult::from_json(result))
-    InputRequired(value) => InputRequired(value)
-    ExtensionResult(result_type, value) => ExtensionResult(result_type, value)
-  }
+  self.core.call_tool(self, name~, arguments~, options~)
 }
 
 ///|
@@ -510,12 +425,7 @@ pub async fn[T : FromJson] Client::call_tool_as(
   arguments? : Json = Json::object({}),
   options? : @mcp.RequestOptions = RequestOptions(),
 ) -> @mcp.HandlerOutcome[T] raise @mcp.McpError {
-  match self.call_tool_raw(name~, arguments~, options~) {
-    Complete(result) =>
-      Complete(@mcp.CallToolResult::from_json(result).decode_structured())
-    InputRequired(value) => InputRequired(value)
-    ExtensionResult(result_type, value) => ExtensionResult(result_type, value)
-  }
+  self.core.call_tool_as(self, name~, arguments~, options~)
 }
 
 ///|
@@ -524,10 +434,7 @@ pub async fn Client::list_resources_raw(
   cursor? : String,
   options? : @mcp.RequestOptions = RequestOptions(),
 ) -> Json raise @mcp.McpError {
-  require_complete(
-    self.request(self.core.list_resources_request(cursor?, options~)),
-    "resources/list",
-  )
+  self.core.list_resources_raw(self, cursor?, options~)
 }
 
 ///|
@@ -536,9 +443,7 @@ pub async fn Client::list_resources(
   cursor? : String,
   options? : @mcp.RequestOptions = RequestOptions(),
 ) -> @mcp.ListResourcesResult raise @mcp.McpError {
-  @mcp.ListResourcesResult::from_json(
-    self.list_resources_raw(cursor?, options~),
-  )
+  self.core.list_resources(self, cursor?, options~)
 }
 
 ///|
@@ -547,10 +452,7 @@ pub async fn Client::list_resource_templates_raw(
   cursor? : String,
   options? : @mcp.RequestOptions = RequestOptions(),
 ) -> Json raise @mcp.McpError {
-  require_complete(
-    self.request(self.core.list_resource_templates_request(cursor?, options~)),
-    "resources/templates/list",
-  )
+  self.core.list_resource_templates_raw(self, cursor?, options~)
 }
 
 ///|
@@ -559,9 +461,7 @@ pub async fn Client::list_resource_templates(
   cursor? : String,
   options? : @mcp.RequestOptions = RequestOptions(),
 ) -> @mcp.ListResourceTemplatesResult raise @mcp.McpError {
-  @mcp.ListResourceTemplatesResult::from_json(
-    self.list_resource_templates_raw(cursor?, options~),
-  )
+  self.core.list_resource_templates(self, cursor?, options~)
 }
 
 ///|
@@ -570,7 +470,7 @@ pub async fn Client::read_resource_raw(
   uri~ : String,
   options? : @mcp.RequestOptions = RequestOptions(),
 ) -> @mcp.HandlerOutcome[Json] raise @mcp.McpError {
-  self.request(self.core.read_resource_request(uri~, options~))
+  self.core.read_resource_raw(self, uri~, options~)
 }
 
 ///|
@@ -579,11 +479,7 @@ pub async fn Client::read_resource(
   uri~ : String,
   options? : @mcp.RequestOptions = RequestOptions(),
 ) -> @mcp.HandlerOutcome[@mcp.ReadResourceResult] raise @mcp.McpError {
-  match self.read_resource_raw(uri~, options~) {
-    Complete(result) => Complete(@mcp.ReadResourceResult::from_json(result))
-    InputRequired(value) => InputRequired(value)
-    ExtensionResult(result_type, value) => ExtensionResult(result_type, value)
-  }
+  self.core.read_resource(self, uri~, options~)
 }
 
 ///|
@@ -592,10 +488,7 @@ pub async fn Client::list_prompts_raw(
   cursor? : String,
   options? : @mcp.RequestOptions = RequestOptions(),
 ) -> Json raise @mcp.McpError {
-  require_complete(
-    self.request(self.core.list_prompts_request(cursor?, options~)),
-    "prompts/list",
-  )
+  self.core.list_prompts_raw(self, cursor?, options~)
 }
 
 ///|
@@ -604,7 +497,7 @@ pub async fn Client::list_prompts(
   cursor? : String,
   options? : @mcp.RequestOptions = RequestOptions(),
 ) -> @mcp.ListPromptsResult raise @mcp.McpError {
-  @mcp.ListPromptsResult::from_json(self.list_prompts_raw(cursor?, options~))
+  self.core.list_prompts(self, cursor?, options~)
 }
 
 ///|
@@ -614,7 +507,7 @@ pub async fn Client::get_prompt_raw(
   arguments? : Json = Json::object({}),
   options? : @mcp.RequestOptions = RequestOptions(),
 ) -> @mcp.HandlerOutcome[Json] raise @mcp.McpError {
-  self.request(self.core.get_prompt_request(name~, arguments~, options~))
+  self.core.get_prompt_raw(self, name~, arguments~, options~)
 }
 
 ///|
@@ -624,11 +517,7 @@ pub async fn Client::get_prompt(
   arguments? : Json = Json::object({}),
   options? : @mcp.RequestOptions = RequestOptions(),
 ) -> @mcp.HandlerOutcome[@mcp.GetPromptResult] raise @mcp.McpError {
-  match self.get_prompt_raw(name~, arguments~, options~) {
-    Complete(result) => Complete(@mcp.GetPromptResult::from_json(result))
-    InputRequired(value) => InputRequired(value)
-    ExtensionResult(result_type, value) => ExtensionResult(result_type, value)
-  }
+  self.core.get_prompt(self, name~, arguments~, options~)
 }
 
 ///|
@@ -640,17 +529,13 @@ pub async fn Client::complete_raw(
   context_arguments? : Map[String, String],
   options? : @mcp.RequestOptions = RequestOptions(),
 ) -> Json raise @mcp.McpError {
-  require_complete(
-    self.request(
-      self.core.complete_request(
-        reference~,
-        argument_name~,
-        argument_value~,
-        context_arguments?,
-        options~,
-      ),
-    ),
-    "completion/complete",
+  self.core.complete_raw(
+    self,
+    reference~,
+    argument_name~,
+    argument_value~,
+    context_arguments?,
+    options~,
   )
 }
 
@@ -663,14 +548,13 @@ pub async fn Client::complete(
   context_arguments? : Map[String, String],
   options? : @mcp.RequestOptions = RequestOptions(),
 ) -> @mcp.CompleteResult raise @mcp.McpError {
-  @mcp.CompleteResult::from_json(
-    self.complete_raw(
-      reference~,
-      argument_name~,
-      argument_value~,
-      context_arguments?,
-      options~,
-    ),
+  self.core.complete(
+    self,
+    reference~,
+    argument_name~,
+    argument_value~,
+    context_arguments?,
+    options~,
   )
 }
 
@@ -683,50 +567,7 @@ pub async fn Client::listen(
   on_notification~ : (Json) -> Unit,
   options? : @mcp.RequestOptions = RequestOptions(),
 ) -> Json raise @mcp.McpError {
-  require_complete(
-    self.request_with_notifications(
-      self.core.listen_request(notifications~, options~),
-      on_notification~,
-    ),
-    "subscriptions/listen",
-  )
-}
-
-///|
-async fn Client::resolve_mrtr(
-  self : Client,
-  build : (@mcp.RequestOptions) -> Json raise @mcp.McpError,
-  resolve : async (Map[String, @mcp.InputRequest]) -> Map[
-    String,
-    @mcp.InputResponse,
-  ] raise @mcp.McpError,
-  options : @mcp.RequestOptions,
-  rounds_left : Int,
-) -> Json raise @mcp.McpError {
-  match self.request(build(options)) {
-    Complete(result) => result
-    InputRequired(pending) => {
-      if rounds_left <= 0 {
-        raise InvalidRequest("MRTR exceeded max_rounds")
-      }
-      let requests = pending.input_requests.unwrap_or(Map([]))
-      let responses = resolve(requests)
-      self.resolve_mrtr(
-        build,
-        resolve,
-        pending.retry_options(responses, base=options),
-        rounds_left - 1,
-      )
-    }
-    ExtensionResult(_, result) => result
-  }
-}
-
-///|
-fn validate_max_rounds(max_rounds : Int) -> Unit raise @mcp.McpError {
-  if max_rounds <= 0 {
-    raise @mcp.InvalidRequest("max_rounds must be positive")
-  }
+  self.core.listen(self, notifications~, on_notification~, options~)
 }
 
 ///|
@@ -743,12 +584,13 @@ pub async fn Client::call_tool_resolving_raw(
     @mcp.InputResponse,
   ] raise @mcp.McpError,
 ) -> Json raise @mcp.McpError {
-  validate_max_rounds(max_rounds)
-  self.resolve_mrtr(
-    options => self.core.call_tool_request(name~, arguments~, options~),
-    resolve,
-    options,
-    max_rounds,
+  self.core.call_tool_resolving_raw(
+    self,
+    name~,
+    arguments~,
+    options~,
+    max_rounds~,
+    resolve~,
   )
 }
 
@@ -764,14 +606,13 @@ pub async fn Client::call_tool_resolving(
     @mcp.InputResponse,
   ] raise @mcp.McpError,
 ) -> @mcp.CallToolResult raise @mcp.McpError {
-  @mcp.CallToolResult::from_json(
-    self.call_tool_resolving_raw(
-      name~,
-      arguments~,
-      options~,
-      max_rounds~,
-      resolve~,
-    ),
+  self.core.call_tool_resolving(
+    self,
+    name~,
+    arguments~,
+    options~,
+    max_rounds~,
+    resolve~,
   )
 }
 
@@ -786,12 +627,12 @@ pub async fn Client::read_resource_resolving_raw(
     @mcp.InputResponse,
   ] raise @mcp.McpError,
 ) -> Json raise @mcp.McpError {
-  validate_max_rounds(max_rounds)
-  self.resolve_mrtr(
-    options => self.core.read_resource_request(uri~, options~),
-    resolve,
-    options,
-    max_rounds,
+  self.core.read_resource_resolving_raw(
+    self,
+    uri~,
+    options~,
+    max_rounds~,
+    resolve~,
   )
 }
 
@@ -806,9 +647,7 @@ pub async fn Client::read_resource_resolving(
     @mcp.InputResponse,
   ] raise @mcp.McpError,
 ) -> @mcp.ReadResourceResult raise @mcp.McpError {
-  @mcp.ReadResourceResult::from_json(
-    self.read_resource_resolving_raw(uri~, options~, max_rounds~, resolve~),
-  )
+  self.core.read_resource_resolving(self, uri~, options~, max_rounds~, resolve~)
 }
 
 ///|
@@ -823,12 +662,13 @@ pub async fn Client::get_prompt_resolving_raw(
     @mcp.InputResponse,
   ] raise @mcp.McpError,
 ) -> Json raise @mcp.McpError {
-  validate_max_rounds(max_rounds)
-  self.resolve_mrtr(
-    options => self.core.get_prompt_request(name~, arguments~, options~),
-    resolve,
-    options,
-    max_rounds,
+  self.core.get_prompt_resolving_raw(
+    self,
+    name~,
+    arguments~,
+    options~,
+    max_rounds~,
+    resolve~,
   )
 }
 
@@ -844,13 +684,12 @@ pub async fn Client::get_prompt_resolving(
     @mcp.InputResponse,
   ] raise @mcp.McpError,
 ) -> @mcp.GetPromptResult raise @mcp.McpError {
-  @mcp.GetPromptResult::from_json(
-    self.get_prompt_resolving_raw(
-      name~,
-      arguments~,
-      options~,
-      max_rounds~,
-      resolve~,
-    ),
+  self.core.get_prompt_resolving(
+    self,
+    name~,
+    arguments~,
+    options~,
+    max_rounds~,
+    resolve~,
   )
 }

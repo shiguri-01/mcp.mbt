@@ -71,6 +71,8 @@ fn rpc_response_result(message : Json) -> Json raise McpError {
 }
 
 ///|
+
+///|
 fn require_result_type(result : Json) -> String raise McpError {
   let fields = expect_object(result, "MCP result")
   match fields.get("resultType") {
@@ -79,5 +81,80 @@ fn require_result_type(result : Json) -> String raise McpError {
     Some(String(value)) => value
     Some(_) => raise InvalidRequest("resultType must be a string")
     None => "complete"
+  }
+}
+
+///|
+/// Formats a JSON-RPC id as a string routing key for asynchronous demultiplexing.
+pub fn routing_key(id : Json) -> String {
+  match id {
+    String(value) => "string:\{value}"
+    Number(value, ..) => "number:\{value.to_string()}"
+    _ => "invalid:\{id.stringify()}"
+  }
+}
+
+///|
+/// Extract the JSON-RPC id from a JSON-RPC request.
+pub fn request_id(message : Json) -> Json raise McpError {
+  let decoded = @jsonrpc.decode(message) catch {
+    _ => raise InvalidRequest("message is not a JSON-RPC request")
+  }
+  match decoded {
+    @jsonrpc.Message::Request(request) => request.id.as_json()
+    _ => raise InvalidRequest("message must be a JSON-RPC request")
+  }
+}
+
+///|
+/// Extract the JSON-RPC id from a JSON-RPC response, or None if the message is a notification.
+pub fn response_id(message : Json) -> Json? raise McpError {
+  let decoded = @jsonrpc.decode(message) catch {
+    _ => raise InvalidRequest("invalid JSON-RPC message")
+  }
+  match decoded {
+    @jsonrpc.Message::Notification(_) => None
+    @jsonrpc.Message::Request(_) =>
+      raise InvalidRequest(
+        "server-to-client JSON-RPC requests are not valid in MCP 2026-07-28",
+      )
+    @jsonrpc.Message::Response(@jsonrpc.Response::Success(id~, ..)) =>
+      Some(id.as_json())
+    @jsonrpc.Message::Response(@jsonrpc.Response::Failure(id~, ..)) =>
+      id.map(fn(id) { id.as_json() })
+  }
+}
+
+///|
+/// Extract the progress token from a request's `params._meta.progressToken`.
+pub fn extract_request_progress_token(message : Json) -> Json? {
+  match decode_message_opt(message) {
+    Some(Request({ params: Object(params), .. })) =>
+      match params.get("_meta") {
+        Some(Object(meta)) =>
+          match meta.get("progressToken") {
+            Some(String(_) | Number(_) as token) => Some(token)
+            _ => None
+          }
+        _ => None
+      }
+    _ => None
+  }
+}
+
+///|
+/// Extract the progress token from a `notifications/progress` notification.
+pub fn extract_notification_progress_token(message : Json) -> Json? {
+  match decode_message_opt(message) {
+    Some(
+      Notification(
+        { method_name: "notifications/progress", params: Object(params) }
+      )
+    ) =>
+      match params.get("progressToken") {
+        Some(String(_) | Number(_) as token) => Some(token)
+        _ => None
+      }
+    _ => None
   }
 }

@@ -6,7 +6,6 @@ import {
   "moonbitlang/core/json",
   "shiguri-01/mcp/jsonrpc",
   "shiguri-01/mcp/schema",
-  "shiguri-01/mcp/transport",
 }
 
 // Values
@@ -26,6 +25,12 @@ pub fn error_response(id? : @jsonrpc.RequestId, McpError) -> Json
 
 pub fn error_response_from_json_id(id? : Json, McpError) -> Json
 
+pub fn extract_notification_progress_token(Json) -> Json?
+
+pub fn extract_request_progress_token(Json) -> Json?
+
+pub fn extract_subscription_id(Json) -> Json?
+
 pub fn jsonrpc_error(@jsonrpc.JsonRpcDecodeError) -> McpError
 
 pub fn logging_message_notification(level~ : LoggingLevel, data~ : Json, logger? : String) -> Json
@@ -34,9 +39,21 @@ pub fn progress_notification(progress_token~ : Json, progress~ : Double, total? 
 
 pub fn prompts_list_changed_notification(subscription_id~ : Json) -> Json
 
+pub fn request_id(Json) -> Json raise McpError
+
+pub fn require_complete(HandlerOutcome[Json], String) -> Json raise McpError
+
 pub fn resource_updated_notification(uri~ : String, subscription_id~ : Json) -> Json
 
 pub fn resources_list_changed_notification(subscription_id~ : Json) -> Json
+
+pub fn response_id(Json) -> Json? raise McpError
+
+pub fn routing_key(Json) -> String
+
+pub fn subscription_filter_is_subset(SubscriptionFilter, SubscriptionFilter) -> Bool
+
+pub fn subscription_notification_allowed(Json, SubscriptionFilter, Json) -> Bool
 
 pub fn subscriptions_acknowledged_notification(subscription_id~ : Json, notifications~ : SubscriptionFilter) -> Json
 
@@ -47,6 +64,8 @@ pub fn success_response(@jsonrpc.RequestId, Json) -> Json
 pub fn success_response_from_json_id(Json, Json) -> Json raise McpError
 
 pub fn tools_list_changed_notification(subscription_id~ : Json) -> Json
+
+pub fn validate_max_rounds(Int) -> Unit raise McpError
 
 // Errors
 pub(all) suberror McpError {
@@ -140,21 +159,46 @@ pub struct Client {
   // private fields
 }
 pub fn Client::Client(name~ : String, version~ : String, title? : String, description? : String, icons? : Array[Icon], website_url? : String, capabilities? : ClientCapabilities, extension_result_types? : Map[String, String], protocol_version? : String) -> Self raise McpError
+pub async fn[T : ClientTransport] Client::call_tool(Self, T, name~ : String, arguments? : Json, options? : RequestOptions) -> HandlerOutcome[CallToolResult] raise McpError
+pub async fn[T : ClientTransport, R : @json.FromJson] Client::call_tool_as(Self, T, name~ : String, arguments? : Json, options? : RequestOptions) -> HandlerOutcome[R] raise McpError
+pub async fn[T : ClientTransport] Client::call_tool_raw(Self, T, name~ : String, arguments? : Json, options? : RequestOptions) -> HandlerOutcome[Json] raise McpError
 pub fn Client::call_tool_request(Self, name~ : String, arguments? : Json, options? : RequestOptions) -> Json raise McpError
+pub async fn[T : ClientTransport] Client::call_tool_resolving(Self, T, name~ : String, arguments? : Json, options? : RequestOptions, max_rounds? : Int, resolve~ : async (Map[String, InputRequest]) -> Map[String, InputResponse] raise McpError) -> CallToolResult raise McpError
+pub async fn[T : ClientTransport] Client::call_tool_resolving_raw(Self, T, name~ : String, arguments? : Json, options? : RequestOptions, max_rounds? : Int, resolve~ : async (Map[String, InputRequest]) -> Map[String, InputResponse] raise McpError) -> Json raise McpError
+pub async fn[T : ClientTransport] Client::complete(Self, T, reference~ : CompletionReference, argument_name~ : String, argument_value~ : String, context_arguments? : Map[String, String], options? : RequestOptions) -> CompleteResult raise McpError
+pub async fn[T : ClientTransport] Client::complete_raw(Self, T, reference~ : CompletionReference, argument_name~ : String, argument_value~ : String, context_arguments? : Map[String, String], options? : RequestOptions) -> Json raise McpError
 pub fn Client::complete_request(Self, reference~ : CompletionReference, argument_name~ : String, argument_value~ : String, context_arguments? : Map[String, String], options? : RequestOptions) -> Json raise McpError
 pub fn Client::decode_discover(Self, Json) -> DiscoverResult raise McpError
 pub fn Client::decode_response(Self, Json) -> HandlerOutcome[Json] raise McpError
+pub async fn[T : ClientTransport] Client::discover(Self, T, options? : RequestOptions) -> DiscoverResult raise McpError
 pub fn Client::discover_request(Self, options? : RequestOptions) -> Json raise McpError
-pub async fn[T : @transport.FrameTransport] Client::exchange(Self, T, Json) -> Json raise McpError
-pub async fn[T : @transport.FrameTransport] Client::exchange_with_headers(Self, T, Json, Map[String, String]) -> Json raise McpError
+pub async fn[T : ClientTransport] Client::get_prompt(Self, T, name~ : String, arguments? : Json, options? : RequestOptions) -> HandlerOutcome[GetPromptResult] raise McpError
+pub async fn[T : ClientTransport] Client::get_prompt_raw(Self, T, name~ : String, arguments? : Json, options? : RequestOptions) -> HandlerOutcome[Json] raise McpError
 pub fn Client::get_prompt_request(Self, name~ : String, arguments? : Json, options? : RequestOptions) -> Json raise McpError
+pub async fn[T : ClientTransport] Client::get_prompt_resolving(Self, T, name~ : String, arguments? : Json, options? : RequestOptions, max_rounds? : Int, resolve~ : async (Map[String, InputRequest]) -> Map[String, InputResponse] raise McpError) -> GetPromptResult raise McpError
+pub async fn[T : ClientTransport] Client::get_prompt_resolving_raw(Self, T, name~ : String, arguments? : Json, options? : RequestOptions, max_rounds? : Int, resolve~ : async (Map[String, InputRequest]) -> Map[String, InputResponse] raise McpError) -> Json raise McpError
+pub async fn[T : ClientTransport] Client::list_prompts(Self, T, cursor? : String, options? : RequestOptions) -> ListPromptsResult raise McpError
+pub async fn[T : ClientTransport] Client::list_prompts_raw(Self, T, cursor? : String, options? : RequestOptions) -> Json raise McpError
 pub fn Client::list_prompts_request(Self, cursor? : String, options? : RequestOptions) -> Json raise McpError
+pub async fn[T : ClientTransport] Client::list_resource_templates(Self, T, cursor? : String, options? : RequestOptions) -> ListResourceTemplatesResult raise McpError
+pub async fn[T : ClientTransport] Client::list_resource_templates_raw(Self, T, cursor? : String, options? : RequestOptions) -> Json raise McpError
 pub fn Client::list_resource_templates_request(Self, cursor? : String, options? : RequestOptions) -> Json raise McpError
+pub async fn[T : ClientTransport] Client::list_resources(Self, T, cursor? : String, options? : RequestOptions) -> ListResourcesResult raise McpError
+pub async fn[T : ClientTransport] Client::list_resources_raw(Self, T, cursor? : String, options? : RequestOptions) -> Json raise McpError
 pub fn Client::list_resources_request(Self, cursor? : String, options? : RequestOptions) -> Json raise McpError
+pub async fn[T : ClientTransport] Client::list_tools(Self, T, cursor? : String, options? : RequestOptions) -> ListToolsResult raise McpError
+pub async fn[T : ClientTransport] Client::list_tools_raw(Self, T, cursor? : String, options? : RequestOptions) -> Json raise McpError
 pub fn Client::list_tools_request(Self, cursor? : String, options? : RequestOptions) -> Json raise McpError
+pub async fn[T : ClientTransport] Client::listen(Self, T, notifications~ : SubscriptionFilter, on_notification~ : (Json) -> Unit, options? : RequestOptions) -> Json raise McpError
 pub fn Client::listen_request(Self, notifications~ : SubscriptionFilter, options? : RequestOptions) -> Json raise McpError
+pub async fn[T : ClientTransport] Client::read_resource(Self, T, uri~ : String, options? : RequestOptions) -> HandlerOutcome[ReadResourceResult] raise McpError
+pub async fn[T : ClientTransport] Client::read_resource_raw(Self, T, uri~ : String, options? : RequestOptions) -> HandlerOutcome[Json] raise McpError
 pub fn Client::read_resource_request(Self, uri~ : String, options? : RequestOptions) -> Json raise McpError
+pub async fn[T : ClientTransport] Client::read_resource_resolving(Self, T, uri~ : String, options? : RequestOptions, max_rounds? : Int, resolve~ : async (Map[String, InputRequest]) -> Map[String, InputResponse] raise McpError) -> ReadResourceResult raise McpError
+pub async fn[T : ClientTransport] Client::read_resource_resolving_raw(Self, T, uri~ : String, options? : RequestOptions, max_rounds? : Int, resolve~ : async (Map[String, InputRequest]) -> Map[String, InputResponse] raise McpError) -> Json raise McpError
+pub async fn[T : ClientTransport] Client::request(Self, T, Json) -> HandlerOutcome[Json] raise McpError
 pub fn Client::request_raw(Self, method_name~ : String, params? : Map[String, Json], options? : RequestOptions) -> Json raise McpError
+pub async fn[T : ClientTransport] Client::resolve_mrtr(Self, T, (RequestOptions) -> Json raise McpError, async (Map[String, InputRequest]) -> Map[String, InputResponse] raise McpError, RequestOptions, Int) -> Json raise McpError
 
 pub struct ClientCapabilities {
   roots : RootsCapability?
@@ -661,6 +705,24 @@ pub fn SubscriptionFilter::SubscriptionFilter(tools_list_changed? : Bool, prompt
 pub impl ToJson for SubscriptionFilter
 pub impl @json.FromJson for SubscriptionFilter
 
+pub(all) enum SubscriptionStreamEvent {
+  Acknowledged
+  Notification(Json)
+  Final(Json)
+} derive(Eq, @debug.Debug)
+
+pub struct SubscriptionStreamState {
+  expected_id : Json
+  requested : SubscriptionFilter
+  mut acknowledged : Bool
+  mut subscription_id : Json
+  mut honored : SubscriptionFilter
+}
+pub fn SubscriptionStreamState::consume(Self, Json) -> SubscriptionStreamEvent raise McpError
+pub fn SubscriptionStreamState::honored_filter(Self) -> SubscriptionFilter
+pub fn SubscriptionStreamState::is_acknowledged(Self) -> Bool
+pub fn SubscriptionStreamState::new(Json, SubscriptionFilter) -> Self
+
 pub struct SubscriptionsListenResult {
 } derive(Eq, @debug.Debug)
 pub fn SubscriptionsListenResult::SubscriptionsListenResult() -> Self
@@ -704,6 +766,11 @@ pub impl @json.FromJson for ToolsCapability
 // Type aliases
 
 // Traits
+pub(open) trait ClientTransport {
+  async fn request_with_notifications(Self, Json, on_notification~ : (Json) -> Unit) -> HandlerOutcome[Json] raise McpError
+  async fn notify(Self, Json) -> Unit raise McpError
+}
+
 pub(open) trait PromptArguments {
   fn prompt_arguments() -> Array[PromptArgument]
 }

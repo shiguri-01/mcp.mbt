@@ -37,12 +37,8 @@ from `shiguri-01/mcp`. For example, `list_tools` returns `ListToolsResult` and
 `call_tool_raw`, or the general `request` method only when an extension needs
 access to fields outside the core result model.
 
-For custom protocol clients, `StreamableHttpTransport` implements the
-transport-neutral opaque-frame trait. It returns a `FrameResponse` containing
-the complete body and adapter metadata; it does not decode JSON-RPC. The
-high-level `Client` remains responsible for MCP headers and typed decoding.
-
 ```mbt nocheck
+
 let listed = client.list_tools()
 for tool in listed.tools {
   println(tool.name)

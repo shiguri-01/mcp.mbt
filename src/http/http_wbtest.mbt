@@ -878,7 +878,7 @@ test "subscription client enforces acknowledgement and stream identity" {
   let request = core.listen_request(notifications=requested)
   let expected_id = request_id(request).unwrap()
   let subscription = try! server.accept_subscription(request)
-  let before_ack = SubscriptionStreamState::new(expected_id, requested)
+  let before_ack = @mcp.SubscriptionStreamState::new(expected_id, requested)
   let premature = try
     before_ack.consume(
       @mcp.tools_list_changed_notification(subscription_id=subscription.id),
@@ -890,7 +890,7 @@ test "subscription client enforces acknowledgement and stream identity" {
     _ => false
   }
   assert_true(premature)
-  let state = SubscriptionStreamState::new(expected_id, requested)
+  let state = @mcp.SubscriptionStreamState::new(expected_id, requested)
   assert_true(state.consume(subscription.acknowledgement()) is Acknowledged)
   assert_true(
     state.consume(
@@ -926,7 +926,7 @@ test "subscription client enforces acknowledgement and stream identity" {
 ///|
 test "subscription producer errors retain their JSON-RPC identity" {
   let expected_id = Json::number(7.0, repr="7")
-  let state = SubscriptionStreamState::new(
+  let state = @mcp.SubscriptionStreamState::new(
     expected_id,
     @mcp.SubscriptionFilter(tools_list_changed=true),
   )
@@ -953,7 +953,7 @@ test "subscription client rejects unhonored filters and wrong final id" {
     subscription_id=expected_id,
     notifications=@mcp.SubscriptionFilter(prompts_list_changed=true),
   )
-  let invalid_state = SubscriptionStreamState::new(expected_id, requested)
+  let invalid_state = @mcp.SubscriptionStreamState::new(expected_id, requested)
   let unrequested = try invalid_state.consume(invalid_ack) catch {
     @mcp.InvalidRequest(_) => true
     _ => false
@@ -961,7 +961,7 @@ test "subscription client rejects unhonored filters and wrong final id" {
     _ => false
   }
   assert_true(unrequested)
-  let state = SubscriptionStreamState::new(expected_id, requested)
+  let state = @mcp.SubscriptionStreamState::new(expected_id, requested)
   let ack = @mcp.subscriptions_acknowledged_notification(
     subscription_id=expected_id,
     notifications=requested,

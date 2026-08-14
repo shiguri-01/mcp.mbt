@@ -2,9 +2,9 @@
 test "stdio accepts only requests in the outbound direction" {
   let core = @mcp.Client(name="test", version="1")
   let request = core.discover_request()
-  assert_eq(request_id(request), Json::number(1.0, repr="1"))
+  assert_eq(@mcp.request_id(request), Json::number(1.0, repr="1"))
   try
-    request_id(
+    @mcp.request_id(
       Json::object({
         "jsonrpc": Json::string("2.0"),
         "method": Json::string("notifications/cancelled"),
@@ -25,20 +25,20 @@ test "stdio distinguishes notifications from responses" {
     "method": Json::string("notifications/progress"),
     "params": Json::object({}),
   })
-  assert_eq(try! response_id(notification), None)
+  assert_eq(try! @mcp.response_id(notification), None)
   let response = Json::object({
     "jsonrpc": Json::string("2.0"),
     "id": Json::string("request-1"),
     "result": Json::object({ "resultType": Json::string("complete") }),
   })
-  assert_eq(try! response_id(response), Some(Json::string("request-1")))
+  assert_eq(try! @mcp.response_id(response), Some(Json::string("request-1")))
   let reverse_request = Json::object({
     "jsonrpc": Json::string("2.0"),
     "id": Json::string("server-request"),
     "method": Json::string("sampling/createMessage"),
     "params": Json::object({}),
   })
-  try response_id(reverse_request) catch {
+  try @mcp.response_id(reverse_request) catch {
     InvalidRequest(_) => ()
     _ => fail("expected invalid request")
   } noraise {
@@ -65,7 +65,7 @@ test "cancel is a client-to-server notification" {
     request_id=Json::string("listen-1"),
     reason="done",
   )
-  assert_eq(response_id(cancel), None)
+  assert_eq(@mcp.response_id(cancel), None)
   let decoded = try! @jsonrpc.decode(cancel)
   guard decoded
     is Notification({ method_name: "notifications/cancelled", params }) else {
@@ -94,8 +94,8 @@ async test "single reader demultiplexes interleaved responses" {
   let pending : Map[String, @aqueue.Queue[Inbound]] = Map([])
   let first : @aqueue.Queue[Inbound] = Queue(kind=Unbounded)
   let second : @aqueue.Queue[Inbound] = Queue(kind=Unbounded)
-  pending[routing_key(Json::number(1.0, repr="1"))] = first
-  pending[routing_key(Json::number(2.0, repr="2"))] = second
+  pending[@mcp.routing_key(Json::number(1.0, repr="1"))] = first
+  pending[@mcp.routing_key(Json::number(2.0, repr="2"))] = second
   let response = (id : Int) => {
     Json::object({
       "jsonrpc": Json::string("2.0"),
@@ -116,11 +116,12 @@ async test "single reader demultiplexes interleaved responses" {
 ///|
 test "numeric request ids route by JSON number value" {
   assert_eq(
-    routing_key(Json::number(1.0, repr="1")),
-    routing_key(Json::number(1.0, repr="1.0")),
+    @mcp.routing_key(Json::number(1.0, repr="1")),
+    @mcp.routing_key(Json::number(1.0, repr="1.0")),
   )
   assert_true(
-    routing_key(Json::string("1")) != routing_key(Json::number(1.0, repr="1")),
+    @mcp.routing_key(Json::string("1")) !=
+    @mcp.routing_key(Json::number(1.0, repr="1")),
   )
 }
 
@@ -136,7 +137,7 @@ test "closing a client wakes every pending request" {
 
 ///|
 test "MRTR resolution requires a positive bound" {
-  try validate_max_rounds(0) catch {
+  try @mcp.validate_max_rounds(0) catch {
     InvalidRequest(message) => assert_true(message.contains("positive"))
     _ => fail("expected invalid request")
   } noraise {

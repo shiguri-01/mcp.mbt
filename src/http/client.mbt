@@ -169,7 +169,19 @@ fn Client::headers(
     // endpoint, discovery URLs, or authorization URL query parameters.
     headers["Authorization"] = tokens.authorization_header()
   }
-  if input_schema is Some(schema) &&
+  let schema = match input_schema {
+    Some(s) => Some(s)
+    None =>
+      match request {
+        Object({ "method": String("tools/call"), "params": Object(p), .. }) =>
+          match p.get("name") {
+            Some(String(tool_name)) => self.tool_schemas.get(tool_name)
+            _ => None
+          }
+        _ => None
+      }
+  }
+  if schema is Some(schema) &&
     request
     is Object(
       {
@@ -576,190 +588,6 @@ fn parse_http_messages(
 }
 
 ///|
-priv enum SubscriptionStreamEvent {
-  Acknowledged
-  Notification(Json)
-  Final(Json)
-}
-
-///|
-priv struct SubscriptionStreamState {
-  expected_id : Json
-  requested : @mcp.SubscriptionFilter
-  mut acknowledged : Bool
-  mut subscription_id : Json
-  mut honored : @mcp.SubscriptionFilter
-}
-
-///|
-fn SubscriptionStreamState::new(
-  expected_id : Json,
-  requested : @mcp.SubscriptionFilter,
-) -> SubscriptionStreamState {
-  {
-    expected_id,
-    requested,
-    acknowledged: false,
-    subscription_id: Json::null(),
-    honored: @mcp.SubscriptionFilter(),
-  }
-}
-
-///|
-fn subscription_filter_is_subset(
-  honored : @mcp.SubscriptionFilter,
-  requested : @mcp.SubscriptionFilter,
-) -> Bool {
-  (!honored.tools_list_changed || requested.tools_list_changed) &&
-  (!honored.prompts_list_changed || requested.prompts_list_changed) &&
-  (!honored.resources_list_changed || requested.resources_list_changed) &&
-  honored.resource_subscriptions.all(uri => {
-    requested.resource_subscriptions.contains(uri)
-  })
-}
-
-///|
-fn subscription_notification_allowed(
-  subscription_id : Json,
-  filter : @mcp.SubscriptionFilter,
-  message : Json,
-) -> Bool {
-  let decoded = @jsonrpc.decode(message) catch { _ => return false }
-  let notification = match decoded {
-    @jsonrpc.Message::Notification(notification) => notification
-    _ => return false
-  }
-  let params = match notification.params {
-    Object(params) => params
-    _ => return false
-  }
-  let meta = match params.get("_meta") {
-    Some(Object(meta)) => meta
-    _ => return false
-  }
-  guard meta.get("io.modelcontextprotocol/subscriptionId") ==
-    Some(subscription_id) else {
-    return false
-  }
-  match notification.method_name {
-    "notifications/tools/list_changed" => filter.tools_list_changed
-    "notifications/prompts/list_changed" => filter.prompts_list_changed
-    "notifications/resources/list_changed" => filter.resources_list_changed
-    "notifications/resources/updated" =>
-      match params.get("uri") {
-        Some(String(uri)) => filter.resource_subscriptions.contains(uri)
-        _ => false
-      }
-    _ => false
-  }
-}
-
-///|
-fn SubscriptionStreamState::consume(
-  self : SubscriptionStreamState,
-  message : Json,
-) -> SubscriptionStreamEvent raise @mcp.McpError {
-  let decoded = @jsonrpc.decode(message) catch {
-    _ =>
-      raise @mcp.InvalidRequest(
-        "subscription stream received invalid JSON-RPC message",
-      )
-  }
-  if !self.acknowledged {
-    let notification = match decoded {
-      @jsonrpc.Message::Notification(notification) if notification.method_name ==
-        "notifications/subscriptions/acknowledged" => notification
-      _ =>
-        raise @mcp.InvalidRequest(
-          "subscription stream must start with an acknowledgement",
-        )
-    }
-    let (subscription_id, notifications) = match notification.params {
-      Object(params) =>
-        match (params.get("_meta"), params.get("notifications")) {
-          (Some(Object(meta)), Some(notifications)) =>
-            match meta.get("io.modelcontextprotocol/subscriptionId") {
-              Some(sub_id) => (sub_id, notifications)
-              _ =>
-                raise @mcp.InvalidRequest(
-                  "subscription acknowledgement is missing subscriptionId",
-                )
-            }
-          _ =>
-            raise @mcp.InvalidRequest(
-              "subscription acknowledgement is missing _meta or notifications",
-            )
-        }
-      _ =>
-        raise @mcp.InvalidRequest(
-          "subscription acknowledgement params must be an object",
-        )
-    }
-    let honored : @mcp.SubscriptionFilter = @json.from_json(notifications) catch {
-      error => raise @mcp.InvalidRequest(error.to_string())
-    }
-    if subscription_id != self.expected_id {
-      raise @mcp.InvalidRequest(
-        "subscription acknowledgement id does not match request id",
-      )
-    }
-    if !subscription_filter_is_subset(honored, self.requested) {
-      raise @mcp.InvalidRequest(
-        "subscription acknowledgement honors an unrequested filter",
-      )
-    }
-    self.acknowledged = true
-    self.subscription_id = subscription_id
-    self.honored = honored
-    return Acknowledged
-  }
-  match decoded {
-    @jsonrpc.Message::Notification(_) => {
-      if !subscription_notification_allowed(
-          self.subscription_id,
-          self.honored,
-          message,
-        ) {
-        raise @mcp.InvalidRequest(
-          "subscription notification does not match the acknowledged subscription",
-        )
-      }
-      Notification(message)
-    }
-    @jsonrpc.Message::Response(@jsonrpc.Response::Failure(id~, ..)) => {
-      if id.map(fn(id) { id.as_json() }) != Some(self.expected_id) {
-        raise @mcp.InvalidRequest(
-          "subscription error response id does not match request id",
-        )
-      }
-      Final(message)
-    }
-    @jsonrpc.Message::Response(@jsonrpc.Response::Success(id~, result~)) => {
-      if id.as_json() != self.expected_id {
-        raise @mcp.InvalidRequest(
-          "subscription final response does not match the active subscription",
-        )
-      }
-      let sub_id = match result {
-        Object(fields) =>
-          match fields.get("_meta") {
-            Some(Object(meta)) =>
-              meta.get("io.modelcontextprotocol/subscriptionId")
-            _ => None
-          }
-        _ => None
-      }
-      if sub_id != Some(self.subscription_id) {
-        raise @mcp.InvalidRequest(
-          "subscription final response does not match the active subscription",
-        )
-      }
-      Final(message)
-    }
-    @jsonrpc.Message::Request(_) =>
-      raise @mcp.InvalidRequest("unexpected request on subscription stream")
-  }
-}
 
 ///|
 fn validate_response_id(
@@ -981,6 +809,8 @@ pub async fn Client::notify(
 }
 
 ///|
+
+///|
 /// Send one self-contained JSON-RPC request over Streamable HTTP.
 pub async fn Client::request(
   self : Client,
@@ -1009,14 +839,29 @@ pub async fn Client::request_with_notifications(
 }
 
 ///|
+pub impl @mcp.ClientTransport for Client with fn request_with_notifications(
+  self : Client,
+  request : Json,
+  on_notification~ : (Json) -> Unit,
+) -> @mcp.HandlerOutcome[Json] raise @mcp.McpError {
+  self.request_with_notifications(request, on_notification~)
+}
+
+///|
+pub impl @mcp.ClientTransport for Client with fn notify(
+  self : Client,
+  notification : Json,
+) -> Unit raise @mcp.McpError {
+  self.notify(notification)
+}
+
+///|
 /// Discover server capabilities and supported protocol versions.
 pub async fn Client::discover(
   self : Client,
   options? : @mcp.RequestOptions = @mcp.RequestOptions(),
 ) -> @mcp.DiscoverResult raise @mcp.McpError {
-  self.core.decode_discover(
-    self.send_response(self.core.discover_request(options~)),
-  )
+  self.core.discover(self, options~)
 }
 
 ///|
@@ -1046,22 +891,6 @@ fn Client::filter_and_remember_tools(self : Client, result : Json) -> Json {
 }
 
 ///|
-fn require_complete(
-  outcome : @mcp.HandlerOutcome[Json],
-  method_name : String,
-) -> Json raise @mcp.McpError {
-  match outcome {
-    @mcp.Complete(result) => result
-    @mcp.InputRequired(_) =>
-      raise @mcp.InvalidRequest("\{method_name} cannot require MRTR input")
-    @mcp.ExtensionResult(result_type, _) =>
-      raise @mcp.InvalidRequest(
-        "\{method_name} cannot return extension result type \{result_type}",
-      )
-  }
-}
-
-///|
 /// List tools, excluding invalid `x-mcp-header` definitions and remembering
 /// valid schemas for subsequent `call_tool` requests.
 pub async fn Client::list_tools_raw(
@@ -1069,10 +898,7 @@ pub async fn Client::list_tools_raw(
   cursor? : String,
   options? : @mcp.RequestOptions = @mcp.RequestOptions(),
 ) -> Json raise @mcp.McpError {
-  let result = require_complete(
-    self.request(self.core.list_tools_request(cursor?, options~)),
-    "tools/list",
-  )
+  let result = self.core.list_tools_raw(self, cursor?, options~)
   self.filter_and_remember_tools(result)
 }
 
@@ -1146,10 +972,7 @@ pub async fn Client::list_resources_raw(
   cursor? : String,
   options? : @mcp.RequestOptions = @mcp.RequestOptions(),
 ) -> Json raise @mcp.McpError {
-  require_complete(
-    self.request(self.core.list_resources_request(cursor?, options~)),
-    "resources/list",
-  )
+  self.core.list_resources_raw(self, cursor?, options~)
 }
 
 ///|
@@ -1158,9 +981,7 @@ pub async fn Client::list_resources(
   cursor? : String,
   options? : @mcp.RequestOptions = @mcp.RequestOptions(),
 ) -> @mcp.ListResourcesResult raise @mcp.McpError {
-  @mcp.ListResourcesResult::from_json(
-    self.list_resources_raw(cursor?, options~),
-  )
+  self.core.list_resources(self, cursor?, options~)
 }
 
 ///|
@@ -1169,10 +990,7 @@ pub async fn Client::list_resource_templates_raw(
   cursor? : String,
   options? : @mcp.RequestOptions = @mcp.RequestOptions(),
 ) -> Json raise @mcp.McpError {
-  require_complete(
-    self.request(self.core.list_resource_templates_request(cursor?, options~)),
-    "resources/templates/list",
-  )
+  self.core.list_resource_templates_raw(self, cursor?, options~)
 }
 
 ///|
@@ -1181,9 +999,7 @@ pub async fn Client::list_resource_templates(
   cursor? : String,
   options? : @mcp.RequestOptions = @mcp.RequestOptions(),
 ) -> @mcp.ListResourceTemplatesResult raise @mcp.McpError {
-  @mcp.ListResourceTemplatesResult::from_json(
-    self.list_resource_templates_raw(cursor?, options~),
-  )
+  self.core.list_resource_templates(self, cursor?, options~)
 }
 
 ///|
@@ -1192,7 +1008,7 @@ pub async fn Client::read_resource_raw(
   uri~ : String,
   options? : @mcp.RequestOptions = @mcp.RequestOptions(),
 ) -> @mcp.HandlerOutcome[Json] raise @mcp.McpError {
-  self.request(self.core.read_resource_request(uri~, options~))
+  self.core.read_resource_raw(self, uri~, options~)
 }
 
 ///|
@@ -1201,11 +1017,7 @@ pub async fn Client::read_resource(
   uri~ : String,
   options? : @mcp.RequestOptions = @mcp.RequestOptions(),
 ) -> @mcp.HandlerOutcome[@mcp.ReadResourceResult] raise @mcp.McpError {
-  match self.read_resource_raw(uri~, options~) {
-    Complete(result) => Complete(@mcp.ReadResourceResult::from_json(result))
-    InputRequired(value) => InputRequired(value)
-    ExtensionResult(result_type, value) => ExtensionResult(result_type, value)
-  }
+  self.core.read_resource(self, uri~, options~)
 }
 
 ///|
@@ -1214,10 +1026,7 @@ pub async fn Client::list_prompts_raw(
   cursor? : String,
   options? : @mcp.RequestOptions = @mcp.RequestOptions(),
 ) -> Json raise @mcp.McpError {
-  require_complete(
-    self.request(self.core.list_prompts_request(cursor?, options~)),
-    "prompts/list",
-  )
+  self.core.list_prompts_raw(self, cursor?, options~)
 }
 
 ///|
@@ -1226,7 +1035,7 @@ pub async fn Client::list_prompts(
   cursor? : String,
   options? : @mcp.RequestOptions = @mcp.RequestOptions(),
 ) -> @mcp.ListPromptsResult raise @mcp.McpError {
-  @mcp.ListPromptsResult::from_json(self.list_prompts_raw(cursor?, options~))
+  self.core.list_prompts(self, cursor?, options~)
 }
 
 ///|
@@ -1236,7 +1045,7 @@ pub async fn Client::get_prompt_raw(
   arguments? : Json = Json::object({}),
   options? : @mcp.RequestOptions = @mcp.RequestOptions(),
 ) -> @mcp.HandlerOutcome[Json] raise @mcp.McpError {
-  self.request(self.core.get_prompt_request(name~, arguments~, options~))
+  self.core.get_prompt_raw(self, name~, arguments~, options~)
 }
 
 ///|
@@ -1246,11 +1055,7 @@ pub async fn Client::get_prompt(
   arguments? : Json = Json::object({}),
   options? : @mcp.RequestOptions = @mcp.RequestOptions(),
 ) -> @mcp.HandlerOutcome[@mcp.GetPromptResult] raise @mcp.McpError {
-  match self.get_prompt_raw(name~, arguments~, options~) {
-    Complete(result) => Complete(@mcp.GetPromptResult::from_json(result))
-    InputRequired(value) => InputRequired(value)
-    ExtensionResult(result_type, value) => ExtensionResult(result_type, value)
-  }
+  self.core.get_prompt(self, name~, arguments~, options~)
 }
 
 ///|
@@ -1262,17 +1067,13 @@ pub async fn Client::complete_raw(
   context_arguments? : Map[String, String],
   options? : @mcp.RequestOptions = @mcp.RequestOptions(),
 ) -> Json raise @mcp.McpError {
-  require_complete(
-    self.request(
-      self.core.complete_request(
-        reference~,
-        argument_name~,
-        argument_value~,
-        context_arguments?,
-        options~,
-      ),
-    ),
-    "completion/complete",
+  self.core.complete_raw(
+    self,
+    reference~,
+    argument_name~,
+    argument_value~,
+    context_arguments?,
+    options~,
   )
 }
 
@@ -1285,14 +1086,13 @@ pub async fn Client::complete(
   context_arguments? : Map[String, String],
   options? : @mcp.RequestOptions = @mcp.RequestOptions(),
 ) -> @mcp.CompleteResult raise @mcp.McpError {
-  @mcp.CompleteResult::from_json(
-    self.complete_raw(
-      reference~,
-      argument_name~,
-      argument_value~,
-      context_arguments?,
-      options~,
-    ),
+  self.core.complete(
+    self,
+    reference~,
+    argument_name~,
+    argument_value~,
+    context_arguments?,
+    options~,
   )
 }
 
@@ -1346,7 +1146,7 @@ async fn Client::listen_once(
       error => raise @mcp.ParseError(error.to_string())
     }
     validate_response_id(message, expected_id, "subscription")
-    return require_complete(
+    return @mcp.require_complete(
       self.core.decode_response(message),
       "subscriptions/listen",
     )
@@ -1356,7 +1156,7 @@ async fn Client::listen_once(
       "subscriptions/listen requires a text/event-stream response",
     )
   }
-  let state = SubscriptionStreamState::new(expected_id, notifications)
+  let state = @mcp.SubscriptionStreamState::new(expected_id, notifications)
   let sse = SseReadState::new()
   while true {
     let data = read_sse_data(stream, sse, self.max_sse_event_bytes) catch {
@@ -1370,7 +1170,7 @@ async fn Client::listen_once(
       Acknowledged => ()
       Notification(notification) => on_notification(notification)
       Final(response) =>
-        return require_complete(
+        return @mcp.require_complete(
           self.core.decode_response(response),
           "subscriptions/listen",
         )
@@ -1429,30 +1229,17 @@ pub async fn Client::call_tool_resolving_raw(
     @mcp.InputResponse,
   ] raise @mcp.McpError,
 ) -> Json raise @mcp.McpError {
-  if max_rounds <= 0 {
-    raise @mcp.InvalidParams("max_rounds must be positive")
+  if input_schema is Some(schema) {
+    self.tool_schemas[name] = schema
   }
-  let mut retry_options = options
-  for _ in 0..<max_rounds {
-    match
-      self.call_tool_raw(
-        name~,
-        arguments~,
-        input_schema?,
-        options=retry_options,
-      ) {
-      @mcp.Complete(result) => return result
-      @mcp.InputRequired(required) => {
-        let requests = required.input_requests.unwrap_or(Map([]))
-        retry_options = required.retry_options(
-          resolve(requests),
-          base=retry_options,
-        )
-      }
-      @mcp.ExtensionResult(_, result) => return result
-    }
-  }
-  raise @mcp.InvalidRequest("MRTR exceeded max_rounds")
+  self.core.call_tool_resolving_raw(
+    self,
+    name~,
+    arguments~,
+    options~,
+    max_rounds~,
+    resolve~,
+  )
 }
 
 ///|
@@ -1492,24 +1279,13 @@ pub async fn Client::read_resource_resolving_raw(
     @mcp.InputResponse,
   ] raise @mcp.McpError,
 ) -> Json raise @mcp.McpError {
-  if max_rounds <= 0 {
-    raise @mcp.InvalidParams("max_rounds must be positive")
-  }
-  let mut retry_options = options
-  for _ in 0..<max_rounds {
-    match self.read_resource_raw(uri~, options=retry_options) {
-      @mcp.Complete(result) => return result
-      @mcp.InputRequired(required) => {
-        let requests = required.input_requests.unwrap_or(Map([]))
-        retry_options = required.retry_options(
-          resolve(requests),
-          base=retry_options,
-        )
-      }
-      @mcp.ExtensionResult(_, result) => return result
-    }
-  }
-  raise @mcp.InvalidRequest("MRTR exceeded max_rounds")
+  self.core.read_resource_resolving_raw(
+    self,
+    uri~,
+    options~,
+    max_rounds~,
+    resolve~,
+  )
 }
 
 ///|
@@ -1523,9 +1299,7 @@ pub async fn Client::read_resource_resolving(
     @mcp.InputResponse,
   ] raise @mcp.McpError,
 ) -> @mcp.ReadResourceResult raise @mcp.McpError {
-  @mcp.ReadResourceResult::from_json(
-    self.read_resource_resolving_raw(uri~, options~, max_rounds~, resolve~),
-  )
+  self.core.read_resource_resolving(self, uri~, options~, max_rounds~, resolve~)
 }
 
 ///|
@@ -1540,24 +1314,14 @@ pub async fn Client::get_prompt_resolving_raw(
     @mcp.InputResponse,
   ] raise @mcp.McpError,
 ) -> Json raise @mcp.McpError {
-  if max_rounds <= 0 {
-    raise @mcp.InvalidParams("max_rounds must be positive")
-  }
-  let mut retry_options = options
-  for _ in 0..<max_rounds {
-    match self.get_prompt_raw(name~, arguments~, options=retry_options) {
-      @mcp.Complete(result) => return result
-      @mcp.InputRequired(required) => {
-        let requests = required.input_requests.unwrap_or(Map([]))
-        retry_options = required.retry_options(
-          resolve(requests),
-          base=retry_options,
-        )
-      }
-      @mcp.ExtensionResult(_, result) => return result
-    }
-  }
-  raise @mcp.InvalidRequest("MRTR exceeded max_rounds")
+  self.core.get_prompt_resolving_raw(
+    self,
+    name~,
+    arguments~,
+    options~,
+    max_rounds~,
+    resolve~,
+  )
 }
 
 ///|
@@ -1572,13 +1336,12 @@ pub async fn Client::get_prompt_resolving(
     @mcp.InputResponse,
   ] raise @mcp.McpError,
 ) -> @mcp.GetPromptResult raise @mcp.McpError {
-  @mcp.GetPromptResult::from_json(
-    self.get_prompt_resolving_raw(
-      name~,
-      arguments~,
-      options~,
-      max_rounds~,
-      resolve~,
-    ),
+  self.core.get_prompt_resolving(
+    self,
+    name~,
+    arguments~,
+    options~,
+    max_rounds~,
+    resolve~,
   )
 }
