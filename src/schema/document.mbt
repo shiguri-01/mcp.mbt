@@ -1,7 +1,7 @@
 ///|
 /// A typed programmatic JSON Schema value for the common 2020-12 keywords.
 /// `Raw` is the explicit escape hatch for keywords not modeled here.
-pub enum Schema {
+priv enum SchemaNode {
   Always
   Never
   Null
@@ -9,62 +9,75 @@ pub enum Schema {
   Integer
   Number
   String
-  Array(Schema)
-  Object(Map[String, Schema], Array[String], Bool)
+  Array(SchemaNode)
+  Object(Map[String, SchemaNode], Array[String], Bool)
   Const(Json)
   Enum(Array[Json])
-  AllOf(Array[Schema])
-  AnyOf(Array[Schema])
-  OneOf(Array[Schema])
-  Not(Schema)
+  AllOf(Array[SchemaNode])
+  AnyOf(Array[SchemaNode])
+  OneOf(Array[SchemaNode])
+  Not(SchemaNode)
   Ref(String)
-  Description(Schema, String)
+  Description(SchemaNode, String)
   Raw(Json)
 } derive(Debug, Eq)
 
 ///|
+/// A validated JSON Schema value. The representation is private so callers
+/// must use the constructors below and cannot create an invalid combinator or
+/// reference directly.
+pub struct Schema {
+  priv node : SchemaNode
+} derive(Debug, Eq)
+
+///|
+fn schema(node : SchemaNode) -> Schema {
+  { node, }
+}
+
+///|
 pub fn Schema::always() -> Schema {
-  Always
+  schema(Always)
 }
 
 ///|
 pub fn Schema::never() -> Schema {
-  Never
+  schema(Never)
 }
 
 ///|
 pub fn Schema::null() -> Schema {
-  Null
+  schema(Null)
 }
 
 ///|
 pub fn Schema::boolean() -> Schema {
-  Boolean
+  schema(Boolean)
 }
 
 ///|
 pub fn Schema::integer() -> Schema {
-  Integer
+  schema(Integer)
 }
 
 ///|
 pub fn Schema::number() -> Schema {
-  Number
+  schema(Number)
 }
 
 ///|
 pub fn Schema::string() -> Schema {
-  String
+  schema(String)
 }
 
 ///|
 pub fn Schema::array(items~ : Schema) -> Schema {
-  Array(items)
+  schema(Array(items.node))
 }
 
 ///|
 pub fn Schema::const_value(value : Json) -> Schema {
-  Const(value)
+  schema(Const(value))
 }
 
 ///|
@@ -72,12 +85,12 @@ pub fn Schema::enum_values(values : Array[Json]) -> Schema raise SchemaError {
   if values.is_empty() {
     raise InvalidSchema("JSON Schema enum must not be empty")
   }
-  Enum(values.copy())
+  schema(Enum(values.copy()))
 }
 
 ///|
 pub fn Schema::all_of(values : Array[Schema]) -> Schema {
-  AllOf(values.copy())
+  schema(AllOf(values.map(value => value.node)))
 }
 
 ///|
@@ -85,7 +98,7 @@ pub fn Schema::any_of(values : Array[Schema]) -> Schema raise SchemaError {
   if values.is_empty() {
     raise InvalidSchema("JSON Schema anyOf must not be empty")
   }
-  AnyOf(values.copy())
+  schema(AnyOf(values.map(value => value.node)))
 }
 
 ///|
@@ -93,18 +106,18 @@ pub fn Schema::one_of(values : Array[Schema]) -> Schema raise SchemaError {
   if values.is_empty() {
     raise InvalidSchema("JSON Schema oneOf must not be empty")
   }
-  OneOf(values.copy())
+  schema(OneOf(values.map(value => value.node)))
 }
 
 ///|
 pub fn Schema::not(value : Schema) -> Schema {
-  Not(value)
+  schema(Not(value.node))
 }
 
 ///|
 /// Attach the standard JSON Schema description annotation to a schema.
 pub fn Schema::description(value : Schema, description : String) -> Schema {
-  Description(value, description)
+  schema(Description(value.node, description))
 }
 
 ///|
@@ -112,7 +125,7 @@ pub fn Schema::reference(reference : String) -> Schema raise SchemaError {
   if !reference.has_prefix("#") {
     raise InvalidSchema("network JSON Schema references are disabled")
   }
-  Ref(reference)
+  schema(Ref(reference))
 }
 
 ///|
@@ -126,18 +139,27 @@ pub fn Schema::object(
       raise InvalidSchema("required property is not declared: \{name}")
     }
   }
-  Object(properties, required.copy(), additional_properties)
+  let nodes : Map[String, SchemaNode] = Map([])
+  for name, value in properties {
+    nodes[name] = value.node
+  }
+  schema(Object(nodes, required.copy(), additional_properties))
 }
 
 ///|
 pub fn Schema::raw(value : Json) -> Schema raise SchemaError {
   ignore(Document::Document(value))
-  Raw(value)
+  schema(Raw(value))
 }
 
 ///|
 pub fn Schema::to_json(self : Schema) -> Json {
-  match self {
+  schema_node_to_json(self.node)
+}
+
+///|
+fn schema_node_to_json(node : SchemaNode) -> Json {
+  match node {
     Always => Json::boolean(true)
     Never => Json::boolean(false)
     Null => Json::object({ "type": Json::string("null") })
@@ -146,12 +168,15 @@ pub fn Schema::to_json(self : Schema) -> Json {
     Number => Json::object({ "type": Json::string("number") })
     String => Json::object({ "type": Json::string("string") })
     Array(items) =>
-      Json::object({ "type": Json::string("array"), "items": items.to_json() })
+      Json::object({
+        "type": Json::string("array"),
+        "items": schema_node_to_json(items),
+      })
     Object(properties, required, additional_properties) => {
       let fields : Map[String, Json] = Map([])
       let property_fields : Map[String, Json] = Map([])
       for name, schema in properties {
-        property_fields[name] = schema.to_json()
+        property_fields[name] = schema_node_to_json(schema)
       }
       fields["type"] = Json::string("object")
       fields["properties"] = Json::object(property_fields)
@@ -162,15 +187,15 @@ pub fn Schema::to_json(self : Schema) -> Json {
     Const(value) => Json::object({ "const": value })
     Enum(values) => Json::object({ "enum": values.to_json() })
     AllOf(values) =>
-      Json::object({ "allOf": values.map(value => value.to_json()).to_json() })
+      Json::object({ "allOf": values.map(schema_node_to_json).to_json() })
     AnyOf(values) =>
-      Json::object({ "anyOf": values.map(value => value.to_json()).to_json() })
+      Json::object({ "anyOf": values.map(schema_node_to_json).to_json() })
     OneOf(values) =>
-      Json::object({ "oneOf": values.map(value => value.to_json()).to_json() })
-    Not(value) => Json::object({ "not": value.to_json() })
+      Json::object({ "oneOf": values.map(schema_node_to_json).to_json() })
+    Not(value) => Json::object({ "not": schema_node_to_json(value) })
     Ref(reference) => Json::object({ "$ref": Json::string(reference) })
     Description(value, description) => {
-      guard value.to_json() is Object(fields) else {
+      guard schema_node_to_json(value) is Object(fields) else {
         return Json::object({ "description": Json::string(description) })
       }
       fields["description"] = Json::string(description)

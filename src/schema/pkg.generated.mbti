@@ -74,25 +74,8 @@ pub struct Property {
 } derive(Eq, @debug.Debug)
 pub fn Property::Property(name~ : String, schema~ : Schema, required? : Bool) -> Self raise SchemaError
 
-pub enum Schema {
-  Always
-  Never
-  Null
-  Boolean
-  Integer
-  Number
-  String
-  Array(Schema)
-  Object(Map[String, Schema], Array[String], Bool)
-  Const(Json)
-  Enum(Array[Json])
-  AllOf(Array[Schema])
-  AnyOf(Array[Schema])
-  OneOf(Array[Schema])
-  Not(Schema)
-  Ref(String)
-  Description(Schema, String)
-  Raw(Json)
+pub struct Schema {
+  // private fields
 } derive(Eq, @debug.Debug)
 pub fn Schema::all_of(Array[Self]) -> Self
 pub fn Schema::always() -> Self
