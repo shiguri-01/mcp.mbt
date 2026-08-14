@@ -118,7 +118,8 @@ fn parse_request_implementation(
 }
 
 ///|
-pub fn RequestMeta::decode(value : Json) -> RequestMeta raise McpError {
+/// Decode the request `_meta` object at the MCP protocol boundary.
+pub fn decode_request_meta(value : Json) -> RequestMeta raise McpError {
   let context = "request params._meta"
   let fields = expect_object(value, context)
   validate_meta_map(fields)

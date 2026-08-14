@@ -33,6 +33,8 @@ pub fn decode_list_tools_result(Json) -> ListToolsResult raise McpError
 
 pub fn decode_read_resource_result(Json) -> ReadResourceResult raise McpError
 
+pub fn decode_request_meta(Json) -> RequestMeta raise McpError
+
 pub fn[T : @json.FromJson] decode_structured_content(Json) -> T raise McpError
 
 pub let latest_protocol_version : String
@@ -407,7 +409,6 @@ pub struct RequestMeta {
   extra : Map[String, Json]
 } derive(Eq, @debug.Debug)
 pub fn RequestMeta::RequestMeta(protocol_version? : String, client_info? : Implementation, client_capabilities? : ClientCapabilities, progress_token? : Json, log_level? : LoggingLevel, extra? : Map[String, Json]) -> Self raise McpError
-pub fn RequestMeta::decode(Json) -> Self raise McpError
 pub impl ToJson for RequestMeta
 
 pub struct RequestOptions {

@@ -487,7 +487,7 @@ fn parse_context(
 ) -> RequestContext raise McpError {
   let fields = expect_object(request.params, "request params")
   let meta = match fields.get("_meta") {
-    Some(value) => RequestMeta::decode(value)
+    Some(value) => decode_request_meta(value)
     None => raise InvalidParams("request params._meta is required")
   }
   let input_responses = match fields.get("inputResponses") {
