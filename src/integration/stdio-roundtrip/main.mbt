@@ -47,7 +47,7 @@ async fn run_client(executable : String) -> Unit {
     let discovery = client.discover() catch {
       error => abort("stdio discovery failed: \{error.message()}")
     }
-    if !discovery.supported_versions.contains(@mcp.latest_protocol_version) {
+    if !discovery.supported_versions.contains(@mcp.LATEST_PROTOCOL_VERSION) {
       abort("server did not advertise the current protocol version")
     }
     let outcome = client.call_tool_raw(

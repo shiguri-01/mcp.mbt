@@ -162,7 +162,7 @@ pub fn Server::Server(
   website_url? : String,
   instructions? : String,
   cache_policy? : CachePolicy,
-  supported_versions? : Array[String] = [latest_protocol_version],
+  supported_versions? : Array[String] = [LATEST_PROTOCOL_VERSION],
   tool_list_changed? : Bool = false,
   resource_list_changed? : Bool = false,
   prompt_list_changed? : Bool = false,

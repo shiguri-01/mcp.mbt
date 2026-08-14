@@ -80,7 +80,7 @@ async fn run_client(executable : String) -> Unit {
       @async.sleep(100)
     }
     guard discovered is Some(discovery) &&
-      discovery.supported_versions.contains(@mcp.latest_protocol_version) else {
+      discovery.supported_versions.contains(@mcp.LATEST_PROTOCOL_VERSION) else {
       process.cancel()
       abort("HTTP server did not become discoverable")
     }

@@ -75,7 +75,7 @@ pub fn Client::Client(
   version? : String = "0.2.0",
   capabilities? : @mcp.ClientCapabilities = @mcp.ClientCapabilities::empty(),
   extension_result_types? : Map[String, String] = Map([]),
-  supported_protocol_versions? : Array[String] = [@mcp.latest_protocol_version],
+  supported_protocol_versions? : Array[String] = [@mcp.LATEST_PROTOCOL_VERSION],
   authorization? : AuthorizationOptions,
   max_response_body_bytes? : Int = default_max_response_body_bytes,
   max_sse_event_bytes? : Int = default_max_sse_event_bytes,

@@ -38,8 +38,6 @@ pub fn decode_read_resource_result(Json) -> ReadResourceResult raise McpError
 
 pub fn decode_request_meta(Json) -> RequestMeta raise McpError
 
-pub let latest_protocol_version : String
-
 pub fn logging_message_notification(level~ : LoggingLevel, data~ : Json, logger? : String) -> Json
 
 pub fn parse_cache_scope(Json) -> CacheScope raise McpError

@@ -21,7 +21,7 @@ pub fn Client::Client(
   website_url? : String,
   capabilities? : ClientCapabilities = ClientCapabilities::empty(),
   extension_result_types? : Map[String, String] = Map([]),
-  protocol_version? : String = latest_protocol_version,
+  protocol_version? : String = LATEST_PROTOCOL_VERSION,
 ) -> Client raise McpError {
   if name.is_empty() || version.is_empty() || protocol_version.is_empty() {
     raise InvalidParams(

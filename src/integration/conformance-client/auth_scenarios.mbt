@@ -87,7 +87,7 @@ async fn make_auth_client(
     name="moonbit-mcp-conformance-client",
     version="2026.7.28",
     capabilities=conformance_capabilities(),
-    supported_protocol_versions=[protocol_version, @mcp.latest_protocol_version],
+    supported_protocol_versions=[protocol_version, @mcp.LATEST_PROTOCOL_VERSION],
     authorization~,
   )
 }

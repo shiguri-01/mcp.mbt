@@ -61,7 +61,7 @@ fn validate_meta_map(values : Map[String, Json]) -> Unit raise McpError {
 
 ///|
 pub fn RequestMeta::RequestMeta(
-  protocol_version? : String = latest_protocol_version,
+  protocol_version? : String = LATEST_PROTOCOL_VERSION,
   client_info? : Implementation,
   client_capabilities? : ClientCapabilities = ClientCapabilities::empty(),
   progress_token? : Json,
@@ -234,7 +234,7 @@ pub fn RequestOptions::request_meta(
   self : RequestOptions,
   client_capabilities~ : ClientCapabilities,
   client_info? : Implementation,
-  protocol_version? : String = latest_protocol_version,
+  protocol_version? : String = LATEST_PROTOCOL_VERSION,
 ) -> RequestMeta raise McpError {
   validate_meta_map(self.meta)
   RequestMeta(
@@ -254,7 +254,7 @@ pub fn RequestOptions::request_params(
   params : Map[String, Json],
   client_capabilities~ : ClientCapabilities,
   client_info? : Implementation,
-  protocol_version? : String = latest_protocol_version,
+  protocol_version? : String = LATEST_PROTOCOL_VERSION,
 ) -> Json raise McpError {
   let fields = params.copy()
   fields["_meta"] = self

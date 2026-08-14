@@ -10,7 +10,7 @@ pub struct DiscoverResult {
 
 ///|
 pub fn DiscoverResult::DiscoverResult(
-  supported_versions? : Array[String] = [latest_protocol_version],
+  supported_versions? : Array[String] = [LATEST_PROTOCOL_VERSION],
   capabilities~ : ServerCapabilities,
   instructions? : String,
   cache_policy~ : CachePolicy,

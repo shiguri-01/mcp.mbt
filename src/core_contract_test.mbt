@@ -76,14 +76,14 @@ test "result decoders enforce descriptor numeric constraints" {
 
 ///|
 test "protocol objects retain independent copies of mutable inputs" {
-  let versions = [@mcp.latest_protocol_version]
+  let versions = [@mcp.LATEST_PROTOCOL_VERSION]
   let server = try! @mcp.Server(
     name="server",
     version="1",
     supported_versions=versions,
   )
   versions[0] = "mutated"
-  assert_true(server.supports_protocol_version(@mcp.latest_protocol_version))
+  assert_true(server.supports_protocol_version(@mcp.LATEST_PROTOCOL_VERSION))
   assert_false(server.supports_protocol_version("mutated"))
   let settings : Map[String, Json] = { "enabled": Json::boolean(true) }
   let extensions : Map[String, Json] = {
