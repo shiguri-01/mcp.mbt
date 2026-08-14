@@ -5,6 +5,7 @@ import {
   "moonbitlang/core/debug",
   "moonbitlang/core/json",
   "shiguri-01/mcp/schema",
+  "shiguri-01/mcp/transport",
 }
 
 // Values
@@ -133,6 +134,7 @@ pub fn Client::complete_request(Self, reference~ : CompletionReference, argument
 pub fn Client::decode_discover(Self, Json) -> DiscoverResult raise McpError
 pub fn Client::decode_response(Self, Json) -> HandlerOutcome[Json] raise McpError
 pub fn Client::discover_request(Self, options? : RequestOptions) -> Json raise McpError
+pub async fn[T : @transport.FrameTransport] Client::exchange(Self, T, Json) -> Json raise McpError
 pub fn Client::get_prompt_request(Self, name~ : String, arguments? : Json, options? : RequestOptions) -> Json raise McpError
 pub fn Client::info(Self) -> Implementation
 pub fn Client::list_prompts_request(Self, cursor? : String, options? : RequestOptions) -> Json raise McpError
@@ -504,7 +506,7 @@ pub(all) enum Role {
   User
   Assistant
 } derive(Eq, @debug.Debug)
-pub fn Role::from_json(Json) -> Self raise McpError
+pub fn Role::decode(Json) -> Self raise McpError
 pub fn Role::to_string(Self) -> String
 pub impl ToJson for Role
 
@@ -556,7 +558,7 @@ pub(all) struct SubscriptionFilter {
   resource_subscriptions : Array[String]
 } derive(Eq, @debug.Debug)
 pub fn SubscriptionFilter::SubscriptionFilter(tools_list_changed? : Bool, prompts_list_changed? : Bool, resources_list_changed? : Bool, resource_subscriptions? : Array[String]) -> Self
-pub fn SubscriptionFilter::from_json(Json) -> Self raise McpError
+pub fn SubscriptionFilter::decode(Json) -> Self raise McpError
 pub impl ToJson for SubscriptionFilter
 
 pub(all) struct SubscriptionsListenResult {

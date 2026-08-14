@@ -1,0 +1,47 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "shiguri-01/mcp/transport"
+
+import {
+  "moonbitlang/core/debug",
+}
+
+// Values
+
+// Errors
+pub(all) suberror TransportError {
+  Closed
+  InvalidFrame(String)
+  MessageTooLarge(limit~ : Int)
+  Io(String)
+} derive(Eq, @debug.Debug)
+
+// Types and methods
+pub struct InboundFrame {
+  status : Int
+  headers : Map[String, String]
+  body : String
+}
+pub fn InboundFrame::InboundFrame(status~ : Int, headers? : Map[String, String], body? : String) -> Self
+pub fn InboundFrame::body(Self) -> String
+pub fn InboundFrame::headers(Self) -> Map[String, String]
+pub fn InboundFrame::status(Self) -> Int
+
+pub struct OutboundFrame {
+  body : String
+  headers : Map[String, String]
+}
+pub fn OutboundFrame::OutboundFrame(body~ : String, headers? : Map[String, String]) -> Self
+pub fn OutboundFrame::body(Self) -> String
+pub fn OutboundFrame::headers(Self) -> Map[String, String]
+
+// Type aliases
+
+// Traits
+pub(open) trait FrameStream {
+  async fn next(Self) -> String? raise TransportError
+  fn close(Self) -> Unit
+}
+
+pub(open) trait FrameTransport {
+  async fn exchange(Self, OutboundFrame) -> InboundFrame raise TransportError
+}

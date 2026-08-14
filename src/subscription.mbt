@@ -46,7 +46,8 @@ pub impl ToJson for SubscriptionFilter with fn to_json(
 }
 
 ///|
-pub fn SubscriptionFilter::from_json(
+/// Decode and validate a `subscriptions/listen` notification filter.
+pub fn SubscriptionFilter::decode(
   value : Json,
 ) -> SubscriptionFilter raise McpError {
   let fields = expect_object(value, "subscription filter")
@@ -184,7 +185,7 @@ pub fn Server::accept_subscription(
   guard fields.get("notifications") is Some(value) else {
     raise InvalidParams("subscriptions/listen params.notifications is required")
   }
-  let requested = SubscriptionFilter::from_json(value)
+  let requested = SubscriptionFilter::decode(value)
   let honored = SubscriptionFilter(
     tools_list_changed=requested.tools_list_changed && self.tool_list_changed,
     prompts_list_changed=requested.prompts_list_changed &&

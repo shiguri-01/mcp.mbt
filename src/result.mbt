@@ -291,7 +291,7 @@ fn decode_annotations(
     None => ()
     Some(Array(values)) =>
       for value in values {
-        audience.push(Role::from_json(value))
+        audience.push(Role::decode(value))
       }
     Some(_) => raise InvalidParams("\{context}.audience must be an array")
   }
@@ -474,7 +474,7 @@ fn decode_prompt_message(
 ) -> PromptMessage raise McpError {
   let fields = expect_object(value, context)
   PromptMessage(
-    role=Role::from_json(
+    role=Role::decode(
       match fields.get("role") {
         Some(role) => role
         None => raise InvalidParams("\{context}.role is required")

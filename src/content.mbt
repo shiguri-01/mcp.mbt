@@ -18,7 +18,8 @@ pub impl ToJson for Role with fn to_json(self : Role) -> Json {
 }
 
 ///|
-pub fn Role::from_json(value : Json) -> Role raise McpError {
+/// Decode a role after the JSON value has crossed the wire boundary.
+pub fn Role::decode(value : Json) -> Role raise McpError {
   match value {
     String("user") => User
     String("assistant") => Assistant
