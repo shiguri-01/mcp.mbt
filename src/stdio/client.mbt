@@ -3,6 +3,7 @@
 pub struct Client {
   priv core : @mcp.Client
   priv process : @process.Process
+  pid : Int
   priv outbound : @aqueue.Queue[String?]
   priv pending : Map[String, @aqueue.Queue[Inbound]]
   priv progress_routes : Map[String, String]
@@ -72,17 +73,13 @@ pub async fn[X] Client::spawn(
   {
     core: Client(name~, version~, capabilities~, extension_result_types~),
     process,
+    pid: process.pid,
     outbound,
     pending,
     progress_routes,
     writer_task,
     reader_task,
   }
-}
-
-///|
-pub fn Client::pid(self : Client) -> Int {
-  self.process.pid
 }
 
 ///|
