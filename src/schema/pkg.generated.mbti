@@ -68,6 +68,7 @@ pub fn Schema::all_of(Array[Self]) -> Self
 pub fn Schema::always() -> Self
 pub fn Schema::any_of(Array[Self]) -> Self raise SchemaError
 pub fn Schema::array(items~ : Self) -> Self
+pub fn Schema::array_constraints(items~ : Self, min_items? : Int, max_items? : Int, unique_items? : Bool) -> Self raise SchemaError
 pub fn Schema::boolean() -> Self
 pub fn Schema::const_value(Json) -> Self
 pub fn Schema::description(Self, String) -> Self
@@ -79,6 +80,7 @@ pub fn Schema::not(Self) -> Self
 pub fn Schema::null() -> Self
 pub fn Schema::number() -> Self
 pub fn Schema::object(properties~ : Map[String, Self], required? : Array[String], additional_properties? : Bool) -> Self raise SchemaError
+pub fn Schema::object_constraints(properties~ : Map[String, Self], required? : Array[String], additional_properties? : Bool, min_properties? : Int, max_properties? : Int) -> Self raise SchemaError
 pub fn Schema::one_of(Array[Self]) -> Self raise SchemaError
 pub fn Schema::raw(Json) -> Self raise SchemaError
 pub fn Schema::reference(String) -> Self raise SchemaError

@@ -11,7 +11,9 @@ priv enum SchemaNode {
   String
   StringConstraints(Int?, Int?)
   Array(SchemaNode)
+  ArrayConstraints(SchemaNode, Int?, Int?, Bool)
   Object(Map[String, SchemaNode], Array[String], Bool)
+  ObjectConstraints(Map[String, SchemaNode], Array[String], Bool, Int?, Int?)
   Const(Json)
   Enum(Array[Json])
   AllOf(Array[SchemaNode])
@@ -34,6 +36,20 @@ pub struct Schema {
 ///|
 fn schema(node : SchemaNode) -> Schema {
   { node, }
+}
+
+///|
+/// Add an optional integer keyword while preserving its decimal spelling.
+fn put_optional_int(
+  fields : Map[String, Json],
+  name : String,
+  value : Int?,
+) -> Unit {
+  match value {
+    Some(value) =>
+      fields[name] = Json::number(value.to_double(), repr=value.to_string())
+    None => ()
+  }
 }
 
 ///|
@@ -95,6 +111,18 @@ pub fn Schema::string_constraints(
 ///|
 pub fn Schema::array(items~ : Schema) -> Schema {
   schema(Array(items.node))
+}
+
+///|
+/// Build an array schema with typed size and uniqueness constraints.
+pub fn Schema::array_constraints(
+  items~ : Schema,
+  min_items? : Int,
+  max_items? : Int,
+  unique_items? : Bool = false,
+) -> Schema raise SchemaError {
+  validate_bounds(min_items, max_items, "items")
+  schema(ArrayConstraints(items.node, min_items, max_items, unique_items))
 }
 
 ///|
@@ -181,6 +209,45 @@ pub fn Schema::object(
 }
 
 ///|
+/// Build an object schema with typed property-count constraints.
+pub fn Schema::object_constraints(
+  properties~ : Map[String, Schema],
+  required? : Array[String] = [],
+  additional_properties? : Bool = true,
+  min_properties? : Int,
+  max_properties? : Int,
+) -> Schema raise SchemaError {
+  validate_bounds(min_properties, max_properties, "properties")
+  let base = Schema::object(properties~, required~, additional_properties~)
+  let nodes = match base.node {
+    Object(values, names, additional) =>
+      ObjectConstraints(
+        values, names, additional, min_properties, max_properties,
+      )
+    _ => base.node
+  }
+  schema(nodes)
+}
+
+///|
+/// Validate a pair of non-negative JSON Schema integer bounds.
+fn validate_bounds(
+  minimum : Int?,
+  maximum : Int?,
+  label : String,
+) -> Unit raise SchemaError {
+  if minimum is Some(value) && value < 0 {
+    raise InvalidSchema("min\{label} must be non-negative")
+  }
+  if maximum is Some(value) && value < 0 {
+    raise InvalidSchema("max\{label} must be non-negative")
+  }
+  if minimum is Some(min) && maximum is Some(max) && min > max {
+    raise InvalidSchema("min\{label} must not exceed max\{label}")
+  }
+}
+
+///|
 pub fn Schema::raw(value : Json) -> Schema raise SchemaError {
   ignore(Document::Document(value))
   schema(Raw(value))
@@ -226,6 +293,16 @@ fn schema_node_to_json(node : SchemaNode) -> Json {
         "type": Json::string("array"),
         "items": schema_node_to_json(items),
       })
+    ArrayConstraints(items, min_items, max_items, unique_items) => {
+      let fields : Map[String, Json] = {
+        "type": Json::string("array"),
+        "items": schema_node_to_json(items),
+        "uniqueItems": Json::boolean(unique_items),
+      }
+      put_optional_int(fields, "minItems", min_items)
+      put_optional_int(fields, "maxItems", max_items)
+      Json::object(fields)
+    }
     Object(properties, required, additional_properties) => {
       let fields : Map[String, Json] = Map([])
       let property_fields : Map[String, Json] = Map([])
@@ -236,6 +313,21 @@ fn schema_node_to_json(node : SchemaNode) -> Json {
       fields["properties"] = Json::object(property_fields)
       fields["required"] = required.to_json()
       fields["additionalProperties"] = Json::boolean(additional_properties)
+      Json::object(fields)
+    }
+    ObjectConstraints(
+      properties,
+      required,
+      additional_properties,
+      min_properties,
+      max_properties
+    ) => {
+      let fields = schema_node_to_json(
+        Object(properties, required, additional_properties),
+      )
+      guard fields is Object(fields) else { return fields }
+      put_optional_int(fields, "minProperties", min_properties)
+      put_optional_int(fields, "maxProperties", max_properties)
       Json::object(fields)
     }
     Const(value) => Json::object({ "const": value })

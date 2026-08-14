@@ -242,6 +242,32 @@ test "array, object, and multipleOf constraints are evaluated" {
 }
 
 ///|
+test "array and object constraints can be built without JSON" {
+  let array_schema = Schema::array_constraints(
+    items=Schema::integer(),
+    min_items=1,
+    max_items=2,
+    unique_items=true,
+  )
+  let object_schema = Schema::object_constraints(
+    properties={ "values": array_schema },
+    min_properties=1,
+    max_properties=1,
+  )
+  assert_eq(
+    object_schema.to_json(),
+    Json::object({
+      "type": Json::string("object"),
+      "properties": Json::object({ "values": array_schema.to_json() }),
+      "required": Json::array([]),
+      "additionalProperties": Json::boolean(true),
+      "minProperties": Json::number(1.0, repr="1"),
+      "maxProperties": Json::number(1.0, repr="1"),
+    }),
+  )
+}
+
+///|
 test "typed combinators preserve JSON Schema assertion semantics" {
   let positive = Schema::any_of([
     Schema::const_value(Json::string("yes")),
