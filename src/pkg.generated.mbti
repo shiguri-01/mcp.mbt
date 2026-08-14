@@ -531,12 +531,12 @@ pub fn ServerCapabilities::empty() -> Self
 pub impl ToJson for ServerCapabilities
 
 pub struct Subscription {
+  id : Json
+  notifications : SubscriptionFilter
   // private fields
 }
 pub fn Subscription::acknowledgement(Self) -> Json
 pub fn Subscription::close_response(Self) -> Json
-pub fn Subscription::id(Self) -> Json
-pub fn Subscription::notifications(Self) -> SubscriptionFilter
 
 pub struct SubscriptionFilter {
   tools_list_changed : Bool

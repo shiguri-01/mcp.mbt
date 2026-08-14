@@ -42,7 +42,7 @@ fn find_subscription(
   id : Json,
 ) -> Int? {
   for index, active in subscriptions {
-    if active.subscription.id() == id {
+    if active.subscription.id == id {
       return Some(index)
     }
   }
@@ -97,10 +97,10 @@ fn subscription_event_allowed(
       ),
       ..
     } &&
-    subscription_id == subscription.id() else {
+    subscription_id == subscription.id else {
     return false
   }
-  let filter = subscription.notifications()
+  let filter = subscription.notifications
   match method_name {
     "notifications/tools/list_changed" => filter.tools_list_changed
     "notifications/prompts/list_changed" => filter.prompts_list_changed
@@ -172,7 +172,7 @@ pub async fn serve(
           if !cancelled[0] {
             output.put(Some(encode_frame(subscription.close_response())))
           }
-          if find_subscription(subscriptions, subscription.id()) is Some(index) {
+          if find_subscription(subscriptions, subscription.id) is Some(index) {
             ignore(subscriptions.remove(index))
           }
         })

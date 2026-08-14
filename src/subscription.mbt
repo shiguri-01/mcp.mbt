@@ -150,22 +150,9 @@ pub fn subscriptions_acknowledged_notification(
 /// A validated long-lived subscription request. Transports own the stream;
 /// this value supplies the required acknowledgement and graceful final reply.
 pub struct Subscription {
-  priv id : Json
-  priv notifications : SubscriptionFilter
+  id : Json
+  notifications : SubscriptionFilter
   priv server_info : Implementation
-}
-
-///|
-pub fn Subscription::id(self : Subscription) -> Json {
-  copy_json(self.id)
-}
-
-///|
-pub fn Subscription::notifications(self : Subscription) -> SubscriptionFilter {
-  {
-    ..self.notifications,
-    resource_subscriptions: self.notifications.resource_subscriptions.copy(),
-  }
 }
 
 ///|

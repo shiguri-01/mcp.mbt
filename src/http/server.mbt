@@ -68,10 +68,10 @@ fn subscription_event_allowed(
       ),
       ..
     } &&
-    subscription_id == subscription.id() else {
+    subscription_id == subscription.id else {
     return false
   }
-  let filter = subscription.notifications()
+  let filter = subscription.notifications
   match method_name {
     "notifications/tools/list_changed" => filter.tools_list_changed
     "notifications/prompts/list_changed" => filter.prompts_list_changed
@@ -151,7 +151,7 @@ async fn send_subscription_stream(
       let final_response = match producer_error.val {
         Some(message) =>
           jsonrpc_error(
-            subscription.id(),
+            subscription.id,
             @mcp.InternalError("subscription producer failed: \{message}"),
           )
         None => subscription.close_response()

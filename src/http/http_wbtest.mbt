@@ -679,13 +679,13 @@ test "subscription SSE starts with acknowledgement and ends with response" {
   assert_true(
     subscription_event_allowed(
       subscription,
-      @mcp.tools_list_changed_notification(subscription_id=subscription.id()),
+      @mcp.tools_list_changed_notification(subscription_id=subscription.id),
     ),
   )
   assert_true(
     !subscription_event_allowed(
       subscription,
-      @mcp.prompts_list_changed_notification(subscription_id=subscription.id()),
+      @mcp.prompts_list_changed_notification(subscription_id=subscription.id),
     ),
   )
   assert_true(
@@ -873,7 +873,7 @@ test "subscription client enforces acknowledgement and stream identity" {
   let before_ack = SubscriptionStreamState::new(expected_id, requested)
   let premature = try
     before_ack.consume(
-      @mcp.tools_list_changed_notification(subscription_id=subscription.id()),
+      @mcp.tools_list_changed_notification(subscription_id=subscription.id),
     )
   catch {
     @mcp.InvalidRequest(_) => true
@@ -886,13 +886,13 @@ test "subscription client enforces acknowledgement and stream identity" {
   assert_true(state.consume(subscription.acknowledgement()) is Acknowledged)
   assert_true(
     state.consume(
-      @mcp.tools_list_changed_notification(subscription_id=subscription.id()),
+      @mcp.tools_list_changed_notification(subscription_id=subscription.id),
     )
     is Notification(_),
   )
   let outside_filter = try
     state.consume(
-      @mcp.prompts_list_changed_notification(subscription_id=subscription.id()),
+      @mcp.prompts_list_changed_notification(subscription_id=subscription.id),
     )
   catch {
     @mcp.InvalidRequest(_) => true

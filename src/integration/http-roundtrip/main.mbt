@@ -45,9 +45,7 @@ async fn run_server() -> Unit {
       stream_responses=true,
       on_subscription=async fn(subscription, emit) {
         emit(
-          @mcp.tools_list_changed_notification(
-            subscription_id=subscription.id(),
-          ),
+          @mcp.tools_list_changed_notification(subscription_id=subscription.id),
         )
         @async.sleep(1000)
       },
