@@ -39,15 +39,11 @@ pub fn logging_message_notification(level~ : LoggingLevel, data~ : Json, logger?
 
 pub fn parse_cache_scope(Json) -> CacheScope raise McpError
 
-pub fn parse_discover_result(Json) -> DiscoverResult raise McpError
-
 pub fn parse_input_request(Json) -> InputRequest raise McpError
 
 pub fn parse_input_required_result(Json) -> InputRequiredResult raise McpError
 
 pub fn parse_input_responses(Json) -> Map[String, InputResponse] raise McpError
-
-pub fn parse_request_meta(Json) -> RequestMeta raise McpError
 
 pub fn parse_result_type(Json) -> ResultType raise McpError
 
@@ -210,6 +206,7 @@ pub(all) struct DiscoverResult {
   meta : ResultMeta?
 } derive(@debug.Debug)
 pub fn DiscoverResult::DiscoverResult(supported_versions? : Array[String], capabilities~ : ServerCapabilities, instructions? : String, cache_policy~ : CachePolicy, meta? : ResultMeta) -> Self raise McpError
+pub fn DiscoverResult::decode(Json) -> Self raise McpError
 pub impl ToJson for DiscoverResult
 pub impl @json.FromJson for DiscoverResult
 
@@ -417,6 +414,7 @@ pub(all) struct RequestMeta {
   extra : Map[String, Json]
 } derive(Eq, @debug.Debug)
 pub fn RequestMeta::RequestMeta(protocol_version? : String, client_info? : Implementation, client_capabilities? : ClientCapabilities, progress_token? : Json, log_level? : LoggingLevel, extra? : Map[String, Json]) -> Self raise McpError
+pub fn RequestMeta::decode(Json) -> Self raise McpError
 pub impl ToJson for RequestMeta
 
 pub(all) struct RequestOptions {

@@ -340,7 +340,7 @@ fn validate_request_metadata(message : Json) -> Unit raise @mcp.McpError {
   guard message is Object({ "params": Object({ "_meta": meta, .. }), .. }) else {
     raise @mcp.InvalidParams("request params._meta is required")
   }
-  ignore(@mcp.parse_request_meta(meta))
+  ignore(@mcp.RequestMeta::decode(meta))
 }
 
 ///|

@@ -254,7 +254,7 @@ pub fn Client::decode_discover(
   message : Json,
 ) -> DiscoverResult raise McpError {
   match self.decode_response(message) {
-    Complete(result) => parse_discover_result(result)
+    Complete(result) => DiscoverResult::decode(result)
     InputRequired(_) =>
       raise InvalidRequest("server/discover cannot return input_required")
     ExtensionResult(result_type, _) =>

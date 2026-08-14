@@ -118,7 +118,7 @@ fn parse_request_implementation(
 }
 
 ///|
-pub fn parse_request_meta(value : Json) -> RequestMeta raise McpError {
+pub fn RequestMeta::decode(value : Json) -> RequestMeta raise McpError {
   let context = "request params._meta"
   let fields = expect_object(value, context)
   validate_meta_map(fields)
