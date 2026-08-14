@@ -75,8 +75,8 @@ pub fn Schema::string() -> Schema {
 /// Build a string schema with the standard JSON Schema string constraints.
 /// The constraint values are checked while constructing the typed schema;
 /// callers do not need a later validation pass just to discover invalid
-/// bounds. A pattern is retained as a JSON Schema regular expression and is
-/// validated by `Document::compile`.
+/// bounds. A pattern is retained as a JSON Schema regular expression for
+/// consumers that provide a compatible regular-expression engine.
 pub fn Schema::string_constraints(
   min_length? : Int,
   max_length? : Int,
