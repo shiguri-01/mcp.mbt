@@ -76,6 +76,31 @@ pub struct Property {
 } derive(Eq, @debug.Debug)
 pub fn Property::Property(name~ : String, schema~ : Json, required? : Bool) -> Self raise SchemaError
 
+pub enum Schema {
+  Always
+  Never
+  Null
+  Boolean
+  Integer
+  Number
+  String
+  Array(Schema)
+  Object(Map[String, Schema], Array[String], Bool)
+  Raw(Json)
+} derive(Eq, @debug.Debug)
+pub fn Schema::always() -> Self
+pub fn Schema::array(items~ : Self) -> Self
+pub fn Schema::boolean() -> Self
+pub fn Schema::document(Self) -> Document raise SchemaError
+pub fn Schema::integer() -> Self
+pub fn Schema::never() -> Self
+pub fn Schema::null() -> Self
+pub fn Schema::number() -> Self
+pub fn Schema::object(properties~ : Map[String, Self], required? : Array[String], additional_properties? : Bool) -> Self raise SchemaError
+pub fn Schema::raw(Json) -> Self raise SchemaError
+pub fn Schema::string() -> Self
+pub fn Schema::to_json(Self) -> Json
+
 pub struct ValidationResult {
   valid : Bool
   errors : Array[String]

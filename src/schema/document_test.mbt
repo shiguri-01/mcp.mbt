@@ -86,3 +86,29 @@ test "boolean schemas retain JSON Schema semantics" {
   assert_true(always_valid.validate(Json::string("ok")).valid)
   assert_false(never_valid.validate(Json::string("ok")).valid)
 }
+
+///|
+test "typed Schema constructors produce a validated document" {
+  let properties : Map[String, Schema] = {
+    "name": Schema::string(),
+    "count": Schema::integer(),
+  }
+  let typed = try! Schema::object(
+    properties~,
+    required=["name"],
+    additional_properties=false,
+  )
+  let document = try! typed.document()
+  let compiled = try! document.compile()
+  assert_true(
+    compiled.validate(
+      Json::object({
+        "name": Json::string("MoonBit"),
+        "count": Json::number(1.0),
+      }),
+    ).valid,
+  )
+  assert_false(
+    compiled.validate(Json::object({ "name": Json::number(1.0) })).valid,
+  )
+}

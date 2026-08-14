@@ -50,11 +50,11 @@ The server registry is built through one constructor and is sealed before the
 first dispatch. Registration names use MCP concepts directly:
 
 ```moonbit
-let server = try! Server::Server(
+let server = try! @mcp.Server(
   name="greeter", version="1.0.0",
 )
 try! server.register_tool(
-  Tool::Tool(name="greet", description="Greet a person", input_schema~),
+  @mcp.Tool(name="greet", description="Greet a person", input_schema~),
   async fn(context : RequestContext, input : GreetInput) {
     Complete(CallToolResult::text("Hello, \\{input.name}!"))
   },
@@ -82,7 +82,7 @@ by the dispatcher, not by application handlers.
 The client has typed verbs matching MCP methods:
 
 ```moonbit
-let client = try! Client::Client(
+let client = try! @mcp.Client(
   name="example", version="1.0.0",
   capabilities=ClientCapabilities::empty(),
 )
@@ -102,12 +102,32 @@ typed input callback.
 The current validator is too large and too ambitious for an implicit helper.
 The replacement has three explicit layers:
 
-### 1. Document model
+The public schema package has two input paths. A `JsonSchema` implementation
+describes a MoonBit type and is the normal path for MCP tool input schemas.
+Applications can also construct a schema programmatically with typed schema
+constructors (`Schema::string`, `Schema::object`, `Schema::array`,
+`Schema::one_of`, and so on). A raw `Json` document is retained as an explicit
+interop escape hatch, not as the only way to create a schema. Both paths
+produce the same `Document` model.
+
+The type trait describes the serialized representation, not the in-memory
+MoonBit representation. `FromJson`/`ToJson` and `JsonSchema` are therefore
+separate traits: a type can be decoded without being able to publish a schema,
+and a schema can be authored without a generated decoder. MCP's typed tool API
+requires both traits at registration time.
+
+### 1. Typed schema and document model
+
+`schema::Schema` is a typed schema AST for the common 2020-12 vocabulary.
+Boolean schemas are represented directly. Each typed keyword has a constructor
+that validates its local invariant; extension keywords are stored explicitly in
+an `extra` map. `Schema::to_json` is the only conversion used to create a
+document.
 
 `schema::Document` is an immutable, constructor-created JSON Schema document.
 It preserves `$id`, `$ref`, `$defs`, `$dynamicAnchor`, `$dynamicRef`,
 `$vocabulary`, and embedded resources without silently normalizing them.
-`Document::Document(value)` performs only document-shape checks and resource/index
+`Document(value)` performs only document-shape checks and resource/index
 construction. It never fetches a network reference.
 
 ### 2. Compilation

@@ -1,4 +1,113 @@
 ///|
+/// A typed programmatic JSON Schema value for the common 2020-12 keywords.
+/// `Raw` is the explicit escape hatch for keywords not modeled here.
+pub enum Schema {
+  Always
+  Never
+  Null
+  Boolean
+  Integer
+  Number
+  String
+  Array(Schema)
+  Object(Map[String, Schema], Array[String], Bool)
+  Raw(Json)
+} derive(Debug, Eq)
+
+///|
+pub fn Schema::always() -> Schema {
+  Always
+}
+
+///|
+pub fn Schema::never() -> Schema {
+  Never
+}
+
+///|
+pub fn Schema::null() -> Schema {
+  Null
+}
+
+///|
+pub fn Schema::boolean() -> Schema {
+  Boolean
+}
+
+///|
+pub fn Schema::integer() -> Schema {
+  Integer
+}
+
+///|
+pub fn Schema::number() -> Schema {
+  Number
+}
+
+///|
+pub fn Schema::string() -> Schema {
+  String
+}
+
+///|
+pub fn Schema::array(items~ : Schema) -> Schema {
+  Array(items)
+}
+
+///|
+pub fn Schema::object(
+  properties~ : Map[String, Schema],
+  required? : Array[String] = [],
+  additional_properties? : Bool = true,
+) -> Schema raise SchemaError {
+  for name in required {
+    if properties.get(name) is None {
+      raise InvalidSchema("required property is not declared: {name}")
+    }
+  }
+  Object(properties, required.copy(), additional_properties)
+}
+
+///|
+pub fn Schema::raw(value : Json) -> Schema raise SchemaError {
+  ignore(Document::Document(value))
+  Raw(value)
+}
+
+///|
+pub fn Schema::to_json(self : Schema) -> Json {
+  match self {
+    Always => Json::boolean(true)
+    Never => Json::boolean(false)
+    Null => Json::object({ "type": Json::string("null") })
+    Boolean => Json::object({ "type": Json::string("boolean") })
+    Integer => Json::object({ "type": Json::string("integer") })
+    Number => Json::object({ "type": Json::string("number") })
+    String => Json::object({ "type": Json::string("string") })
+    Array(items) =>
+      Json::object({ "type": Json::string("array"), "items": items.to_json() })
+    Object(properties, required, additional_properties) => {
+      let fields : Map[String, Json] = Map([])
+      let property_fields : Map[String, Json] = Map([])
+      for name, schema in properties {
+        property_fields[name] = schema.to_json()
+      }
+      fields["type"] = Json::string("object")
+      fields["properties"] = Json::object(property_fields)
+      fields["required"] = required.to_json()
+      fields["additionalProperties"] = Json::boolean(additional_properties)
+      Json::object(fields)
+    }
+    Raw(value) => value
+  }
+}
+
+///|
+pub fn Schema::document(self : Schema) -> Document raise SchemaError {
+  Document::Document(self.to_json())
+}
+
+///|
 /// A JSON Schema document owned by the schema package.
 ///
 /// `Document` performs document-level checks only. It does not validate an
