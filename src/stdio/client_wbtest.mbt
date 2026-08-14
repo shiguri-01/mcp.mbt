@@ -66,11 +66,14 @@ test "cancel is a client-to-server notification" {
     reason="done",
   )
   assert_eq(response_id(cancel), None)
-  guard cancel is Object({ "id"? : None, "params": Object(params), .. }) else {
+  let decoded = try! @jsonrpc.decode(cancel)
+  guard decoded
+    is Notification({ method_name: "notifications/cancelled", params }) else {
     fail("expected cancellation notification")
   }
-  assert_eq(params["requestId"], Json::string("listen-1"))
-  assert_eq(cancelled_request_id(cancel), Some(Json::string("listen-1")))
+  let parsed = try! @mcp.CancelledNotificationParams::from_json(params)
+  assert_eq(parsed.request_id, Json::string("listen-1"))
+  assert_eq(parsed.reason, Some("done"))
 }
 
 ///|
@@ -79,8 +82,11 @@ test "subscriptions/listen is a long-lived transport request" {
   let request = core.listen_request(
     notifications=SubscriptionFilter(tools_list_changed=true),
   )
-  assert_true(is_listen_request(request))
-  assert_true(inbound_id(request) is Some(Number(_)))
+  let decoded = try! @jsonrpc.decode(request)
+  guard decoded is Request({ method_name: "subscriptions/listen", id, .. }) else {
+    fail("expected subscriptions/listen request")
+  }
+  assert_true(id.as_json() is Number(_))
 }
 
 ///|

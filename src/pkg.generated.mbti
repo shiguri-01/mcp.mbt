@@ -123,6 +123,15 @@ pub fn CallToolResult::text(String, annotations? : Annotations, meta? : Json) ->
 pub impl ToJson for CallToolResult
 pub impl @json.FromJson for CallToolResult
 
+pub struct CancelledNotificationParams {
+  request_id : Json
+  reason : String?
+} derive(Eq, @debug.Debug)
+pub fn CancelledNotificationParams::CancelledNotificationParams(request_id~ : Json, reason? : String) -> Self raise McpError
+pub fn CancelledNotificationParams::from_json(Json) -> Self raise McpError
+pub impl ToJson for CancelledNotificationParams
+pub impl @json.FromJson for CancelledNotificationParams
+
 pub struct Client {
   info : Implementation
   capabilities : ClientCapabilities

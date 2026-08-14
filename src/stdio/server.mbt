@@ -1,75 +1,12 @@
 ///|
-fn inbound_id(message : Json) -> Json? {
-  match @mcp.decode_message_opt(message) {
-    Some(Request({ id, .. })) => Some(id.as_json())
-    _ => None
-  }
-}
-
-///|
 fn error_response(id : Json?, error : @mcp.McpError) -> Json {
   @mcp.error_response_from_json_id(id?, error)
 }
 
 ///|
-fn is_listen_request(message : Json) -> Bool {
-  match @mcp.decode_message_opt(message) {
-    Some(Request({ method_name: "subscriptions/listen", .. })) => true
-    _ => false
-  }
-}
-
-///|
-fn cancelled_request_id(message : Json) -> Json? {
-  match @mcp.decode_message_opt(message) {
-    Some(
-      Notification(
-        { method_name: "notifications/cancelled", params: Object(params) }
-      )
-    ) =>
-      match params.get("requestId") {
-        Some(String(_) | Number(_) as id) => Some(id)
-        _ => None
-      }
-    _ => None
-  }
-}
-
-///|
-fn find_subscription(
-  subscriptions : Array[ActiveSubscription],
-  id : Json,
-) -> Int? {
-  for index, active in subscriptions {
-    if active.subscription.id == id {
-      return Some(index)
-    }
-  }
-  None
-}
-
-///|
-priv struct ActiveSubscription {
-  subscription : @mcp.Subscription
+priv struct ActiveTask {
   cancelled : Array[Bool]
   task : @async.Task[Unit]
-}
-
-///|
-priv struct ActiveRequest {
-  id : Json
-  cancelled : Array[Bool]
-  task : @async.Task[Unit]
-}
-
-///|
-fn find_request(requests : Array[ActiveRequest], id : Json) -> Int? {
-  for index, active in requests {
-    if active.id == id {
-      return Some(index)
-    }
-  }
-  None
 }
 
 ///|
@@ -96,8 +33,8 @@ pub async fn serve(
     let output : @aqueue.Queue[String?] = Queue(kind=Unbounded)
     let writer = group.spawn(() => write_frames(output))
     let handlers : Array[@async.Task[Unit]] = []
-    let subscriptions : Array[ActiveSubscription] = []
-    let requests : Array[ActiveRequest] = []
+    let active_subscriptions : Map[String, ActiveTask] = Map([])
+    let active_requests : Map[String, ActiveTask] = Map([])
     while @async_stdio.stdin.read_until("\n") is Some(line) {
       let message = decode_frame(line) catch {
         error => {
@@ -105,82 +42,107 @@ pub async fn serve(
           continue
         }
       }
-      if is_listen_request(message) {
-        let subscription = try server.accept_subscription(message) catch {
-          error => {
-            output.put(
-              Some(encode_frame(error_response(inbound_id(message), error))),
+      let decoded = @mcp.decode_message_opt(message)
+      match decoded {
+        Some(Request(request)) if request.method_name == "subscriptions/listen" => {
+          let subscription = try server.accept_subscription(message) catch {
+            error => {
+              output.put(
+                Some(
+                  encode_frame(
+                    error_response(Some(request.id.as_json()), error),
+                  ),
+                ),
+              )
+              continue
+            }
+          } noraise {
+            subscription => subscription
+          }
+          output.put(Some(encode_frame(subscription.acknowledgement())))
+          let key = subscription.id.stringify()
+          let cancelled = [false]
+          let task = group.spawn(() => {
+            on_subscription(subscription, async fn(notification) {
+              if subscription.allows_event(notification) {
+                output.put(Some(encode_frame(notification)))
+              }
+            }) catch {
+              _ => ()
+            }
+            if !cancelled[0] {
+              output.put(Some(encode_frame(subscription.close_response())))
+            }
+            ignore(active_subscriptions.remove(key))
+          })
+          active_subscriptions[key] = { cancelled, task }
+        }
+        Some(Notification(notification)) if notification.method_name ==
+          "notifications/cancelled" => {
+          let params = Some(
+            @mcp.CancelledNotificationParams::from_json(notification.params),
+          ) catch {
+            _ => None
+          }
+          match params {
+            Some(params) => {
+              let key = params.request_id.stringify()
+              match active_subscriptions.get(key) {
+                Some(active) => {
+                  active_subscriptions.remove(key)
+                  active.cancelled[0] = true
+                  active.task.cancel()
+                }
+                None =>
+                  match active_requests.get(key) {
+                    Some(active) => {
+                      active_requests.remove(key)
+                      active.cancelled[0] = true
+                      active.task.cancel()
+                    }
+                    None => ()
+                  }
+              }
+            }
+            None => ()
+          }
+        }
+        _ => {
+          let req_id = match decoded {
+            Some(Request(request)) => Some(request.id.as_json())
+            _ => None
+          }
+          let key_opt = req_id.map(fn(id) { id.stringify() })
+          let cancelled = [false]
+          let task = group.spawn(() => {
+            let hooks = @mcp.RequestHooks(
+              emit_notification=async fn(notification) raise @mcp.McpError {
+                output.put(Some(encode_frame(notification))) catch {
+                  error => raise InternalError(error.to_string())
+                }
+              },
+              is_cancelled=fn() { cancelled[0] },
             )
-            continue
-          }
-        } noraise {
-          subscription => subscription
-        }
-        // Queue the acknowledgement before starting application work.
-        output.put(Some(encode_frame(subscription.acknowledgement())))
-        let cancelled = [false]
-        let task = group.spawn(() => {
-          on_subscription(subscription, async fn(notification) {
-            if subscription.allows_event(notification) {
-              output.put(Some(encode_frame(notification)))
+            match server.handle_jsonrpc_with_hooks(message, hooks~) {
+              Some(response) => output.put(Some(encode_frame(response)))
+              None => ()
             }
-          }) catch {
-            _ => ()
-          }
-          if !cancelled[0] {
-            output.put(Some(encode_frame(subscription.close_response())))
-          }
-          if find_subscription(subscriptions, subscription.id) is Some(index) {
-            ignore(subscriptions.remove(index))
-          }
-        })
-        subscriptions.push({ subscription, cancelled, task })
-        continue
-      }
-      if cancelled_request_id(message) is Some(id) {
-        if find_subscription(subscriptions, id) is Some(index) {
-          let active = subscriptions.remove(index)
-          active.cancelled[0] = true
-          active.task.cancel()
-        } else if find_request(requests, id) is Some(index) {
-          let active = requests.remove(index)
-          active.cancelled[0] = true
-          active.task.cancel()
-        }
-        continue
-      }
-      let id = inbound_id(message)
-      let cancelled = [false]
-      let task = group.spawn(() => {
-        let hooks = @mcp.RequestHooks(
-          emit_notification=async fn(notification) raise @mcp.McpError {
-            output.put(Some(encode_frame(notification))) catch {
-              error => raise InternalError(error.to_string())
+            if key_opt is Some(key) {
+              ignore(active_requests.remove(key))
             }
-          },
-          is_cancelled=fn() { cancelled[0] },
-        )
-        match server.handle_jsonrpc_with_hooks(message, hooks~) {
-          Some(response) => output.put(Some(encode_frame(response)))
-          None => ()
+          })
+          handlers.push(task)
+          if key_opt is Some(key) {
+            active_requests[key] = { cancelled, task }
+          }
         }
-        if id is Some(request_id) &&
-          find_request(requests, request_id) is Some(index) {
-          ignore(requests.remove(index))
-        }
-      })
-      handlers.push(task)
-      if id is Some(request_id) {
-        requests.push({ id: request_id, cancelled, task })
       }
     }
-    // EOF cancels all work before joining so a disconnected client cannot
-    // leave the server process blocked in an application handler.
-    for active in requests {
+    for _, active in active_requests {
       active.cancelled[0] = true
       active.task.cancel()
     }
-    while subscriptions.pop() is Some(active) {
+    for _, active in active_subscriptions {
       active.cancelled[0] = true
       active.task.cancel()
     }

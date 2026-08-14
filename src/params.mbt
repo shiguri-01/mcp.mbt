@@ -225,3 +225,69 @@ pub fn GetPromptParams::from_json(
 ) -> GetPromptParams raise McpError {
   decode_json(value, context="prompts/get params")
 }
+
+///|
+/// Parameters for `notifications/cancelled`.
+pub struct CancelledNotificationParams {
+  request_id : Json
+  reason : String?
+} derive(Debug, Eq)
+
+///|
+pub fn CancelledNotificationParams::CancelledNotificationParams(
+  request_id~ : Json,
+  reason? : String,
+) -> CancelledNotificationParams raise McpError {
+  if !(request_id is (String(_) | Number(_))) {
+    raise InvalidParams(
+      "cancelled notification requestId must be a string or number",
+    )
+  }
+  { request_id, reason }
+}
+
+///|
+pub impl @json.FromJson for CancelledNotificationParams with fn from_json(
+  value : Json,
+  path : @json.JsonPath,
+) -> CancelledNotificationParams raise {
+  guard value is Object(fields) else {
+    raise JsonDecodeError((path, "expected object"))
+  }
+  let request_id = match fields.get("requestId") {
+    Some(String(_) | Number(_) as id) => id
+    Some(_) =>
+      raise JsonDecodeError(
+        (path.add_key("requestId"), "expected string or number"),
+      )
+    None =>
+      raise JsonDecodeError(
+        (path.add_key("requestId"), "requestId is required"),
+      )
+  }
+  let reason = match fields.get("reason") {
+    Some(String(reason)) => Some(reason)
+    Some(Null) | None => None
+    Some(_) =>
+      raise JsonDecodeError((path.add_key("reason"), "expected string"))
+  }
+  { request_id, reason }
+}
+
+///|
+pub impl ToJson for CancelledNotificationParams with fn to_json(
+  self : CancelledNotificationParams,
+) -> Json {
+  let fields : Map[String, Json] = { "requestId": self.request_id }
+  if self.reason is Some(reason) {
+    fields["reason"] = Json::string(reason)
+  }
+  Json::object(fields)
+}
+
+///|
+pub fn CancelledNotificationParams::from_json(
+  value : Json,
+) -> CancelledNotificationParams raise McpError {
+  decode_json(value, context="cancelled notification params")
+}

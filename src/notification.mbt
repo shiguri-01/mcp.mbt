@@ -3,16 +3,10 @@ pub fn cancelled_notification(
   request_id~ : Json,
   reason? : String,
 ) -> Json raise McpError {
-  if !(request_id is (String(_) | Number(_))) {
-    raise InvalidParams(
-      "cancelled notification requestId must be a string or number",
-    )
-  }
-  let params : Map[String, Json] = { "requestId": request_id }
-  put_optional_string(params, "reason", reason)
+  let params = CancelledNotificationParams(request_id~, reason?)
   try! @jsonrpc.Notification(
     method_name="notifications/cancelled",
-    params=Json::object(params),
+    params=params.to_json(),
   ).to_json()
 }
 
