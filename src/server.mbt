@@ -23,8 +23,31 @@ type RawHandler = async (RequestContext, Json) -> HandlerOutcome[Json] raise Mcp
 struct RegisteredTool {
   tool : Tool
   handler : ToolHandler
-  input_validator : CompiledJsonSchema
-  output_validator : CompiledJsonSchema?
+  input_validator : @schema.CompiledSchema
+  output_validator : @schema.CompiledSchema?
+}
+
+///|
+fn compile_tool_schema(value : Json) -> @schema.CompiledSchema raise McpError {
+  let document = @schema.Document::Document(value) catch {
+    _ => raise InvalidParams("invalid JSON Schema document")
+  }
+  document.compile() catch {
+    _ => raise InvalidParams("invalid JSON Schema document")
+  }
+}
+
+///|
+fn schema_validation_error(
+  validator : @schema.CompiledSchema,
+  value : Json,
+) -> String? {
+  let result = validator.validate(value)
+  if result.valid {
+    None
+  } else {
+    Some(result.errors.to_json().stringify())
+  }
 }
 
 ///|
@@ -242,9 +265,9 @@ fn Server::register_tool(
   if self.tools.contains(tool.name) {
     raise InvalidParams("tool already registered: \{tool.name}")
   }
-  let input_validator = compile_json_schema(tool.input_schema)
+  let input_validator = compile_tool_schema(tool.input_schema)
   let output_validator = match tool.output_schema {
-    Some(schema) => Some(compile_json_schema(schema))
+    Some(schema) => Some(compile_tool_schema(schema))
     None => None
   }
   self.tools[tool.name] = { tool, handler, input_validator, output_validator }
@@ -686,7 +709,8 @@ async fn Server::call_tool(
   }
   match self.tools.get(name) {
     Some(registered) => {
-      if registered.input_validator.validate(arguments) is Some(error) {
+      if schema_validation_error(registered.input_validator, arguments)
+        is Some(error) {
         return self.outcome_json(
           context,
           "tools/call",
@@ -706,7 +730,7 @@ async fn Server::call_tool(
                 "tool declares outputSchema but returned no structuredContent",
               )
             }
-            if validator.validate(value) is Some(error) {
+            if schema_validation_error(validator, value) is Some(error) {
               raise InternalError(
                 "tool structuredContent does not match outputSchema: \{error}",
               )

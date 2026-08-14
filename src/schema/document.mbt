@@ -471,6 +471,36 @@ fn validate_instance(
       add_error(errors, path, "value does not match const")
     _ => ()
   }
+  match (fields.get("minimum"), instance) {
+    (Some(Number(limit, ..)), Number(value, ..)) if value < limit =>
+      add_error(errors, path, "number is less than minimum")
+    _ => ()
+  }
+  match (fields.get("maximum"), instance) {
+    (Some(Number(limit, ..)), Number(value, ..)) if value > limit =>
+      add_error(errors, path, "number is greater than maximum")
+    _ => ()
+  }
+  match (fields.get("exclusiveMinimum"), instance) {
+    (Some(Number(limit, ..)), Number(value, ..)) if value <= limit =>
+      add_error(errors, path, "number is not greater than exclusiveMinimum")
+    _ => ()
+  }
+  match (fields.get("exclusiveMaximum"), instance) {
+    (Some(Number(limit, ..)), Number(value, ..)) if value >= limit =>
+      add_error(errors, path, "number is not less than exclusiveMaximum")
+    _ => ()
+  }
+  match (fields.get("minLength"), instance) {
+    (Some(Number(limit, ..)), String(value)) if value.length() < limit.to_int() =>
+      add_error(errors, path, "string is shorter than minLength")
+    _ => ()
+  }
+  match (fields.get("maxLength"), instance) {
+    (Some(Number(limit, ..)), String(value)) if value.length() > limit.to_int() =>
+      add_error(errors, path, "string is longer than maxLength")
+    _ => ()
+  }
   match fields.get("allOf") {
     Some(Array(values)) =>
       for child in values {
