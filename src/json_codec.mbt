@@ -1,4 +1,24 @@
 ///|
+/// Decode a JSON value into a domain type using `@json.FromJson`, mapping
+/// any `JsonDecodeError` into an `InvalidParams` protocol error.
+pub fn[T : @json.FromJson] decode_json(
+  value : Json,
+  context? : String = "json",
+) -> T raise McpError {
+  @json.from_json(value) catch {
+    JsonDecodeError((path, msg)) => {
+      let path_str = path.to_string()
+      let prefix = if path_str.is_empty() {
+        context
+      } else {
+        "\{context}.\{path_str}"
+      }
+      raise InvalidParams("\{prefix}: \{msg}")
+    }
+  }
+}
+
+///|
 fn put_optional_string(
   fields : Map[String, Json],
   key : String,
@@ -96,20 +116,6 @@ fn get_string(
 }
 
 ///|
-fn get_optional_object(
-  fields : Map[String, Json],
-  key : String,
-  context : String,
-) -> Json? raise McpError {
-  match fields.get(key) {
-    Some(Object(_) as value) => Some(value)
-    Some(Null) => None
-    Some(_) => raise InvalidParams("\{context}.\{key} must be an object")
-    None => None
-  }
-}
-
-///|
 fn get_optional_string(
   fields : Map[String, Json],
   key : String,
@@ -119,20 +125,6 @@ fn get_optional_string(
     Some(String(value)) => Some(value)
     Some(Null) | None => None
     Some(_) => raise InvalidParams("\{context}.\{key} must be a string")
-  }
-}
-
-///|
-fn get_optional_bool(
-  fields : Map[String, Json],
-  key : String,
-  context : String,
-) -> Bool? raise McpError {
-  match fields.get(key) {
-    Some(True) => Some(true)
-    Some(False) => Some(false)
-    Some(Null) | None => None
-    Some(_) => raise InvalidParams("\{context}.\{key} must be a boolean")
   }
 }
 

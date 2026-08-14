@@ -19,14 +19,29 @@ pub impl ToJson for RootsCapability with fn to_json(self : RootsCapability) -> J
 }
 
 ///|
+pub impl @json.FromJson for RootsCapability with fn from_json(
+  value : Json,
+  path : @json.JsonPath,
+) -> RootsCapability raise {
+  guard value is Object(fields) else {
+    raise JsonDecodeError((path, "expected object"))
+  }
+  let list_changed = match fields.get("listChanged") {
+    Some(True) => Some(true)
+    Some(False) => Some(false)
+    Some(Null) | None => None
+    Some(_) =>
+      raise JsonDecodeError((path.add_key("listChanged"), "expected boolean"))
+  }
+  { list_changed, }
+}
+
+///|
 pub fn RootsCapability::from_json(
   value : Json,
   context? : String = "roots capability",
 ) -> RootsCapability raise McpError {
-  let fields = expect_object(value, context)
-  RootsCapability(
-    list_changed?=get_optional_bool(fields, "listChanged", context),
-  )
+  decode_json(value, context~)
 }
 
 ///|
@@ -47,12 +62,22 @@ pub impl ToJson for SamplingCapability with fn to_json(
 }
 
 ///|
+pub impl @json.FromJson for SamplingCapability with fn from_json(
+  value : Json,
+  path : @json.JsonPath,
+) -> SamplingCapability raise {
+  guard value is Object(_) else {
+    raise JsonDecodeError((path, "expected object"))
+  }
+  SamplingCapability()
+}
+
+///|
 pub fn SamplingCapability::from_json(
   value : Json,
   context? : String = "sampling capability",
 ) -> SamplingCapability raise McpError {
-  ignore(expect_object(value, context))
-  SamplingCapability()
+  decode_json(value, context~)
 }
 
 ///|
@@ -88,15 +113,32 @@ pub impl ToJson for ElicitationCapability with fn to_json(
 }
 
 ///|
+pub impl @json.FromJson for ElicitationCapability with fn from_json(
+  value : Json,
+  path : @json.JsonPath,
+) -> ElicitationCapability raise {
+  guard value is Object(fields) else {
+    raise JsonDecodeError((path, "expected object"))
+  }
+  let form = match fields.get("form") {
+    Some(Object(_) as v) => Some(v)
+    Some(Null) | None => None
+    Some(_) => raise JsonDecodeError((path.add_key("form"), "expected object"))
+  }
+  let url = match fields.get("url") {
+    Some(Object(_) as v) => Some(v)
+    Some(Null) | None => None
+    Some(_) => raise JsonDecodeError((path.add_key("url"), "expected object"))
+  }
+  { form, url }
+}
+
+///|
 pub fn ElicitationCapability::from_json(
   value : Json,
   context? : String = "elicitation capability",
 ) -> ElicitationCapability raise McpError {
-  let fields = expect_object(value, context)
-  ElicitationCapability(
-    form?=get_optional_object(fields, "form", context),
-    url?=get_optional_object(fields, "url", context),
-  )
+  decode_json(value, context~)
 }
 
 ///|
@@ -148,32 +190,67 @@ pub fn ClientCapabilities::empty() -> ClientCapabilities {
 
 ///|
 fn valid_extension_identifier(identifier : String) -> Bool {
-  let segments = identifier.split("/").to_array()
-  if segments.length() != 2 || segments[1].is_empty() {
+  let length = identifier.length()
+  if length < 3 || length > 255 {
     return false
   }
-  let labels = segments[0].split(".").to_array()
-  if labels.length() < 2 {
+  let mut slash_index = -1
+  for index in 0..<length {
+    let char = identifier[index]
+    if char == '/' {
+      if slash_index != -1 {
+        return false
+      }
+      slash_index = index
+    }
+  }
+  if slash_index <= 0 || slash_index == length - 1 {
     return false
   }
-  valid_meta_key(identifier)
+  let vendor = identifier[0:slash_index].to_owned()
+  let name = identifier[slash_index + 1:].to_owned()
+  valid_identifier_segment(vendor) && valid_identifier_segment(name)
+}
+
+///|
+fn valid_identifier_segment(segment : String) -> Bool {
+  let length = segment.length()
+  if length == 0 {
+    return false
+  }
+  for index in 0..<length {
+    let char = segment[index]
+    let is_valid = (char >= 'a' && char <= 'z') ||
+      (char >= '0' && char <= '9') ||
+      char == '-' ||
+      char == '.'
+    if !is_valid {
+      return false
+    }
+  }
+  true
+}
+
+///|
+fn validate_extension_keys(
+  values : Map[String, Json],
+  context : String,
+) -> Unit raise McpError {
+  for key, _ in values {
+    if !valid_extension_identifier(key) {
+      raise InvalidParams(
+        "\{context}.\{key} is not a valid extension identifier",
+      )
+    }
+  }
 }
 
 ///|
 fn validate_extension_map(
-  extensions : Map[String, Json],
+  values : Map[String, Json],
   context : String,
 ) -> Unit raise McpError {
-  for identifier, settings in extensions {
-    if !valid_extension_identifier(identifier) {
-      raise InvalidParams(
-        "\{context} has invalid extension identifier: \{identifier}",
-      )
-    }
-    if !(settings is Object(_)) {
-      raise InvalidParams("\{context}.\{identifier} must be an object")
-    }
-  }
+  validate_extension_keys(values, context)
 }
 
 ///|
@@ -182,14 +259,28 @@ fn validate_extension_result_types(
   extensions : Map[String, Json],
 ) -> Unit raise McpError {
   for result_type, extension in result_types {
-    if result_type.is_empty() ||
-      result_type == "complete" ||
-      result_type == "input_required" {
-      raise InvalidParams("invalid extension result type: \{result_type}")
-    }
     if !extensions.contains(extension) {
       raise InvalidParams(
-        "result type \{result_type} references unadvertised extension \{extension}",
+        "extension resultType '\{result_type}' requires declared extension capability '\{extension}'",
+      )
+    }
+  }
+}
+
+///|
+fn validate_experimental_keys(
+  values : Map[String, Json],
+  context : String,
+) -> Unit raise McpError {
+  for key, _ in values {
+    if valid_extension_identifier(key) {
+      raise InvalidParams(
+        "\{context}.\{key} must not use namespaced extension syntax",
+      )
+    }
+    if !valid_identifier_segment(key) {
+      raise InvalidParams(
+        "\{context}.\{key} is not a valid experimental feature name",
       )
     }
   }
@@ -214,14 +305,14 @@ pub impl ToJson for ClientCapabilities with fn to_json(
   for key in ["roots", "sampling", "elicitation", "extensions", "experimental"] {
     fields.remove(key)
   }
-  if self.roots is Some(roots) {
-    fields["roots"] = roots.to_json()
+  if self.roots is Some(value) {
+    fields["roots"] = value.to_json()
   }
-  if self.sampling is Some(sampling) {
-    fields["sampling"] = sampling.to_json()
+  if self.sampling is Some(value) {
+    fields["sampling"] = value.to_json()
   }
-  if self.elicitation is Some(elicitation) {
-    fields["elicitation"] = elicitation.to_json()
+  if self.elicitation is Some(value) {
+    fields["elicitation"] = value.to_json()
   }
   put_capability_map(fields, "extensions", self.extensions)
   put_capability_map(fields, "experimental", self.experimental)
@@ -235,28 +326,27 @@ fn parse_capability_map(
   context : String,
 ) -> Map[String, Json] raise McpError {
   match fields.get(key) {
-    None | Some(Null) => Map([])
     Some(Object(values)) => {
-      for name, value in values {
-        if !(value is Object(_)) {
-          raise InvalidParams("\{context}.\{key}.\{name} must be an object")
-        }
-      }
       if key == "extensions" {
-        validate_extension_map(values, "\{context}.extensions")
+        validate_extension_keys(values, "\{context}.\{key}")
+      } else if key == "experimental" {
+        validate_experimental_keys(values, "\{context}.\{key}")
       }
-      values
+      copy_json_map(values)
     }
+    Some(Null) | None => Map([])
     Some(_) => raise InvalidParams("\{context}.\{key} must be an object")
   }
 }
 
 ///|
-pub fn ClientCapabilities::from_json(
+pub impl @json.FromJson for ClientCapabilities with fn from_json(
   value : Json,
-  context? : String = "client capabilities",
-) -> ClientCapabilities raise McpError {
-  let fields = expect_object(value, context)
+  path : @json.JsonPath,
+) -> ClientCapabilities raise {
+  guard value is Object(fields) else {
+    raise JsonDecodeError((path, "expected object"))
+  }
   let extra : Map[String, Json] = Map([])
   for key, val in fields {
     match key {
@@ -264,27 +354,64 @@ pub fn ClientCapabilities::from_json(
       _ => extra[key] = val
     }
   }
+  let roots : RootsCapability? = match fields.get("roots") {
+    Some(v) =>
+      Some(
+        @json.from_json(v) catch {
+          JsonDecodeError((_, msg)) =>
+            raise JsonDecodeError((path.add_key("roots"), msg))
+        },
+      )
+    None => None
+  }
+  let sampling : SamplingCapability? = match fields.get("sampling") {
+    Some(v) =>
+      Some(
+        @json.from_json(v) catch {
+          JsonDecodeError((_, msg)) =>
+            raise JsonDecodeError((path.add_key("sampling"), msg))
+        },
+      )
+    None => None
+  }
+  let elicitation : ElicitationCapability? = match fields.get("elicitation") {
+    Some(v) =>
+      Some(
+        @json.from_json(v) catch {
+          JsonDecodeError((_, msg)) =>
+            raise JsonDecodeError((path.add_key("elicitation"), msg))
+        },
+      )
+    None => None
+  }
+  let extensions = parse_capability_map(
+    fields, "extensions", "client capabilities",
+  ) catch {
+    error =>
+      raise JsonDecodeError((path.add_key("extensions"), error.message()))
+  }
+  let experimental = parse_capability_map(
+    fields, "experimental", "client capabilities",
+  ) catch {
+    error =>
+      raise JsonDecodeError((path.add_key("experimental"), error.message()))
+  }
   ClientCapabilities(
-    roots?=match fields.get("roots") {
-      Some(v) => Some(RootsCapability::from_json(v, context="\{context}.roots"))
-      None => None
-    },
-    sampling?=match fields.get("sampling") {
-      Some(v) =>
-        Some(SamplingCapability::from_json(v, context="\{context}.sampling"))
-      None => None
-    },
-    elicitation?=match fields.get("elicitation") {
-      Some(v) =>
-        Some(
-          ElicitationCapability::from_json(v, context="\{context}.elicitation"),
-        )
-      None => None
-    },
-    extensions=parse_capability_map(fields, "extensions", context),
-    experimental=parse_capability_map(fields, "experimental", context),
+    roots?,
+    sampling?,
+    elicitation?,
+    extensions~,
+    experimental~,
     extra~,
   )
+}
+
+///|
+pub fn ClientCapabilities::from_json(
+  value : Json,
+  context? : String = "client capabilities",
+) -> ClientCapabilities raise McpError {
+  decode_json(value, context~)
 }
 
 ///|
@@ -308,14 +435,29 @@ pub impl ToJson for ToolsCapability with fn to_json(self : ToolsCapability) -> J
 }
 
 ///|
+pub impl @json.FromJson for ToolsCapability with fn from_json(
+  value : Json,
+  path : @json.JsonPath,
+) -> ToolsCapability raise {
+  guard value is Object(fields) else {
+    raise JsonDecodeError((path, "expected object"))
+  }
+  let list_changed = match fields.get("listChanged") {
+    Some(True) => Some(true)
+    Some(False) => Some(false)
+    Some(Null) | None => None
+    Some(_) =>
+      raise JsonDecodeError((path.add_key("listChanged"), "expected boolean"))
+  }
+  { list_changed, }
+}
+
+///|
 pub fn ToolsCapability::from_json(
   value : Json,
   context? : String = "tools capability",
 ) -> ToolsCapability raise McpError {
-  let fields = expect_object(value, context)
-  ToolsCapability(
-    list_changed?=get_optional_bool(fields, "listChanged", context),
-  )
+  decode_json(value, context~)
 }
 
 ///|
@@ -339,14 +481,29 @@ pub impl ToJson for PromptsCapability with fn to_json(self : PromptsCapability) 
 }
 
 ///|
+pub impl @json.FromJson for PromptsCapability with fn from_json(
+  value : Json,
+  path : @json.JsonPath,
+) -> PromptsCapability raise {
+  guard value is Object(fields) else {
+    raise JsonDecodeError((path, "expected object"))
+  }
+  let list_changed = match fields.get("listChanged") {
+    Some(True) => Some(true)
+    Some(False) => Some(false)
+    Some(Null) | None => None
+    Some(_) =>
+      raise JsonDecodeError((path.add_key("listChanged"), "expected boolean"))
+  }
+  { list_changed, }
+}
+
+///|
 pub fn PromptsCapability::from_json(
   value : Json,
   context? : String = "prompts capability",
 ) -> PromptsCapability raise McpError {
-  let fields = expect_object(value, context)
-  PromptsCapability(
-    list_changed?=get_optional_bool(fields, "listChanged", context),
-  )
+  decode_json(value, context~)
 }
 
 ///|
@@ -375,15 +532,36 @@ pub impl ToJson for ResourcesCapability with fn to_json(
 }
 
 ///|
+pub impl @json.FromJson for ResourcesCapability with fn from_json(
+  value : Json,
+  path : @json.JsonPath,
+) -> ResourcesCapability raise {
+  guard value is Object(fields) else {
+    raise JsonDecodeError((path, "expected object"))
+  }
+  let subscribe = match fields.get("subscribe") {
+    Some(True) => Some(true)
+    Some(False) => Some(false)
+    Some(Null) | None => None
+    Some(_) =>
+      raise JsonDecodeError((path.add_key("subscribe"), "expected boolean"))
+  }
+  let list_changed = match fields.get("listChanged") {
+    Some(True) => Some(true)
+    Some(False) => Some(false)
+    Some(Null) | None => None
+    Some(_) =>
+      raise JsonDecodeError((path.add_key("listChanged"), "expected boolean"))
+  }
+  { subscribe, list_changed }
+}
+
+///|
 pub fn ResourcesCapability::from_json(
   value : Json,
   context? : String = "resources capability",
 ) -> ResourcesCapability raise McpError {
-  let fields = expect_object(value, context)
-  ResourcesCapability(
-    subscribe?=get_optional_bool(fields, "subscribe", context),
-    list_changed?=get_optional_bool(fields, "listChanged", context),
-  )
+  decode_json(value, context~)
 }
 
 ///|
@@ -402,12 +580,22 @@ pub impl ToJson for LoggingCapability with fn to_json(self : LoggingCapability) 
 }
 
 ///|
+pub impl @json.FromJson for LoggingCapability with fn from_json(
+  value : Json,
+  path : @json.JsonPath,
+) -> LoggingCapability raise {
+  guard value is Object(_) else {
+    raise JsonDecodeError((path, "expected object"))
+  }
+  LoggingCapability()
+}
+
+///|
 pub fn LoggingCapability::from_json(
   value : Json,
   context? : String = "logging capability",
 ) -> LoggingCapability raise McpError {
-  ignore(expect_object(value, context))
-  LoggingCapability()
+  decode_json(value, context~)
 }
 
 ///|
@@ -497,11 +685,13 @@ pub impl ToJson for ServerCapabilities with fn to_json(
 }
 
 ///|
-pub fn ServerCapabilities::from_json(
+pub impl @json.FromJson for ServerCapabilities with fn from_json(
   value : Json,
-  context? : String = "server capabilities",
-) -> ServerCapabilities raise McpError {
-  let fields = expect_object(value, context)
+  path : @json.JsonPath,
+) -> ServerCapabilities raise {
+  guard value is Object(fields) else {
+    raise JsonDecodeError((path, "expected object"))
+  }
   let extra : Map[String, Json] = Map([])
   for key, item in fields {
     match key {
@@ -515,36 +705,80 @@ pub fn ServerCapabilities::from_json(
       _ => extra[key] = item
     }
   }
+  let tools : ToolsCapability? = match fields.get("tools") {
+    Some(v) =>
+      Some(
+        @json.from_json(v) catch {
+          JsonDecodeError((_, msg)) =>
+            raise JsonDecodeError((path.add_key("tools"), msg))
+        },
+      )
+    None => None
+  }
+  let resources : ResourcesCapability? = match fields.get("resources") {
+    Some(v) =>
+      Some(
+        @json.from_json(v) catch {
+          JsonDecodeError((_, msg)) =>
+            raise JsonDecodeError((path.add_key("resources"), msg))
+        },
+      )
+    None => None
+  }
+  let prompts : PromptsCapability? = match fields.get("prompts") {
+    Some(v) =>
+      Some(
+        @json.from_json(v) catch {
+          JsonDecodeError((_, msg)) =>
+            raise JsonDecodeError((path.add_key("prompts"), msg))
+        },
+      )
+    None => None
+  }
+  let logging : LoggingCapability? = match fields.get("logging") {
+    Some(v) =>
+      Some(
+        @json.from_json(v) catch {
+          JsonDecodeError((_, msg)) =>
+            raise JsonDecodeError((path.add_key("logging"), msg))
+        },
+      )
+    None => None
+  }
+  let completions = match fields.get("completions") {
+    Some(Object(_)) => true
+    Some(_) =>
+      raise JsonDecodeError((path.add_key("completions"), "expected object"))
+    None => false
+  }
+  let extensions = parse_capability_map(
+    fields, "extensions", "server capabilities",
+  ) catch {
+    error =>
+      raise JsonDecodeError((path.add_key("extensions"), error.message()))
+  }
+  let experimental = parse_capability_map(
+    fields, "experimental", "server capabilities",
+  ) catch {
+    error =>
+      raise JsonDecodeError((path.add_key("experimental"), error.message()))
+  }
   ServerCapabilities(
-    tools?=match fields.get("tools") {
-      Some(value) =>
-        Some(ToolsCapability::from_json(value, context="\{context}.tools"))
-      None => None
-    },
-    resources?=match fields.get("resources") {
-      Some(value) =>
-        Some(
-          ResourcesCapability::from_json(value, context="\{context}.resources"),
-        )
-      None => None
-    },
-    prompts?=match fields.get("prompts") {
-      Some(value) =>
-        Some(PromptsCapability::from_json(value, context="\{context}.prompts"))
-      None => None
-    },
-    logging?=match fields.get("logging") {
-      Some(value) =>
-        Some(LoggingCapability::from_json(value, context="\{context}.logging"))
-      None => None
-    },
-    completions=match fields.get("completions") {
-      Some(Object(_)) => true
-      Some(_) => raise InvalidParams("\{context}.completions must be an object")
-      None => false
-    },
-    extensions=parse_capability_map(fields, "extensions", context),
-    experimental=parse_capability_map(fields, "experimental", context),
+    tools?,
+    resources?,
+    prompts?,
+    logging?,
+    completions~,
+    extensions~,
+    experimental~,
     extra~,
   )
+}
+
+///|
+pub fn ServerCapabilities::from_json(
+  value : Json,
+  context? : String = "server capabilities",
+) -> ServerCapabilities raise McpError {
+  decode_json(value, context~)
 }

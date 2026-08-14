@@ -110,29 +110,50 @@ fn parse_progress_token(value : Json, context : String) -> Json raise McpError {
 }
 
 ///|
-fn parse_request_implementation(
+pub impl @json.FromJson for RequestMeta with fn from_json(
   value : Json,
-  context : String,
-) -> Implementation raise McpError {
-  @json.from_json(value) catch {
-    JsonDecodeError((_, message)) =>
-      raise InvalidParams("\{context}: \{message}")
+  path : @json.JsonPath,
+) -> RequestMeta raise {
+  guard value is Object(fields) else {
+    raise JsonDecodeError((path, "expected object"))
   }
-}
-
-///|
-/// Decode the request `_meta` object at the MCP protocol boundary.
-pub fn RequestMeta::from_json(value : Json) -> RequestMeta raise McpError {
-  let context = "request params._meta"
-  let fields = expect_object(value, context)
-  validate_meta_map(fields)
-  let protocol_version = get_string(
-    fields, "io.modelcontextprotocol/protocolVersion", context,
-  )
-  guard fields.get("io.modelcontextprotocol/clientCapabilities") is Some(caps) else {
-    raise InvalidParams(
-      "\{context}.io.modelcontextprotocol/clientCapabilities is required",
-    )
+  validate_meta_map(fields) catch {
+    error => raise JsonDecodeError((path, error.message()))
+  }
+  let protocol_version = match
+    fields.get("io.modelcontextprotocol/protocolVersion") {
+    Some(String(s)) => s
+    Some(_) =>
+      raise JsonDecodeError(
+        (
+          path.add_key("io.modelcontextprotocol/protocolVersion"),
+          "expected string",
+        ),
+      )
+    None =>
+      raise JsonDecodeError(
+        (
+          path.add_key("io.modelcontextprotocol/protocolVersion"),
+          "protocolVersion is required",
+        ),
+      )
+  }
+  let caps_val = match
+    fields.get("io.modelcontextprotocol/clientCapabilities") {
+    Some(v) => v
+    None =>
+      raise JsonDecodeError(
+        (
+          path.add_key("io.modelcontextprotocol/clientCapabilities"),
+          "clientCapabilities is required",
+        ),
+      )
+  }
+  let client_capabilities : ClientCapabilities = @json.from_json(caps_val) catch {
+    JsonDecodeError((_, msg)) =>
+      raise JsonDecodeError(
+        (path.add_key("io.modelcontextprotocol/clientCapabilities"), msg),
+      )
   }
   let extra : Map[String, Json] = Map([])
   for key, item in fields {
@@ -145,32 +166,57 @@ pub fn RequestMeta::from_json(value : Json) -> RequestMeta raise McpError {
       _ => extra[key] = item
     }
   }
+  let client_info : Implementation? = match
+    fields.get("io.modelcontextprotocol/clientInfo") {
+    Some(v) =>
+      Some(
+        @json.from_json(v) catch {
+          JsonDecodeError((_, msg)) =>
+            raise JsonDecodeError(
+              (path.add_key("io.modelcontextprotocol/clientInfo"), msg),
+            )
+        },
+      )
+    None => None
+  }
+  let progress_token = match fields.get("progressToken") {
+    Some(String(_) as s) => Some(s)
+    Some(Number(_) as n) => Some(n)
+    Some(Null) | None => None
+    Some(_) =>
+      raise JsonDecodeError(
+        (path.add_key("progressToken"), "expected string or number"),
+      )
+  }
+  let log_level : LoggingLevel? = match
+    fields.get("io.modelcontextprotocol/logLevel") {
+    Some(v) =>
+      Some(
+        @json.from_json(v) catch {
+          JsonDecodeError((_, msg)) =>
+            raise JsonDecodeError(
+              (path.add_key("io.modelcontextprotocol/logLevel"), msg),
+            )
+        },
+      )
+    None => None
+  }
   RequestMeta(
     protocol_version~,
-    client_info?=match fields.get("io.modelcontextprotocol/clientInfo") {
-      Some(item) =>
-        Some(
-          parse_request_implementation(
-            item,
-            "\{context}.io.modelcontextprotocol/clientInfo",
-          ),
-        )
-      None => None
-    },
-    client_capabilities=ClientCapabilities::from_json(
-      caps,
-      context="\{context}.io.modelcontextprotocol/clientCapabilities",
-    ),
-    progress_token?=match fields.get("progressToken") {
-      Some(item) => Some(parse_progress_token(item, context))
-      None => None
-    },
-    log_level?=match fields.get("io.modelcontextprotocol/logLevel") {
-      Some(item) => Some(parse_logging_level(item))
-      None => None
-    },
+    client_info?,
+    client_capabilities~,
+    progress_token?,
+    log_level?,
     extra~,
-  )
+  ) catch {
+    error => raise JsonDecodeError((path, error.message()))
+  }
+}
+
+///|
+/// Decode the request `_meta` object at the MCP protocol boundary.
+pub fn RequestMeta::from_json(value : Json) -> RequestMeta raise McpError {
+  decode_json(value, context="request params._meta")
 }
 
 ///|

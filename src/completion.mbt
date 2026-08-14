@@ -141,6 +141,7 @@ pub fn CompleteResult::CompleteResult(
   values~ : Array[String],
   total? : Int,
   has_more? : Bool = false,
+  meta? : ResultMeta,
 ) -> CompleteResult raise McpError {
   if values.length() > 100 {
     raise InvalidParams("completion values must not exceed 100 items")
@@ -148,23 +149,113 @@ pub fn CompleteResult::CompleteResult(
   if total is Some(value) && value < 0 {
     raise InvalidParams("completion total must be non-negative")
   }
-  { values: values.copy(), total, has_more, meta: None }
+  {
+    values: values.copy(),
+    total,
+    has_more,
+    meta: copy_optional_result_meta(meta),
+  }
 }
 
 ///|
 pub impl ToJson for CompleteResult with fn to_json(self : CompleteResult) -> Json {
-  let completion : Map[String, Json] = { "values": self.values.to_json() }
-  match self.total {
-    Some(total) =>
-      completion["total"] = Json::number(total.to_double(), repr="\{total}")
-    None => ()
+  let completion : Map[String, Json] = {
+    "values": self.values.map(fn(value) { Json::string(value) }).to_json(),
+    "hasMore": Json::boolean(self.has_more),
   }
-  if self.has_more {
-    completion["hasMore"] = Json::boolean(true)
+  if self.total is Some(total) {
+    completion["total"] = Json::number(total.to_double())
   }
   let fields : Map[String, Json] = { "completion": Json::object(completion) }
   if self.meta is Some(meta) {
     fields["_meta"] = meta.to_json()
   }
   Json::object(fields)
+}
+
+///|
+pub impl @json.FromJson for CompleteResult with fn from_json(
+  value : Json,
+  path : @json.JsonPath,
+) -> CompleteResult raise {
+  guard value is Object(fields) else {
+    raise JsonDecodeError((path, "expected object"))
+  }
+  let completion_val = match fields.get("completion") {
+    Some(Object(c)) => c
+    Some(_) =>
+      raise JsonDecodeError((path.add_key("completion"), "expected object"))
+    None =>
+      raise JsonDecodeError(
+        (path.add_key("completion"), "completion is required"),
+      )
+  }
+  let values_val = match completion_val.get("values") {
+    Some(Array(arr)) => arr
+    Some(_) =>
+      raise JsonDecodeError(
+        (path.add_key("completion").add_key("values"), "expected array"),
+      )
+    None =>
+      raise JsonDecodeError(
+        (path.add_key("completion").add_key("values"), "values is required"),
+      )
+  }
+  let values : Array[String] = []
+  for i, it in values_val {
+    match it {
+      String(s) => values.push(s)
+      _ =>
+        raise JsonDecodeError(
+          (
+            path.add_key("completion").add_key("values").add_index(i),
+            "expected string",
+          ),
+        )
+    }
+  }
+  let total = match completion_val.get("total") {
+    Some(Number(n, ..)) => {
+      if n < 0.0 || n != n.floor() {
+        raise JsonDecodeError(
+          (
+            path.add_key("completion").add_key("total"),
+            "expected non-negative integer",
+          ),
+        )
+      }
+      Some(n.to_int())
+    }
+    Some(Null) | None => None
+    Some(_) =>
+      raise JsonDecodeError(
+        (path.add_key("completion").add_key("total"), "expected number"),
+      )
+  }
+  let has_more = match completion_val.get("hasMore") {
+    Some(True) => true
+    Some(False) | Some(Null) | None => false
+    Some(_) =>
+      raise JsonDecodeError(
+        (path.add_key("completion").add_key("hasMore"), "expected boolean"),
+      )
+  }
+  let meta : ResultMeta? = match fields.get("_meta") {
+    Some(v) =>
+      Some(
+        @json.from_json(v) catch {
+          JsonDecodeError((_, msg)) =>
+            raise JsonDecodeError((path.add_key("_meta"), msg))
+        },
+      )
+    None => None
+  }
+  CompleteResult(values~, total?, has_more~, meta?) catch {
+    error => raise JsonDecodeError((path, error.message()))
+  }
+}
+
+///|
+pub fn CompleteResult::from_json(value : Json) -> CompleteResult raise McpError {
+  decode_json(value, context="completion/complete result")
 }

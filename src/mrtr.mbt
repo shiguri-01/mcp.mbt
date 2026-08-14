@@ -85,15 +85,32 @@ pub impl ToJson for InputRequest with fn to_json(self : InputRequest) -> Json {
 }
 
 ///|
+pub impl @json.FromJson for InputRequest with fn from_json(
+  value : Json,
+  path : @json.JsonPath,
+) -> InputRequest raise {
+  guard value is Object(fields) else {
+    raise JsonDecodeError((path, "expected object"))
+  }
+  let method_name = match fields.get("method") {
+    Some(String(s)) => s
+    Some(_) =>
+      raise JsonDecodeError((path.add_key("method"), "expected string"))
+    None =>
+      raise JsonDecodeError((path.add_key("method"), "method is required"))
+  }
+  let params = match fields.get("params") {
+    Some(v) => v
+    None => Json::object({})
+  }
+  InputRequest(method_name~, params~) catch {
+    error => raise JsonDecodeError((path, error.message()))
+  }
+}
+
+///|
 pub fn InputRequest::from_json(value : Json) -> InputRequest raise McpError {
-  let fields = expect_object(value, "input request")
-  InputRequest(
-    method_name=get_string(fields, "method", "input request"),
-    params=match fields.get("params") {
-      Some(value) => value
-      None => Json::object({})
-    },
-  )
+  decode_json(value, context="input request")
 }
 
 ///|
@@ -105,6 +122,14 @@ pub struct InputResponse {
 ///|
 pub fn InputResponse::InputResponse(result : Json) -> InputResponse {
   { result: copy_json(result) }
+}
+
+///|
+pub impl @json.FromJson for InputResponse with fn from_json(
+  value : Json,
+  _path : @json.JsonPath,
+) -> InputResponse {
+  InputResponse(value)
 }
 
 ///|
@@ -403,35 +428,57 @@ pub impl ToJson for InputRequiredResult with fn to_json(
 }
 
 ///|
+pub impl @json.FromJson for InputRequiredResult with fn from_json(
+  value : Json,
+  path : @json.JsonPath,
+) -> InputRequiredResult raise {
+  guard value is Object(fields) else {
+    raise JsonDecodeError((path, "expected object"))
+  }
+  let input_requests : Map[String, InputRequest]? = match
+    fields.get("inputRequests") {
+    Some(Object(map)) => {
+      let requests : Map[String, InputRequest] = Map([])
+      for k, v in map {
+        requests[k] = @json.from_json(v) catch {
+          JsonDecodeError((_, msg)) =>
+            raise JsonDecodeError(
+              (path.add_key("inputRequests").add_key(k), msg),
+            )
+        }
+      }
+      Some(requests)
+    }
+    Some(Null) | None => None
+    Some(_) =>
+      raise JsonDecodeError((path.add_key("inputRequests"), "expected object"))
+  }
+  let request_state = match fields.get("requestState") {
+    Some(String(s)) => Some(s)
+    Some(Null) | None => None
+    Some(_) =>
+      raise JsonDecodeError((path.add_key("requestState"), "expected string"))
+  }
+  let meta : ResultMeta? = match fields.get("_meta") {
+    Some(v) =>
+      Some(
+        @json.from_json(v) catch {
+          JsonDecodeError((_, msg)) =>
+            raise JsonDecodeError((path.add_key("_meta"), msg))
+        },
+      )
+    None => None
+  }
+  InputRequiredResult(input_requests?, request_state?, meta?) catch {
+    error => raise JsonDecodeError((path, error.message()))
+  }
+}
+
+///|
 pub fn InputRequiredResult::from_json(
   value : Json,
 ) -> InputRequiredResult raise McpError {
-  let fields = expect_object(value, "input_required result")
-  guard fields.get("resultType") is Some(result_type) &&
-    ResultType::from_json(result_type) == InputRequired else {
-    raise InvalidRequest("result.resultType must be 'input_required'")
-  }
-  InputRequiredResult(
-    input_requests?=match fields.get("inputRequests") {
-      Some(Object(values)) => {
-        let requests : Map[String, InputRequest] = Map([])
-        for key, request in values {
-          requests[key] = InputRequest::from_json(request)
-        }
-        Some(requests)
-      }
-      Some(_) => raise InvalidRequest("result.inputRequests must be an object")
-      None => None
-    },
-    request_state?=get_optional_string(fields, "requestState", "result"),
-    meta?=match fields.get("_meta") {
-      Some(value) =>
-        Some(
-          ResultMeta::from_json(value, context="input_required result._meta"),
-        )
-      None => None
-    },
-  )
+  decode_json(value, context="input_required result")
 }
 
 ///|

@@ -474,25 +474,6 @@ pub fn Server::on(
 }
 
 ///|
-fn get_prompt_arguments(
-  params : Map[String, Json],
-) -> Map[String, String] raise McpError {
-  let values : Map[String, String] = Map([])
-  match params.get("arguments") {
-    Some(Object(arguments)) =>
-      for key, value in arguments {
-        match value {
-          String(value) => values[key] = value
-          _ => raise InvalidParams("prompts/get arguments must be strings")
-        }
-      }
-    Some(Null) | None => ()
-    Some(_) => raise InvalidParams("prompts/get arguments must be an object")
-  }
-  values
-}
-
-///|
 fn parse_context(
   request : @jsonrpc.Request[Json],
   hooks? : RequestHooks = RequestHooks(),

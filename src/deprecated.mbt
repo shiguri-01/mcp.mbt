@@ -32,7 +32,10 @@ pub impl ToJson for LoggingLevel with fn to_json(self : LoggingLevel) -> Json {
 }
 
 ///|
-fn parse_logging_level(value : Json) -> LoggingLevel raise McpError {
+pub impl @json.FromJson for LoggingLevel with fn from_json(
+  value : Json,
+  path : @json.JsonPath,
+) -> LoggingLevel raise {
   match value {
     String("debug") => Debug
     String("info") => Info
@@ -42,9 +45,15 @@ fn parse_logging_level(value : Json) -> LoggingLevel raise McpError {
     String("critical") => Critical
     String("alert") => Alert
     String("emergency") => Emergency
-    String(other) => raise InvalidParams("unknown logging level: \{other}")
-    _ => raise InvalidParams("request logLevel must be a string")
+    String(other) =>
+      raise JsonDecodeError((path, "unknown logging level: \{other}"))
+    _ => raise JsonDecodeError((path, "expected string"))
   }
+}
+
+///|
+pub fn LoggingLevel::from_json(value : Json) -> LoggingLevel raise McpError {
+  decode_json(value, context="logLevel")
 }
 
 ///|

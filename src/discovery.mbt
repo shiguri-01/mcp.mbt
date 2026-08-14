@@ -58,56 +58,77 @@ fn parse_ttl_ms(
 }
 
 ///|
-/// Decode a `server/discover` result after the JSON-RPC envelope is removed.
-pub fn DiscoverResult::from_json(value : Json) -> DiscoverResult raise McpError {
-  let context = "discover result"
-  let fields = expect_object(value, context)
-  match fields.get("resultType") {
-    Some(result_type) if ResultType::from_json(result_type) == Complete => ()
-    None => ()
-    _ => raise InvalidRequest("discover result.resultType must be 'complete'")
-  }
-  let supported_versions = match fields.get("supportedVersions") {
-    Some(Array(values)) =>
-      values.map(item => {
-        match item {
-          String(version) => version
-          _ =>
-            raise InvalidParams(
-              "\{context}.supportedVersions must contain strings",
-            )
-        }
-      })
-    Some(_) =>
-      raise InvalidParams("\{context}.supportedVersions must be an array")
-    None => raise InvalidParams("\{context}.supportedVersions is required")
-  }
-  guard fields.get("capabilities") is Some(capabilities) else {
-    raise InvalidParams("\{context}.capabilities is required")
-  }
-  let scope = match fields.get("cacheScope") {
-    Some(value) => CacheScope::from_json(value)
-    None => raise InvalidParams("\{context}.cacheScope is required")
-  }
-  DiscoverResult(
-    supported_versions~,
-    capabilities=ServerCapabilities::from_json(capabilities),
-    instructions?=get_optional_string(fields, "instructions", context),
-    cache_policy=CachePolicy(ttl_ms=parse_ttl_ms(fields, context), scope~),
-    meta?=match fields.get("_meta") {
-      Some(value) =>
-        Some(ResultMeta::from_json(value, context="\{context}._meta"))
-      None => None
-    },
-  )
-}
-
-///|
 pub impl @json.FromJson for DiscoverResult with fn from_json(
   value : Json,
   path : @json.JsonPath,
 ) -> DiscoverResult raise {
-  DiscoverResult::from_json(value) catch {
+  guard value is Object(fields) else {
+    raise JsonDecodeError((path, "expected object"))
+  }
+  let supported_versions_val = match fields.get("supportedVersions") {
+    Some(Array(arr)) => arr
+    Some(_) =>
+      raise JsonDecodeError(
+        (path.add_key("supportedVersions"), "expected array"),
+      )
+    None =>
+      raise JsonDecodeError(
+        (path.add_key("supportedVersions"), "supportedVersions is required"),
+      )
+  }
+  let supported_versions : Array[String] = []
+  for i, it in supported_versions_val {
+    match it {
+      String(s) => supported_versions.push(s)
+      _ =>
+        raise JsonDecodeError(
+          (path.add_key("supportedVersions").add_index(i), "expected string"),
+        )
+    }
+  }
+  let cap_val = match fields.get("capabilities") {
+    Some(v) => v
+    None =>
+      raise JsonDecodeError(
+        (path.add_key("capabilities"), "capabilities is required"),
+      )
+  }
+  let capabilities : ServerCapabilities = @json.from_json(cap_val) catch {
+    JsonDecodeError((_, msg)) =>
+      raise JsonDecodeError((path.add_key("capabilities"), msg))
+  }
+  let instructions = match fields.get("instructions") {
+    Some(String(s)) => Some(s)
+    Some(Null) | None => None
+    Some(_) =>
+      raise JsonDecodeError((path.add_key("instructions"), "expected string"))
+  }
+  let cache_policy : CachePolicy = @json.from_json(value) catch {
+    JsonDecodeError((_, msg)) => raise JsonDecodeError((path, msg))
+  }
+  let meta : ResultMeta? = match fields.get("_meta") {
+    Some(v) =>
+      Some(
+        @json.from_json(v) catch {
+          JsonDecodeError((_, msg)) =>
+            raise JsonDecodeError((path.add_key("_meta"), msg))
+        },
+      )
+    None => None
+  }
+  DiscoverResult(
+    supported_versions~,
+    capabilities~,
+    instructions?,
+    cache_policy~,
+    meta?,
+  ) catch {
     error => raise JsonDecodeError((path, error.message()))
   }
+}
+
+///|
+/// Decode a `server/discover` result after the JSON-RPC envelope is removed.
+pub fn DiscoverResult::from_json(value : Json) -> DiscoverResult raise McpError {
+  decode_json(value, context="discover result")
 }

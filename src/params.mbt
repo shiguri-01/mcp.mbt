@@ -10,10 +10,34 @@ pub fn ListParams::ListParams(cursor? : String) -> ListParams {
 }
 
 ///|
-pub fn ListParams::from_json(value : Json) -> ListParams raise McpError {
-  let fields = expect_object(value, "list params")
-  let cursor = get_optional_string(fields, "cursor", "list params")
+pub impl @json.FromJson for ListParams with fn from_json(
+  value : Json,
+  path : @json.JsonPath,
+) -> ListParams raise {
+  guard value is Object(fields) else {
+    raise JsonDecodeError((path, "expected object"))
+  }
+  let cursor = match fields.get("cursor") {
+    Some(String(cursor)) => Some(cursor)
+    Some(Null) | None => None
+    Some(_) =>
+      raise JsonDecodeError((path.add_key("cursor"), "expected string"))
+  }
   { cursor, }
+}
+
+///|
+pub impl ToJson for ListParams with fn to_json(self : ListParams) -> Json {
+  let fields : Map[String, Json] = Map([])
+  if self.cursor is Some(cursor) {
+    fields["cursor"] = Json::string(cursor)
+  }
+  Json::object(fields)
+}
+
+///|
+pub fn ListParams::from_json(value : Json) -> ListParams raise McpError {
+  decode_json(value, context="list params")
 }
 
 ///|
@@ -40,16 +64,38 @@ pub fn CallToolParams::CallToolParams(
 }
 
 ///|
-pub fn CallToolParams::from_json(value : Json) -> CallToolParams raise McpError {
-  let fields = expect_object(value, "tools/call params")
-  let name = get_string(fields, "name", "tools/call params")
+pub impl @json.FromJson for CallToolParams with fn from_json(
+  value : Json,
+  path : @json.JsonPath,
+) -> CallToolParams raise {
+  guard value is Object(fields) else {
+    raise JsonDecodeError((path, "expected object"))
+  }
+  let name = match fields.get("name") {
+    Some(String(name)) => name
+    Some(_) => raise JsonDecodeError((path.add_key("name"), "expected string"))
+    None => raise JsonDecodeError((path.add_key("name"), "name is required"))
+  }
+  if name.is_empty() {
+    raise JsonDecodeError((path.add_key("name"), "tool name must not be empty"))
+  }
   let arguments = match fields.get("arguments") {
     Some(Object(_) as args) => args
     Some(Null) | None => Json::object({})
     Some(_) =>
-      raise InvalidParams("tools/call params.arguments must be an object")
+      raise JsonDecodeError((path.add_key("arguments"), "expected object"))
   }
-  CallToolParams(name~, arguments~)
+  { name, arguments }
+}
+
+///|
+pub impl ToJson for CallToolParams with fn to_json(self : CallToolParams) -> Json {
+  Json::object({ "name": Json::string(self.name), "arguments": self.arguments })
+}
+
+///|
+pub fn CallToolParams::from_json(value : Json) -> CallToolParams raise McpError {
+  decode_json(value, context="tools/call params")
 }
 
 ///|
@@ -69,12 +115,38 @@ pub fn ReadResourceParams::ReadResourceParams(
 }
 
 ///|
+pub impl @json.FromJson for ReadResourceParams with fn from_json(
+  value : Json,
+  path : @json.JsonPath,
+) -> ReadResourceParams raise {
+  guard value is Object(fields) else {
+    raise JsonDecodeError((path, "expected object"))
+  }
+  let uri = match fields.get("uri") {
+    Some(String(uri)) => uri
+    Some(_) => raise JsonDecodeError((path.add_key("uri"), "expected string"))
+    None => raise JsonDecodeError((path.add_key("uri"), "uri is required"))
+  }
+  if uri.is_empty() {
+    raise JsonDecodeError(
+      (path.add_key("uri"), "resource uri must not be empty"),
+    )
+  }
+  { uri, }
+}
+
+///|
+pub impl ToJson for ReadResourceParams with fn to_json(
+  self : ReadResourceParams,
+) -> Json {
+  Json::object({ "uri": Json::string(self.uri) })
+}
+
+///|
 pub fn ReadResourceParams::from_json(
   value : Json,
 ) -> ReadResourceParams raise McpError {
-  let fields = expect_object(value, "resources/read params")
-  let uri = get_string(fields, "uri", "resources/read params")
-  ReadResourceParams(uri~)
+  decode_json(value, context="resources/read params")
 }
 
 ///|
@@ -96,11 +168,60 @@ pub fn GetPromptParams::GetPromptParams(
 }
 
 ///|
+pub impl @json.FromJson for GetPromptParams with fn from_json(
+  value : Json,
+  path : @json.JsonPath,
+) -> GetPromptParams raise {
+  guard value is Object(fields) else {
+    raise JsonDecodeError((path, "expected object"))
+  }
+  let name = match fields.get("name") {
+    Some(String(name)) => name
+    Some(_) => raise JsonDecodeError((path.add_key("name"), "expected string"))
+    None => raise JsonDecodeError((path.add_key("name"), "name is required"))
+  }
+  if name.is_empty() {
+    raise JsonDecodeError(
+      (path.add_key("name"), "prompt name must not be empty"),
+    )
+  }
+  let arguments : Map[String, String] = match fields.get("arguments") {
+    Some(Object(map)) => {
+      let result : Map[String, String] = Map([])
+      for k, v in map {
+        match v {
+          String(s) => result[k] = s
+          _ =>
+            raise JsonDecodeError(
+              (path.add_key("arguments").add_key(k), "expected string"),
+            )
+        }
+      }
+      result
+    }
+    Some(Null) | None => Map([])
+    Some(_) =>
+      raise JsonDecodeError((path.add_key("arguments"), "expected object"))
+  }
+  { name, arguments }
+}
+
+///|
+pub impl ToJson for GetPromptParams with fn to_json(self : GetPromptParams) -> Json {
+  let fields : Map[String, Json] = { "name": Json::string(self.name) }
+  if !self.arguments.is_empty() {
+    let args : Map[String, Json] = Map([])
+    for k, v in self.arguments {
+      args[k] = Json::string(v)
+    }
+    fields["arguments"] = Json::object(args)
+  }
+  Json::object(fields)
+}
+
+///|
 pub fn GetPromptParams::from_json(
   value : Json,
 ) -> GetPromptParams raise McpError {
-  let fields = expect_object(value, "prompts/get params")
-  let name = get_string(fields, "name", "prompts/get params")
-  let arguments = get_prompt_arguments(fields)
-  GetPromptParams(name~, arguments~)
+  decode_json(value, context="prompts/get params")
 }
