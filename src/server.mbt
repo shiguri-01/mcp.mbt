@@ -249,7 +249,7 @@ fn Server::capabilities(self : Server) -> ServerCapabilities {
 }
 
 ///|
-fn Server::register_tool(
+fn Server::install_tool(
   self : Server,
   tool : Tool,
   handler : ToolHandler,
@@ -295,7 +295,7 @@ pub fn[A : FromJson + @schema.JsonSchema] Server::tool(
     icons~,
     meta?,
   )
-  self.register_tool(tool, async fn(
+  self.install_tool(tool, async fn(
     context,
     arguments,
   ) -> HandlerOutcome[CallToolResult] raise McpError {
@@ -327,7 +327,7 @@ pub fn Server::tool_raw(
   meta? : Json,
   handler : ToolHandler,
 ) -> Unit raise McpError {
-  self.register_tool(
+  self.install_tool(
     Tool(
       name~,
       title?,
