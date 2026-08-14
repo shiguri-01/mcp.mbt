@@ -26,3 +26,10 @@ impl @schema.JsonSchema for HelloInput with fn json_schema() -> @schema.Schema {
 and `Document::compile()` produces an instance validator. Use `Schema::raw`
 only for keywords not yet modeled by the typed AST. `schema_of((None : T?))`
 obtains a schema from a `JsonSchema` implementation without constructing `T`.
+
+Common constraints are also typed constructors, for example
+`Schema::string_constraints(min_length=1)`,
+`Schema::array_constraints(items=Schema::integer(), min_items=1)`, and
+`Schema::object_constraints(properties={ "items": item_schema },
+min_properties=1)`. These constructors reject invalid bounds before a
+document is compiled.
