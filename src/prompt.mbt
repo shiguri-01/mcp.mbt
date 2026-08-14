@@ -7,6 +7,12 @@ pub(all) struct PromptArgument {
 } derive(Debug, Eq)
 
 ///|
+/// A typed prompt declares the arguments it accepts through this trait.
+pub(open) trait PromptArguments {
+  fn prompt_arguments() -> Array[PromptArgument]
+}
+
+///|
 /// Construct a prompt argument descriptor.
 pub fn PromptArgument::PromptArgument(
   name~ : String,

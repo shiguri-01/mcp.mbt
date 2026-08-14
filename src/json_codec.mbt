@@ -72,12 +72,6 @@ fn empty_object_schema() -> Json {
 }
 
 ///|
-/// Prompt argument provider for typed prompt inputs.
-pub(open) trait PromptArguments {
-  fn prompt_arguments() -> Array[PromptArgument]
-}
-
-///|
 fn expect_object(
   value : Json,
   context : String,
