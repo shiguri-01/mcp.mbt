@@ -325,3 +325,35 @@ test "client and server constructors reject empty protocol identities" {
     ignore(@mcp.RequestMeta(protocol_version=""))
   })
 }
+
+///|
+async test "transport descriptor snapshots do not expose the server registry" {
+  let schema_fields : Map[String, Json] = { "type": Json::string("object") }
+  let server = try! @mcp.Server(name="server", version="1")
+  try! server.tool_raw(name="owned", input_schema=Json::object(schema_fields), fn(
+    _context,
+    _arguments,
+  ) {
+    @mcp.Complete(@mcp.CallToolResult::text("ok"))
+  })
+  let descriptor = server.tool_descriptor("owned").unwrap()
+  guard descriptor.input_schema is Object(fields) else {
+    fail("descriptor did not contain an object schema")
+  }
+  fields["type"] = Json::string("string")
+  let listed = server.handle_jsonrpc(
+    try! @mcp.Client(name="client", version="1").list_tools_request(),
+  )
+  guard listed is Some(Object({ "result": Object(result), .. })) else {
+    fail("tools/list did not return a result")
+  }
+  guard result["tools"]
+    is Array(
+      [
+        Object({ "inputSchema": Object({ "type": String("object"), .. }), .. }),
+        ..,
+      ]
+    ) else {
+    fail("adapter snapshot mutation changed the server registry")
+  }
+}

@@ -44,6 +44,18 @@ pub struct Tool {
 } derive(Debug, Eq)
 
 ///|
+/// Copy a tool descriptor before handing it to an adapter.
+fn Tool::copy(self : Tool) -> Tool {
+  {
+    ..self,
+    input_schema: copy_json(self.input_schema),
+    output_schema: copy_optional_json(self.output_schema),
+    icons: self.icons.map(icon => icon.copy()),
+    meta: copy_optional_json(self.meta),
+  }
+}
+
+///|
 /// Construct a tool descriptor.
 pub fn Tool::Tool(
   name~ : String,

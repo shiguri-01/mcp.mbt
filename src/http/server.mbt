@@ -374,7 +374,7 @@ fn validate_tool_call_headers(
     Some(value) => value
     None => Json::object({})
   }
-  match server.tool_schemas.get(name) {
+  match server.tool_descriptor(name) {
     Some(tool) => {
       let schema = tool.input_schema
       validate_tool_argument_headers(request.headers, schema, arguments) catch {

@@ -137,8 +137,7 @@ pub struct Server {
   supported_versions : Array[String]
   priv mut registry_frozen : Bool
   priv tools : Map[String, RegisteredTool]
-  /// Read-only descriptor snapshot for transport adapters.
-  tool_schemas : Map[String, Tool]
+  priv tool_schemas : Map[String, Tool]
   priv resources : Map[String, RegisteredResource]
   priv resource_templates : Map[String, RegisteredResourceTemplate]
   priv prompts : Map[String, RegisteredPrompt]
@@ -265,6 +264,15 @@ fn Server::install_tool(
   }
   self.tools[tool.name] = { tool, handler, input_validator, output_validator }
   self.tool_schemas[tool.name] = tool
+}
+
+///|
+/// Return an owned descriptor snapshot for a transport adapter.
+///
+/// Adapters must inspect the descriptor to validate transport-specific
+/// annotations, but must not receive the server's registry map itself.
+pub fn Server::tool_descriptor(self : Server, name : String) -> Tool? {
+  self.tool_schemas.get(name).map(tool => tool.copy())
 }
 
 ///|
