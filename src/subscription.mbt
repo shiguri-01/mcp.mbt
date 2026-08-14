@@ -178,6 +178,33 @@ pub fn Subscription::close_response(self : Subscription) -> Json {
 }
 
 ///|
+/// Check whether a notification event is targeted at this subscription and
+/// allowed by its negotiated notification filter.
+pub fn Subscription::allows_event(self : Subscription, event : Json) -> Bool {
+  guard (decode_message(event) catch { _ => return false })
+    is Notification({ method_name, params: Object(params) }) else {
+    false
+  }
+  guard params.get("_meta")
+    is Some(Object({ "io.modelcontextprotocol/subscriptionId": sub_id, .. })) &&
+    sub_id == self.id else {
+    false
+  }
+  let filter = self.notifications
+  match method_name {
+    "notifications/tools/list_changed" => filter.tools_list_changed
+    "notifications/prompts/list_changed" => filter.prompts_list_changed
+    "notifications/resources/list_changed" => filter.resources_list_changed
+    "notifications/resources/updated" =>
+      match params.get("uri") {
+        Some(String(uri)) => filter.resource_subscriptions.contains(uri)
+        _ => false
+      }
+    _ => false
+  }
+}
+
+///|
 /// Validate a listen request and reduce its filter to notifications this
 /// server explicitly configured. The transport must send `acknowledgement()`
 /// before publishing any other event.

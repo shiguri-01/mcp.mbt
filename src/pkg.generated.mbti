@@ -637,6 +637,7 @@ pub struct Subscription {
   // private fields
 }
 pub fn Subscription::acknowledgement(Self) -> Json
+pub fn Subscription::allows_event(Self, Json) -> Bool
 pub fn Subscription::close_response(Self) -> Json
 
 pub struct SubscriptionFilter {

@@ -1,9 +1,10 @@
 ///|
 fn inbound_id(message : Json) -> Json? {
-  match (@jsonrpc.decode(message) catch { _ => return None }) {
-    @jsonrpc.Message::Request(request) => Some(request.id.as_json())
-    _ => None
+  guard (@jsonrpc.decode(message) catch { _ => return None })
+    is Request({ id, .. }) else {
+    None
   }
+  Some(id.as_json())
 }
 
 ///|
@@ -13,31 +14,22 @@ fn error_response(id : Json?, error : @mcp.McpError) -> Json {
 
 ///|
 fn is_listen_request(message : Json) -> Bool {
-  match (@jsonrpc.decode(message) catch { _ => return false }) {
-    @jsonrpc.Message::Request(request) =>
-      request.method_name == "subscriptions/listen"
-    _ => false
-  }
+  (@jsonrpc.decode(message) catch { _ => return false })
+  is Request({ method_name: "subscriptions/listen", .. })
 }
 
 ///|
 fn cancelled_request_id(message : Json) -> Json? {
-  match (@jsonrpc.decode(message) catch { _ => return None }) {
-    @jsonrpc.Message::Notification(notification) =>
-      if notification.method_name == "notifications/cancelled" {
-        match notification.params {
-          Object(params) =>
-            match params.get("requestId") {
-              Some(String(_) | Number(_) as id) => Some(id)
-              _ => None
-            }
-          _ => None
-        }
-      } else {
-        None
-      }
-    _ => None
+  guard (@jsonrpc.decode(message) catch { _ => return None })
+    is Notification(
+      { method_name: "notifications/cancelled", params: Object(params) }
+    ) else {
+    None
   }
+  guard params.get("requestId") is Some(String(_) | Number(_) as id) else {
+    None
+  }
+  Some(id)
 }
 
 ///|
@@ -75,42 +67,6 @@ fn find_request(requests : Array[ActiveRequest], id : Json) -> Int? {
     }
   }
   None
-}
-
-///|
-fn subscription_event_allowed(
-  subscription : @mcp.Subscription,
-  event : Json,
-) -> Bool {
-  let decoded = @jsonrpc.decode(event) catch { _ => return false }
-  let notification = match decoded {
-    @jsonrpc.Message::Notification(notification) => notification
-    _ => return false
-  }
-  let params = match notification.params {
-    Object(params) => params
-    _ => return false
-  }
-  let meta = match params.get("_meta") {
-    Some(Object(meta)) => meta
-    _ => return false
-  }
-  guard meta.get("io.modelcontextprotocol/subscriptionId") ==
-    Some(subscription.id) else {
-    return false
-  }
-  let filter = subscription.notifications
-  match notification.method_name {
-    "notifications/tools/list_changed" => filter.tools_list_changed
-    "notifications/prompts/list_changed" => filter.prompts_list_changed
-    "notifications/resources/list_changed" => filter.resources_list_changed
-    "notifications/resources/updated" =>
-      match params.get("uri") {
-        Some(String(uri)) => filter.resource_subscriptions.contains(uri)
-        _ => false
-      }
-    _ => false
-  }
 }
 
 ///|
@@ -162,7 +118,7 @@ pub async fn serve(
         let cancelled = [false]
         let task = group.spawn(() => {
           on_subscription(subscription, async fn(notification) {
-            if subscription_event_allowed(subscription, notification) {
+            if subscription.allows_event(notification) {
               output.put(Some(encode_frame(notification)))
             }
           }) catch {

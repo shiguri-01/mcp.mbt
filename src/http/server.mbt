@@ -41,42 +41,6 @@ fn sse_message(message : Json) -> String {
 }
 
 ///|
-fn subscription_event_allowed(
-  subscription : @mcp.Subscription,
-  event : Json,
-) -> Bool {
-  let decoded = @jsonrpc.decode(event) catch { _ => return false }
-  let notification = match decoded {
-    @jsonrpc.Message::Notification(notification) => notification
-    _ => return false
-  }
-  let params = match notification.params {
-    Object(params) => params
-    _ => return false
-  }
-  let meta = match params.get("_meta") {
-    Some(Object(meta)) => meta
-    _ => return false
-  }
-  guard meta.get("io.modelcontextprotocol/subscriptionId") ==
-    Some(subscription.id) else {
-    return false
-  }
-  let filter = subscription.notifications
-  match notification.method_name {
-    "notifications/tools/list_changed" => filter.tools_list_changed
-    "notifications/prompts/list_changed" => filter.prompts_list_changed
-    "notifications/resources/list_changed" => filter.resources_list_changed
-    "notifications/resources/updated" =>
-      match params.get("uri") {
-        Some(String(uri)) => filter.resource_subscriptions.contains(uri)
-        _ => false
-      }
-    _ => false
-  }
-}
-
-///|
 async fn send_subscription_stream(
   conn : @async_http.ServerConnection,
   subscription : @mcp.Subscription,
@@ -96,7 +60,7 @@ async fn send_subscription_stream(
     let producer = group.spawn(
       async fn() {
         on_subscription(subscription, async fn(event) {
-          if !stopped.val && subscription_event_allowed(subscription, event) {
+          if !stopped.val && subscription.allows_event(event) {
             outbound.put(Some(sse_message(event)))
           }
         }) catch {

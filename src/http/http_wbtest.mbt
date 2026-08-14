@@ -688,20 +688,17 @@ test "subscription SSE starts with acknowledgement and ends with response" {
   assert_true(ack.contains("notifications/subscriptions/acknowledged"))
   assert_true(close.contains("\"result\""))
   assert_true(
-    subscription_event_allowed(
-      subscription,
+    subscription.allows_event(
       @mcp.tools_list_changed_notification(subscription_id=subscription.id),
     ),
   )
   assert_true(
-    !subscription_event_allowed(
-      subscription,
+    !subscription.allows_event(
       @mcp.prompts_list_changed_notification(subscription_id=subscription.id),
     ),
   )
   assert_true(
-    !subscription_event_allowed(
-      subscription,
+    !subscription.allows_event(
       @mcp.tools_list_changed_notification(subscription_id=Json::number(99.0)),
     ),
   )
