@@ -186,11 +186,13 @@ test "document compilation rejects malformed supported keywords" {
     Json::object({ "properties": Json::string("not-an-object") }),
     Json::object({ "items": Json::string("not-a-schema") }),
     Json::object({ "anyOf": Json::array([]) }),
+    Json::object({ "multipleOf": Json::number(2.0) }),
+    Json::object({ "$dynamicRef": Json::string("#/$defs/value") }),
   ]
   for value in invalid_schemas {
     let document = try! Document::Document(value)
     try document.compile() catch {
-      InvalidSchema(_) => ()
+      InvalidSchema(_) | UnsupportedKeyword(_) => ()
       _ => fail("malformed schema keyword must be rejected")
     } noraise {
       _ => fail("malformed schema keyword must be rejected")

@@ -88,15 +88,9 @@ fn validate_tool_document(
   schema : Json,
   context : String,
 ) -> Unit raise McpError {
-  let document = @schema.Document::Document(schema) catch {
-    _ => raise InvalidParams("\{context} is not a valid JSON Schema document")
-  }
   ignore(
-    document.compile() catch {
-      _ =>
-        raise InvalidParams(
-          "\{context} is not a compilable JSON Schema document",
-        )
+    @schema.Document::Document(schema) catch {
+      _ => raise InvalidParams("\{context} is not a valid JSON Schema document")
     },
   )
 }

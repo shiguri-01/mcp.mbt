@@ -309,6 +309,7 @@ pub fn Document::Document(value : Json) -> Document raise SchemaError {
   if fields.get("$ref") is Some(reference) && !(reference is String(_)) {
     raise InvalidDocument("$ref must be a string")
   }
+  validate_references(value, 0, 128)
   { value, dialect }
 }
 
@@ -455,8 +456,17 @@ fn validate_supported_keywords(
   }
   match value {
     Object(fields) => {
-      if fields.get("pattern") is Some(_) {
-        raise UnsupportedKeyword("pattern")
+      for
+        keyword in [
+          "pattern", "multipleOf", "minItems", "maxItems", "uniqueItems", "contains",
+          "prefixItems", "minProperties", "maxProperties", "patternProperties", "propertyNames",
+          "dependentRequired", "dependentSchemas", "if", "then", "else", "unevaluatedItems",
+          "unevaluatedProperties", "format", "contentEncoding", "contentMediaType",
+          "$dynamicRef",
+        ] {
+        if fields.contains(keyword) {
+          raise UnsupportedKeyword(keyword)
+        }
       }
       for child in schema_children(fields) {
         validate_supported_keywords(child, depth + 1, max_depth)
