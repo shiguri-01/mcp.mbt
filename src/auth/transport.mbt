@@ -57,7 +57,7 @@ pub struct AuthorizationProvider {
   priv open_authorization_url : async (String) -> String raise AuthError
   priv random_bytes : (Int) -> Bytes raise AuthError
   priv validate_destination : (String) -> Unit raise AuthError
-  priv allow_insecure_loopback : Bool
+  allow_insecure_loopback : Bool
 }
 
 ///|
@@ -93,13 +93,6 @@ pub fn AuthorizationProvider::AuthorizationProvider(
     validate_destination,
     allow_insecure_loopback,
   }
-}
-
-///|
-pub fn AuthorizationProvider::allows_insecure_loopback(
-  self : AuthorizationProvider,
-) -> Bool {
-  self.allow_insecure_loopback
 }
 
 ///|

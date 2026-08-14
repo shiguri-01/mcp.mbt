@@ -31,7 +31,7 @@ pub async fn AuthorizationEngine::authorize(
     resource~,
     pkce~,
     scopes~,
-    allow_insecure_loopback=self.provider.allows_insecure_loopback(),
+    allow_insecure_loopback=self.provider.allow_insecure_loopback,
     exact_resource~,
   )
   let callback_uri = self.provider.authorize(authorization_url)

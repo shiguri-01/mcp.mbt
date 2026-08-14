@@ -44,7 +44,7 @@ pub fn AuthorizationOptions::AuthorizationOptions(
   ignore(
     @auth.validate_secure_uri(
       redirect_uri,
-      allow_loopback_http=provider.allows_insecure_loopback(),
+      allow_loopback_http=provider.allow_insecure_loopback,
     ),
   ) catch {
     _ => raise @mcp.InvalidParams("authorization redirect_uri must be absolute")
@@ -305,7 +305,7 @@ async fn Client::authorize_challenge(
         metadata,
         client_id_metadata_url?=options.client_id_metadata_url,
         pre_registered?,
-        allow_insecure_loopback=options.provider.allows_insecure_loopback(),
+        allow_insecure_loopback=options.provider.allow_insecure_loopback,
       ) catch {
         error => raise auth_error_to_mcp(error)
       }

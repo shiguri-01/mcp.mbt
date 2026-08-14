@@ -54,7 +54,7 @@ pub async fn discover_protected_resource_metadata(
       return parse_protected_resource_metadata(
         response_json(response),
         expected_resource=resource_uri,
-        allow_insecure_loopback=provider.allows_insecure_loopback(),
+        allow_insecure_loopback=provider.allow_insecure_loopback,
         exact_resource~,
         allow_same_origin_root=using_generated_candidates &&
           origin_fallback == Some(url),
@@ -77,7 +77,7 @@ pub async fn discover_authorization_server_metadata(
       return parse_authorization_server_metadata(
         response_json(response),
         expected_issuer=issuer,
-        allow_insecure_loopback=provider.allows_insecure_loopback(),
+        allow_insecure_loopback=provider.allow_insecure_loopback,
       )
     }
   }
