@@ -25,7 +25,7 @@ pub fn string(name~ : String, description? : String, required? : Bool) -> Proper
 pub fn string_enum(name~ : String, values~ : Array[String], description? : String, required? : Bool) -> Property raise SchemaError
 
 // Errors
-pub(all) suberror SchemaError {
+pub suberror SchemaError {
   InvalidDocument(String)
   UnsupportedDialect(String)
   InvalidSchema(String)
