@@ -50,3 +50,39 @@ test "document compilation has explicit resource limits" {
     _ => fail("expected a schema limit error")
   }
 }
+
+///|
+test "compiled schemas resolve local JSON Pointer references" {
+  let document = try! Document::new(
+    Json::object({
+      "$defs": Json::object({
+        "name": Json::object({ "type": Json::string("string") }),
+      }),
+      "$ref": Json::string("#/$defs/name"),
+    }),
+  )
+  let schema = try! document.compile()
+  assert_true(schema.validate(Json::string("MoonBit")).valid)
+  assert_false(schema.validate(Json::number(1.0)).valid)
+}
+
+///|
+test "network references are rejected during compilation" {
+  try
+    Document::new(
+      Json::object({ "$ref": Json::string("https://example.com/schema.json") }),
+    ).compile()
+  catch {
+    error => assert_true(error is InvalidSchema(_))
+  } noraise {
+    _ => fail("expected network reference rejection")
+  }
+}
+
+///|
+test "boolean schemas retain JSON Schema semantics" {
+  let always_valid = try! Document::new(Json::boolean(true)).compile()
+  let never_valid = try! Document::new(Json::boolean(false)).compile()
+  assert_true(always_valid.validate(Json::string("ok")).valid)
+  assert_false(never_valid.validate(Json::string("ok")).valid)
+}

@@ -70,6 +70,7 @@ pub fn Document::compile(
   if nodes > options.max_nodes {
     raise InvalidSchema("schema exceeds max_nodes")
   }
+  validate_references(self.value, 0, options.max_depth)
   { document: self, options }
 }
 
@@ -85,7 +86,15 @@ pub fn CompiledSchema::validate(
   instance : Json,
 ) -> ValidationResult {
   let errors : Array[String] = []
-  validate_instance(self.document.value, instance, "$", 0, self.options, errors)
+  validate_instance(
+    self.document.value,
+    self.document.value,
+    instance,
+    "$",
+    0,
+    self.options,
+    errors,
+  )
   { valid: errors.is_empty(), errors }
 }
 
@@ -118,6 +127,44 @@ fn count_schema_nodes(
 }
 
 ///|
+fn validate_references(
+  value : Json,
+  depth : Int,
+  max_depth : Int,
+) -> Unit raise SchemaError {
+  if depth > max_depth {
+    raise InvalidSchema("schema exceeds max_depth")
+  }
+  match value {
+    Object(fields) => {
+      match fields.get("$ref") {
+        Some(String(reference)) if !reference.has_prefix("#") =>
+          raise InvalidSchema("network JSON Schema references are disabled")
+        Some(String(_)) => ()
+        Some(_) => raise InvalidSchema("JSON Schema $ref must be a string")
+        None => ()
+      }
+      match fields.get("$dynamicRef") {
+        Some(String(reference)) if !reference.has_prefix("#") =>
+          raise InvalidSchema("network JSON Schema references are disabled")
+        Some(String(_)) => ()
+        Some(_) =>
+          raise InvalidSchema("JSON Schema $dynamicRef must be a string")
+        None => ()
+      }
+      for _, child in fields {
+        validate_references(child, depth + 1, max_depth)
+      }
+    }
+    Array(values) =>
+      for child in values {
+        validate_references(child, depth + 1, max_depth)
+      }
+    _ => ()
+  }
+}
+
+///|
 fn add_error(errors : Array[String], path : String, message : String) -> Unit {
   errors.push("\{path}: \{message}")
 }
@@ -137,8 +184,53 @@ fn type_matches(type_name : String, value : Json) -> Bool {
 }
 
 ///|
+fn local_reference(root : Json, reference : String) -> Json? {
+  if reference == "#" {
+    return Some(root)
+  }
+  guard reference.has_prefix("#/") else { return None }
+  let mut current = root
+  for encoded in reference[2:].split("/") {
+    let segment = encoded
+      .to_owned()
+      .replace_all(old="~1", new="/")
+      .replace_all(old="~0", new="~")
+    current = match current {
+      Object(fields) =>
+        match fields.get(segment) {
+          Some(value) => value
+          None => return None
+        }
+      Array(values) => {
+        let mut index = 0
+        if segment.is_empty() {
+          return None
+        }
+        for char in segment {
+          if !(char is ('0'..='9')) {
+            return None
+          }
+          let digit = char.to_int() - '0'.to_int()
+          if index > (2147483647 - digit) / 10 {
+            return None
+          }
+          index = index * 10 + digit
+        }
+        if index < 0 || index >= values.length() {
+          return None
+        }
+        values[index]
+      }
+      _ => return None
+    }
+  }
+  Some(current)
+}
+
+///|
 fn validate_instance(
   schema : Json,
+  root : Json,
   instance : Json,
   path : String,
   depth : Int,
@@ -149,7 +241,16 @@ fn validate_instance(
     add_error(errors, path, "validation exceeded max_depth")
     return
   }
-  match schema {
+  let resolved = match schema {
+    Object(fields) =>
+      match fields.get("$ref") {
+        Some(String(reference)) =>
+          local_reference(root, reference).unwrap_or(schema)
+        _ => schema
+      }
+    _ => schema
+  }
+  match resolved {
     True => return
     False => {
       add_error(errors, path, "boolean schema is false")
@@ -157,7 +258,7 @@ fn validate_instance(
     }
     _ => ()
   }
-  guard schema is Object(fields) else { return }
+  guard resolved is Object(fields) else { return }
   match fields.get("type") {
     Some(String(type_name)) if !type_matches(type_name, instance) =>
       add_error(errors, path, "value does not match type {type_name}")
@@ -175,6 +276,7 @@ fn validate_instance(
           Some(property) =>
             validate_instance(
               property_schema,
+              root,
               property,
               path + "." + name,
               depth + 1,
@@ -212,6 +314,7 @@ fn validate_instance(
       for index, value in values {
         validate_instance(
           item_schema,
+          root,
           value,
           path + "[" + index.to_string() + "]",
           depth + 1,
