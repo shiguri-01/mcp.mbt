@@ -134,7 +134,7 @@ pub struct Server {
   priv info : Implementation
   priv instructions : String?
   priv cache_policy : CachePolicy
-  supported_versions : Array[String]
+  priv supported_versions : Array[String]
   priv mut registry_frozen : Bool
   priv tools : Map[String, RegisteredTool]
   priv tool_schemas : Map[String, Tool]
@@ -531,6 +531,15 @@ fn Server::ensure_supported_version(
       supported=self.supported_versions.copy(),
     )
   }
+}
+
+///|
+/// Report whether a protocol version is accepted by this server.
+pub fn Server::supports_protocol_version(
+  self : Server,
+  version : String,
+) -> Bool {
+  self.supported_versions.contains(version)
 }
 
 ///|

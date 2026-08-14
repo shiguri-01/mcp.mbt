@@ -540,7 +540,8 @@ fn validate_standard_headers(
       )
     None => ()
   }
-  if !supported_versions.contains(header_version) {
+  if !supported_versions.is_empty() &&
+    !supported_versions.contains(header_version) {
     raise @mcp.UnsupportedProtocolVersion(
       requested=header_version,
       supported=supported_versions,
