@@ -515,7 +515,7 @@ pub fn Server::resource(Self, uri~ : String, name? : String, title? : String, de
 pub fn Server::resource_template(Self, uri_template~ : String, name? : String, title? : String, description? : String, mime_type? : String, icons? : Array[Icon], annotations? : Annotations, meta? : Json, async (RequestContext, String, Map[String, String]) -> HandlerOutcome[ReadResourceResult] raise McpError) -> Unit raise McpError
 pub fn[A : @json.FromJson + @schema.JsonSchema] Server::tool(Self, name~ : String, title? : String, description? : String, input_schema? : Json, output_schema? : Json, annotations? : ToolAnnotations, icons? : Array[Icon], meta? : Json, async (RequestContext, A) -> HandlerOutcome[CallToolResult] raise McpError) -> Unit raise McpError
 pub fn Server::tool_input_schema(Self, String) -> Json?
-pub fn Server::tool_json(Self, name~ : String, title? : String, description? : String, input_schema? : Json, output_schema? : Json, annotations? : ToolAnnotations, icons? : Array[Icon], meta? : Json, async (RequestContext, Json) -> HandlerOutcome[CallToolResult] raise McpError) -> Unit raise McpError
+pub fn Server::tool_raw(Self, name~ : String, title? : String, description? : String, input_schema? : Json, output_schema? : Json, annotations? : ToolAnnotations, icons? : Array[Icon], meta? : Json, async (RequestContext, Json) -> HandlerOutcome[CallToolResult] raise McpError) -> Unit raise McpError
 
 pub struct ServerCapabilities {
   tools : ToolsCapability?
