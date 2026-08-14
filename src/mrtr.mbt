@@ -258,7 +258,7 @@ fn validate_core_input_response(
 ///|
 /// Compile an MRTR request schema through the independent JSON Schema package.
 fn compile_mrtr_schema(value : Json) -> @schema.CompiledSchema raise McpError {
-  let document = @schema.Document::Document(value) catch {
+  let document = @schema.Document(value) catch {
     _ => raise InvalidParams("MRTR requestedSchema is not a valid JSON Schema")
   }
   document.compile() catch {

@@ -29,7 +29,7 @@ struct RegisteredTool {
 
 ///|
 fn compile_tool_schema(value : Json) -> @schema.CompiledSchema raise McpError {
-  let document = @schema.Document::Document(value) catch {
+  let document = @schema.Document(value) catch {
     _ => raise InvalidParams("invalid JSON Schema document")
   }
   document.compile() catch {

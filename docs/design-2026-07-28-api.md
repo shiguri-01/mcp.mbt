@@ -125,7 +125,7 @@ escape hatch for a valid keyword not yet modeled by the AST, and
 `Schema::to_json` is the only conversion used to create a document.
 
 `schema::Document` is a constructor-created JSON Schema document. It preserves
-the input JSON without silently normalizing it. `Document::Document(value)`
+the input JSON without silently normalizing it. `@schema.Document(value)`
 performs document-shape checks and never fetches a network reference.
 
 ### 2. Compilation
