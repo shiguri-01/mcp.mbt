@@ -1,6 +1,6 @@
 ///|
 test "complete tool results decode the official content union" {
-  let result = try! @mcp.decode_call_tool_result(
+  let result = try! @mcp.CallToolResult::from_json(
     Json::object({
       "resultType": Json::string("complete"),
       "content": Json::array([
@@ -30,7 +30,7 @@ test "complete tool results decode the official content union" {
 
 ///|
 test "list results preserve descriptors pagination caching and metadata" {
-  let result = try! @mcp.decode_list_tools_result(
+  let result = try! @mcp.ListToolsResult::from_json(
     Json::object({
       "resultType": Json::string("complete"),
       "tools": Json::array([
@@ -63,7 +63,7 @@ test "list results preserve descriptors pagination caching and metadata" {
 
 ///|
 test "resource prompt and completion payloads decode to canonical types" {
-  let resource = try! @mcp.decode_read_resource_result(
+  let resource = try! @mcp.ReadResourceResult::from_json(
     Json::object({
       "resultType": Json::string("complete"),
       "contents": Json::array([
@@ -83,7 +83,7 @@ test "resource prompt and completion payloads decode to canonical types" {
   )
   assert_true(resource.cache_policy is Some(_))
 
-  let prompt = try! @mcp.decode_get_prompt_result(
+  let prompt = try! @mcp.GetPromptResult::from_json(
     Json::object({
       "resultType": Json::string("complete"),
       "description": Json::string("Greeting prompt"),
@@ -103,7 +103,7 @@ test "resource prompt and completion payloads decode to canonical types" {
     is [{ role: @mcp.User, content: @mcp.TextContent(text="Say hello", ..) }],
   )
 
-  let completion = try! @mcp.decode_complete_result(
+  let completion = try! @mcp.CompleteResult::from_json(
     Json::object({
       "resultType": Json::string("complete"),
       "completion": Json::object({

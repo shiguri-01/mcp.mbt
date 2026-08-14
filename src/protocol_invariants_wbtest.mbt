@@ -208,7 +208,7 @@ test "form elicitation uses primitive schemas and validates accepted content" {
 
 ///|
 test "MRTR decoding preserves result metadata" {
-  let result = parse_input_required_result(
+  let result = InputRequiredResult::from_json(
     Json::object({
       "resultType": Json::string("input_required"),
       "requestState": Json::string("opaque"),
@@ -290,7 +290,7 @@ test "cancellation identifiers are never null" {
 
 ///|
 test "discover accepts complete results without resultType" {
-  let result = decode_discover_result(
+  let result = DiscoverResult::from_json(
     Json::object({
       "supportedVersions": Json::array([Json::string(LATEST_PROTOCOL_VERSION)]),
       "capabilities": Json::object({

@@ -88,7 +88,10 @@ fn parse_required_capabilities(
   guard fields.get("requiredCapabilities") is Some(value) else {
     raise InvalidRequest("-32021 error data.requiredCapabilities is required")
   }
-  parse_client_capabilities(value, context="error data.requiredCapabilities")
+  ClientCapabilities::from_json(
+    value,
+    context="error data.requiredCapabilities",
+  )
 }
 
 ///|

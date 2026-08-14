@@ -20,7 +20,7 @@ pub impl ToJson for ResultType with fn to_json(self : ResultType) -> Json {
 }
 
 ///|
-pub fn parse_result_type(value : Json) -> ResultType raise McpError {
+pub fn ResultType::from_json(value : Json) -> ResultType raise McpError {
   match value {
     String("complete") => Complete
     String("input_required") => InputRequired
@@ -71,9 +71,9 @@ pub impl ToJson for ResultMeta with fn to_json(self : ResultMeta) -> Json {
 }
 
 ///|
-fn parse_result_meta(
+pub fn ResultMeta::from_json(
   value : Json,
-  context : String,
+  context? : String = "result._meta",
 ) -> ResultMeta raise McpError {
   let fields = expect_object(value, context)
   validate_meta_map(fields)
@@ -149,7 +149,7 @@ pub impl ToJson for CacheScope with fn to_json(self : CacheScope) -> Json {
 }
 
 ///|
-pub fn parse_cache_scope(value : Json) -> CacheScope raise McpError {
+pub fn CacheScope::from_json(value : Json) -> CacheScope raise McpError {
   match value {
     String("public") => Public
     String("private") => Private
@@ -176,13 +176,23 @@ pub fn CachePolicy::CachePolicy(
 }
 
 ///|
-
-///|
 pub impl ToJson for CachePolicy with fn to_json(self : CachePolicy) -> Json {
   Json::object({
     "ttlMs": Json::number(self.ttl_ms.to_double(), repr="\{self.ttl_ms}"),
     "cacheScope": self.scope.to_json(),
   })
+}
+
+///|
+pub fn CachePolicy::from_json(
+  fields : Map[String, Json],
+  context? : String = "result",
+) -> CachePolicy raise McpError {
+  let scope = match fields.get("cacheScope") {
+    Some(value) => CacheScope::from_json(value)
+    None => raise InvalidParams("\{context}.cacheScope is required")
+  }
+  CachePolicy(ttl_ms=parse_ttl_ms(fields, context), scope~)
 }
 
 ///|
@@ -249,21 +259,10 @@ fn decoded_result_meta(
   context : String,
 ) -> ResultMeta? raise McpError {
   match fields.get("_meta") {
-    Some(value) => Some(parse_result_meta(value, "\{context}._meta"))
+    Some(value) =>
+      Some(ResultMeta::from_json(value, context="\{context}._meta"))
     None => None
   }
-}
-
-///|
-fn decoded_cache_policy(
-  fields : Map[String, Json],
-  context : String,
-) -> CachePolicy raise McpError {
-  let scope = match fields.get("cacheScope") {
-    Some(value) => parse_cache_scope(value)
-    None => raise InvalidParams("\{context}.cacheScope is required")
-  }
-  CachePolicy(ttl_ms=parse_ttl_ms(fields, context), scope~)
 }
 
 ///|
@@ -276,12 +275,11 @@ fn decode_icons(
     Some(Array(values)) => {
       let icons : Array[Icon] = []
       for value in values {
-        icons.push(
-          @json.from_json(value) catch {
-            JsonDecodeError((_, message)) =>
-              raise InvalidParams("\{context}.icons: \{message}")
-          },
-        )
+        let icon : Icon = @json.from_json(value) catch {
+          JsonDecodeError((_, message)) =>
+            raise InvalidParams("\{context}.icons[]: \{message}")
+        }
+        icons.push(icon)
       }
       icons
     }
@@ -290,44 +288,13 @@ fn decode_icons(
 }
 
 ///|
-fn decode_annotations(
-  value : Json,
-  context : String,
-) -> Annotations raise McpError {
-  let fields = expect_object(value, context)
-  let audience : Array[Role] = []
-  match fields.get("audience") {
-    None => ()
-    Some(Array(values)) =>
-      for value in values {
-        audience.push(
-          @json.from_json(value) catch {
-            JsonDecodeError((_, message)) =>
-              raise InvalidParams("\{context}.audience: \{message}")
-          },
-        )
-      }
-    Some(_) => raise InvalidParams("\{context}.audience must be an array")
-  }
-  let priority = match fields.get("priority") {
-    Some(Number(value, ..)) => Some(value)
-    Some(Null) | None => None
-    Some(_) => raise InvalidParams("\{context}.priority must be a number")
-  }
-  Annotations(
-    audience~,
-    priority?,
-    last_modified?=get_optional_string(fields, "lastModified", context),
-  )
-}
-
-///|
 fn optional_annotations(
   fields : Map[String, Json],
   context : String,
 ) -> Annotations? raise McpError {
   match fields.get("annotations") {
-    Some(value) => Some(decode_annotations(value, "\{context}.annotations"))
+    Some(value) =>
+      Some(Annotations::from_json(value, context="\{context}.annotations"))
     None => None
   }
 }
@@ -338,8 +305,10 @@ fn optional_meta_json(
   context : String,
 ) -> Json? raise McpError {
   match fields.get("_meta") {
-    Some(Object(_) as value) => Some(value)
-    Some(_) => raise InvalidParams("\{context}._meta must be an object")
+    Some(value) => {
+      validate_meta_map(expect_object(value, "\{context}._meta"))
+      Some(value)
+    }
     None => None
   }
 }
@@ -369,67 +338,14 @@ fn decode_resource_content(
   let meta = optional_meta_json(fields, context)
   match (fields.get("text"), fields.get("blob")) {
     (Some(String(text)), None) =>
-      ResourceContent::text(uri~, text~, mime_type?, meta?)
+      ResourceContent::text(uri~, mime_type?, text~, meta?)
     (None, Some(String(blob))) =>
-      ResourceContent::blob(uri~, blob~, mime_type?, meta?)
-    _ =>
-      raise InvalidParams(
-        "\{context} must contain exactly one string field: text or blob",
-      )
-  }
-}
-
-///|
-/// Decode one official MCP content union value.
-pub fn decode_content(value : Json) -> Content raise McpError {
-  let context = "content"
-  let fields = expect_object(value, context)
-  let annotations = optional_annotations(fields, context)
-  let meta = optional_meta_json(fields, context)
-  match get_string(fields, "type", context) {
-    "text" =>
-      Content::text(get_string(fields, "text", context), annotations?, meta?)
-    "image" =>
-      Content::image(
-        data=get_string(fields, "data", context),
-        mime_type=get_string(fields, "mimeType", context),
-        annotations?,
-        meta?,
-      )
-    "audio" =>
-      Content::audio(
-        data=get_string(fields, "data", context),
-        mime_type=get_string(fields, "mimeType", context),
-        annotations?,
-        meta?,
-      )
-    "resource" =>
-      Content::embedded_resource(
-        resource=decode_resource_content(
-          match fields.get("resource") {
-            Some(resource) => resource
-            None => raise InvalidParams("content.resource is required")
-          },
-          "content.resource",
-        ),
-        annotations?,
-        meta?,
-      )
-    "resource_link" =>
-      Content::resource_link(
-        ResourceLink(
-          uri=get_string(fields, "uri", context),
-          name=get_string(fields, "name", context),
-          title?=get_optional_string(fields, "title", context),
-          description?=get_optional_string(fields, "description", context),
-          mime_type?=get_optional_string(fields, "mimeType", context),
-          icons=decode_icons(fields, context),
-          annotations?,
-          size?=optional_size(fields, context),
-          meta?,
-        ),
-      )
-    other => raise InvalidParams("unknown content type: \{other}")
+      ResourceContent::blob(uri~, mime_type?, blob~, meta?)
+    (Some(_), Some(_)) =>
+      raise InvalidParams("\{context} cannot contain both text and blob")
+    (None, None) =>
+      raise InvalidParams("\{context} requires text or blob content")
+    _ => raise InvalidParams("\{context} text/blob must be a string")
   }
 }
 
@@ -442,12 +358,12 @@ fn decode_content_array(
   guard fields.get(key) is Some(Array(values)) else {
     raise InvalidParams("\{context}.\{key} must be an array")
   }
-  values.map(value => decode_content(value))
+  values.map(value => Content::from_json(value))
 }
 
 ///|
 /// Decode the complete payload of `tools/call`.
-pub fn decode_call_tool_result(value : Json) -> CallToolResult raise McpError {
+pub fn CallToolResult::from_json(value : Json) -> CallToolResult raise McpError {
   let fields = complete_result_fields(value, "tools/call result")
   {
     content: decode_content_array(fields, "content", "tools/call result"),
@@ -461,7 +377,7 @@ pub fn decode_call_tool_result(value : Json) -> CallToolResult raise McpError {
 
 ///|
 /// Decode the complete payload of `resources/read`.
-pub fn decode_read_resource_result(
+pub fn ReadResourceResult::from_json(
   value : Json,
 ) -> ReadResourceResult raise McpError {
   let fields = complete_result_fields(value, "resources/read result")
@@ -472,15 +388,17 @@ pub fn decode_read_resource_result(
     contents: values.map(value => {
       decode_resource_content(value, "resources/read result.contents[]")
     }),
-    cache_policy: Some(decoded_cache_policy(fields, "resources/read result")),
+    cache_policy: Some(
+      CachePolicy::from_json(fields, context="resources/read result"),
+    ),
     meta: decoded_result_meta(fields, "resources/read result"),
   }
 }
 
 ///|
-fn decode_prompt_message(
+pub fn PromptMessage::from_json(
   value : Json,
-  context : String,
+  context? : String = "prompt message",
 ) -> PromptMessage raise McpError {
   let fields = expect_object(value, context)
   PromptMessage(
@@ -494,7 +412,7 @@ fn decode_prompt_message(
           raise InvalidParams("\{context}.role: \{message}")
       }
     },
-    content=decode_content(
+    content=Content::from_json(
       match fields.get("content") {
         Some(content) => content
         None => raise InvalidParams("\{context}.content is required")
@@ -505,7 +423,9 @@ fn decode_prompt_message(
 
 ///|
 /// Decode the complete payload of `prompts/get`.
-pub fn decode_get_prompt_result(value : Json) -> GetPromptResult raise McpError {
+pub fn GetPromptResult::from_json(
+  value : Json,
+) -> GetPromptResult raise McpError {
   let fields = complete_result_fields(value, "prompts/get result")
   guard fields.get("messages") is Some(Array(values)) else {
     raise InvalidParams("prompts/get result.messages must be an array")
@@ -515,7 +435,7 @@ pub fn decode_get_prompt_result(value : Json) -> GetPromptResult raise McpError 
       fields, "description", "prompts/get result",
     ),
     messages: values.map(value => {
-      decode_prompt_message(value, "prompts/get result.messages[]")
+      PromptMessage::from_json(value, context="prompts/get result.messages[]")
     }),
     meta: decoded_result_meta(fields, "prompts/get result"),
   }
@@ -523,7 +443,7 @@ pub fn decode_get_prompt_result(value : Json) -> GetPromptResult raise McpError 
 
 ///|
 /// Decode the complete payload of `completion/complete`.
-pub fn decode_complete_result(value : Json) -> CompleteResult raise McpError {
+pub fn CompleteResult::from_json(value : Json) -> CompleteResult raise McpError {
   let fields = complete_result_fields(value, "completion/complete result")
   let completion = expect_object(
     match fields.get("completion") {
@@ -568,9 +488,9 @@ pub fn decode_complete_result(value : Json) -> CompleteResult raise McpError {
 }
 
 ///|
-fn decode_tool_annotations(
+pub fn ToolAnnotations::from_json(
   value : Json,
-  context : String,
+  context? : String = "tool annotations",
 ) -> ToolAnnotations raise McpError {
   let fields = expect_object(value, context)
   {
@@ -583,7 +503,10 @@ fn decode_tool_annotations(
 }
 
 ///|
-fn decode_tool(value : Json, context : String) -> Tool raise McpError {
+pub fn Tool::from_json(
+  value : Json,
+  context? : String = "tool",
+) -> Tool raise McpError {
   let fields = expect_object(value, context)
   Tool(
     name=get_string(fields, "name", context),
@@ -596,7 +519,9 @@ fn decode_tool(value : Json, context : String) -> Tool raise McpError {
     output_schema?=fields.get("outputSchema"),
     annotations?=match fields.get("annotations") {
       Some(value) =>
-        Some(decode_tool_annotations(value, "\{context}.annotations"))
+        Some(
+          ToolAnnotations::from_json(value, context="\{context}.annotations"),
+        )
       None => None
     },
     icons=decode_icons(fields, context),
@@ -605,7 +530,10 @@ fn decode_tool(value : Json, context : String) -> Tool raise McpError {
 }
 
 ///|
-fn decode_resource(value : Json, context : String) -> Resource raise McpError {
+pub fn Resource::from_json(
+  value : Json,
+  context? : String = "resource",
+) -> Resource raise McpError {
   let fields = expect_object(value, context)
   Resource(
     uri=get_string(fields, "uri", context),
@@ -621,9 +549,9 @@ fn decode_resource(value : Json, context : String) -> Resource raise McpError {
 }
 
 ///|
-fn decode_resource_template(
+pub fn ResourceTemplate::from_json(
   value : Json,
-  context : String,
+  context? : String = "resource template",
 ) -> ResourceTemplate raise McpError {
   let fields = expect_object(value, context)
   ResourceTemplate(
@@ -639,9 +567,9 @@ fn decode_resource_template(
 }
 
 ///|
-fn decode_prompt_argument(
+pub fn PromptArgument::from_json(
   value : Json,
-  context : String,
+  context? : String = "prompt argument",
 ) -> PromptArgument raise McpError {
   let fields = expect_object(value, context)
   PromptArgument(
@@ -653,14 +581,19 @@ fn decode_prompt_argument(
 }
 
 ///|
-fn decode_prompt(value : Json, context : String) -> Prompt raise McpError {
+pub fn Prompt::from_json(
+  value : Json,
+  context? : String = "prompt",
+) -> Prompt raise McpError {
   let fields = expect_object(value, context)
   let arguments : Array[PromptArgument] = []
   match fields.get("arguments") {
     None => ()
     Some(Array(values)) =>
       for value in values {
-        arguments.push(decode_prompt_argument(value, "\{context}.arguments[]"))
+        arguments.push(
+          PromptArgument::from_json(value, context="\{context}.arguments[]"),
+        )
       }
     Some(_) => raise InvalidParams("\{context}.arguments must be an array")
   }
@@ -677,23 +610,27 @@ fn decode_prompt(value : Json, context : String) -> Prompt raise McpError {
 
 ///|
 /// Decode the canonical cacheable payload of `tools/list`.
-pub fn decode_list_tools_result(value : Json) -> ListToolsResult raise McpError {
+pub fn ListToolsResult::from_json(
+  value : Json,
+) -> ListToolsResult raise McpError {
   let context = "tools/list result"
   let fields = complete_result_fields(value, context)
   guard fields.get("tools") is Some(Array(values)) else {
     raise InvalidParams("tools/list result.tools must be an array")
   }
   {
-    tools: values.map(value => decode_tool(value, "tools/list result.tools[]")),
+    tools: values.map(value => {
+      Tool::from_json(value, context="tools/list result.tools[]")
+    }),
     next_cursor: get_optional_string(fields, "nextCursor", context),
-    cache_policy: decoded_cache_policy(fields, context),
+    cache_policy: CachePolicy::from_json(fields, context~),
     meta: decoded_result_meta(fields, context),
   }
 }
 
 ///|
 /// Decode the canonical cacheable payload of `resources/list`.
-pub fn decode_list_resources_result(
+pub fn ListResourcesResult::from_json(
   value : Json,
 ) -> ListResourcesResult raise McpError {
   let context = "resources/list result"
@@ -703,17 +640,17 @@ pub fn decode_list_resources_result(
   }
   {
     resources: values.map(value => {
-      decode_resource(value, "resources/list result.resources[]")
+      Resource::from_json(value, context="resources/list result.resources[]")
     }),
     next_cursor: get_optional_string(fields, "nextCursor", context),
-    cache_policy: decoded_cache_policy(fields, context),
+    cache_policy: CachePolicy::from_json(fields, context~),
     meta: decoded_result_meta(fields, context),
   }
 }
 
 ///|
 /// Decode the canonical cacheable payload of `resources/templates/list`.
-pub fn decode_list_resource_templates_result(
+pub fn ListResourceTemplatesResult::from_json(
   value : Json,
 ) -> ListResourceTemplatesResult raise McpError {
   let context = "resources/templates/list result"
@@ -725,19 +662,20 @@ pub fn decode_list_resource_templates_result(
   }
   {
     resource_templates: values.map(value => {
-      decode_resource_template(
-        value, "resources/templates/list result.resourceTemplates[]",
+      ResourceTemplate::from_json(
+        value,
+        context="resources/templates/list result.resourceTemplates[]",
       )
     }),
     next_cursor: get_optional_string(fields, "nextCursor", context),
-    cache_policy: decoded_cache_policy(fields, context),
+    cache_policy: CachePolicy::from_json(fields, context~),
     meta: decoded_result_meta(fields, context),
   }
 }
 
 ///|
 /// Decode the canonical cacheable payload of `prompts/list`.
-pub fn decode_list_prompts_result(
+pub fn ListPromptsResult::from_json(
   value : Json,
 ) -> ListPromptsResult raise McpError {
   let context = "prompts/list result"
@@ -747,10 +685,10 @@ pub fn decode_list_prompts_result(
   }
   {
     prompts: values.map(value => {
-      decode_prompt(value, "prompts/list result.prompts[]")
+      Prompt::from_json(value, context="prompts/list result.prompts[]")
     }),
     next_cursor: get_optional_string(fields, "nextCursor", context),
-    cache_policy: decoded_cache_policy(fields, context),
+    cache_policy: CachePolicy::from_json(fields, context~),
     meta: decoded_result_meta(fields, context),
   }
 }

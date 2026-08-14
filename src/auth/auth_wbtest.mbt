@@ -58,7 +58,7 @@ test "authorization metadata requires HTTPS endpoints and PKCE S256" {
   })
   try
     ignore(
-      parse_authorization_server_metadata(
+      AuthorizationServerMetadata::from_json(
         without_s256,
         expected_issuer="https://as.example",
       ),
@@ -77,7 +77,7 @@ test "authorization metadata requires HTTPS endpoints and PKCE S256" {
   })
   try
     ignore(
-      parse_authorization_server_metadata(
+      AuthorizationServerMetadata::from_json(
         insecure,
         expected_issuer="https://as.example",
       ),
@@ -104,7 +104,7 @@ test "PKCE verifier accepts only RFC 7636 unreserved characters" {
 
 ///|
 test "Bearer challenge handles quoted commas, escapes, and unknown fields" {
-  let challenge = parse_bearer_challenge(
+  let challenge = BearerChallenge::parse(
     "Bearer scope=\"read write\", resource_metadata=\"https://rs.example/meta?a=1,2\", x=\"a\\\"b\"",
   ) catch {
     _ => abort("valid challenge rejected")
@@ -119,7 +119,7 @@ test "Bearer challenge handles quoted commas, escapes, and unknown fields" {
 
 ///|
 test "Bearer challenge can follow another authentication scheme" {
-  let challenge = parse_bearer_challenge(
+  let challenge = BearerChallenge::parse(
     "Basic realm=\"legacy\", Bearer resource_metadata=\"https://rs.example/meta\", scope=read",
   ) catch {
     _ => abort("Bearer challenge was not selected")
@@ -130,14 +130,14 @@ test "Bearer challenge can follow another authentication scheme" {
 
 ///|
 test "Bearer auth parameters are case-insensitive and reject duplicates" {
-  let challenge = parse_bearer_challenge(
+  let challenge = BearerChallenge::parse(
     "Digest realm=\"legacy\", bEaReR ERROR = \"insufficient_scope\", SCOPE = \"read write\"",
   ) catch {
     _ => abort("valid mixed challenge rejected")
   }
   assert_eq(challenge.error(), Some("insufficient_scope"))
   assert_eq(challenge.scope(), Some("read write"))
-  try ignore(parse_bearer_challenge("Bearer scope=read, SCOPE=write")) catch {
+  try ignore(BearerChallenge::parse("Bearer scope=read, SCOPE=write")) catch {
     InvalidChallenge(_) => ()
     _ => fail("expected invalid challenge")
   } noraise {
@@ -147,7 +147,7 @@ test "Bearer auth parameters are case-insensitive and reject duplicates" {
 
 ///|
 test "challenge-list scanning never selects Bearer text inside a quoted realm" {
-  let challenge = parse_bearer_challenge(
+  let challenge = BearerChallenge::parse(
     "Basic realm=\"x Bearer resource_metadata=https://evil\", Bearer resource_metadata=\"https://good.example/meta\"",
   ) catch {
     _ => abort("valid Bearer list member rejected")
@@ -162,7 +162,7 @@ test "Bearer parameters reject non-tchar names, token values, and controls" {
       "Bearer bad:name=value", "Bearer scope=read/../../write", "Bearer scope=\"read\rwrite\"",
       "Bearer scope=read\nInjected: value",
     ] {
-    try ignore(parse_bearer_challenge(invalid)) catch {
+    try ignore(BearerChallenge::parse(invalid)) catch {
       InvalidChallenge(_) => ()
       _ => fail("expected InvalidChallenge")
     } noraise {
@@ -181,7 +181,7 @@ test "metadata issuer uses exact string comparison" {
   })
   try
     ignore(
-      parse_authorization_server_metadata(
+      AuthorizationServerMetadata::from_json(
         value,
         expected_issuer="https://as.example",
       ),
@@ -269,7 +269,7 @@ test "issuer mismatch is rejected before an authorization error is acted on" {
 
 ///|
 test "exact resource mode preserves a semantically significant trailing slash" {
-  let metadata = parse_authorization_server_metadata(
+  let metadata = AuthorizationServerMetadata::from_json(
     Json::object({
       "issuer": "https://as.example",
       "authorization_endpoint": "https://as.example/authorize",
@@ -299,7 +299,7 @@ test "exact resource mode preserves a semantically significant trailing slash" {
   )
   try
     ignore(
-      parse_protected_resource_metadata(
+      ProtectedResourceMetadata::from_json(
         Json::object({
           "resource": "https://rs.example/mcp",
           "authorization_servers": ["https://as.example"],
@@ -318,7 +318,7 @@ test "exact resource mode preserves a semantically significant trailing slash" {
 
 ///|
 test "origin-wide PRM may name only the same-origin root resource" {
-  let accepted = parse_protected_resource_metadata(
+  let accepted = ProtectedResourceMetadata::from_json(
     Json::object({
       "resource": "https://rs.example",
       "authorization_servers": ["https://as.example"],
@@ -333,7 +333,7 @@ test "origin-wide PRM may name only the same-origin root resource" {
     mismatched_resource in ["https://other.example", "https://rs.example/other"] {
     try
       ignore(
-        parse_protected_resource_metadata(
+        ProtectedResourceMetadata::from_json(
           Json::object({
             "resource": mismatched_resource,
             "authorization_servers": ["https://as.example"],
@@ -439,7 +439,7 @@ test "credential and token caches are issuer and resource bound" {
 
 ///|
 test "token request uses selected client authentication and RFC 8707 resource" {
-  let metadata = parse_authorization_server_metadata(
+  let metadata = AuthorizationServerMetadata::from_json(
     Json::object({
       "issuer": "https://as.example",
       "authorization_endpoint": "https://as.example/authorize",
@@ -480,7 +480,7 @@ test "token request uses selected client authentication and RFC 8707 resource" {
 
 ///|
 test "dynamic registration declares code flow and optional refresh grant" {
-  let metadata = parse_authorization_server_metadata(
+  let metadata = AuthorizationServerMetadata::from_json(
     Json::object({
       "issuer": "https://as.example",
       "authorization_endpoint": "https://as.example/authorize",
@@ -512,7 +512,7 @@ test "dynamic registration declares code flow and optional refresh grant" {
 
 ///|
 test "pre-registered credentials take priority over client metadata and DCR" {
-  let metadata = parse_authorization_server_metadata(
+  let metadata = AuthorizationServerMetadata::from_json(
     Json::object({
       "issuer": "https://as.example",
       "authorization_endpoint": "https://as.example/authorize",
@@ -553,7 +553,7 @@ test "pre-registered credentials take priority over client metadata and DCR" {
 
 ///|
 test "token response retains a positive expires_in policy value" {
-  let tokens = parse_token_response(
+  let tokens = OAuthTokens::from_json(
     Json::object({
       "access_token": "access",
       "token_type": "Bearer",
@@ -655,7 +655,7 @@ async test "refresh response omission preserves refresh token and granted scope"
     open_authorization_url=url => url,
     random_bytes=size => Bytes::make(size, 1),
   )
-  let metadata = parse_authorization_server_metadata(
+  let metadata = AuthorizationServerMetadata::from_json(
     Json::object({
       "issuer": "https://as.example",
       "authorization_endpoint": "https://as.example/authorize",
@@ -732,7 +732,7 @@ test "default destination policy denies reserved address literals" {
 
 ///|
 test "DCR response omission preserves the requested token authentication method" {
-  let credentials = parse_dynamic_registration_response(
+  let credentials = ClientCredentials::from_registration_json(
     Json::object({
       "client_id": "dynamic-client",
       "client_secret": "server-issued-but-unused",
@@ -743,7 +743,7 @@ test "DCR response omission preserves the requested token authentication method"
   }
   assert_eq(credentials.token_endpoint_auth_method, None)
   assert_eq(credentials.client_secret, Some("server-issued-but-unused"))
-  let metadata = parse_authorization_server_metadata(
+  let metadata = AuthorizationServerMetadata::from_json(
     Json::object({
       "issuer": "https://as.example",
       "authorization_endpoint": "https://as.example/authorize",

@@ -43,7 +43,7 @@ async fn send_auth_request(
 async fn follow_authorization_redirect(
   authorization_url : String,
 ) -> String raise @auth.AuthError {
-  ignore(@auth.parse_absolute_uri(authorization_url))
+  ignore(@auth.AbsoluteUri::parse(authorization_url))
   // MoonBit's native Windows socket reader currently panics when the runner
   // closes a 302 response. Use the platform HTTP utility for the fixture's
   // browser seam; OAuth policy and callback validation remain in the SDK.

@@ -10,11 +10,9 @@ pub fn ListParams::ListParams(cursor? : String) -> ListParams {
 }
 
 ///|
-pub fn parse_list_params(
-  fields : Map[String, Json],
-  context : String,
-) -> ListParams raise McpError {
-  let cursor = get_optional_string(fields, "cursor", context)
+pub fn ListParams::from_json(value : Json) -> ListParams raise McpError {
+  let fields = expect_object(value, "list params")
+  let cursor = get_optional_string(fields, "cursor", "list params")
   { cursor, }
 }
 
@@ -42,12 +40,11 @@ pub fn CallToolParams::CallToolParams(
 }
 
 ///|
-pub fn parse_call_tool_params(
-  fields : Map[String, Json],
-) -> CallToolParams raise McpError {
+pub fn CallToolParams::from_json(value : Json) -> CallToolParams raise McpError {
+  let fields = expect_object(value, "tools/call params")
   let name = get_string(fields, "name", "tools/call params")
   let arguments = match fields.get("arguments") {
-    Some(Object(_) as value) => value
+    Some(Object(_) as args) => args
     Some(Null) | None => Json::object({})
     Some(_) =>
       raise InvalidParams("tools/call params.arguments must be an object")
@@ -72,9 +69,10 @@ pub fn ReadResourceParams::ReadResourceParams(
 }
 
 ///|
-pub fn parse_read_resource_params(
-  fields : Map[String, Json],
+pub fn ReadResourceParams::from_json(
+  value : Json,
 ) -> ReadResourceParams raise McpError {
+  let fields = expect_object(value, "resources/read params")
   let uri = get_string(fields, "uri", "resources/read params")
   ReadResourceParams(uri~)
 }
@@ -98,9 +96,10 @@ pub fn GetPromptParams::GetPromptParams(
 }
 
 ///|
-pub fn parse_get_prompt_params(
-  fields : Map[String, Json],
+pub fn GetPromptParams::from_json(
+  value : Json,
 ) -> GetPromptParams raise McpError {
+  let fields = expect_object(value, "prompts/get params")
   let name = get_string(fields, "name", "prompts/get params")
   let arguments = get_prompt_arguments(fields)
   GetPromptParams(name~, arguments~)

@@ -66,7 +66,7 @@ fn optional_bool(
 }
 
 ///|
-pub fn parse_protected_resource_metadata(
+pub fn ProtectedResourceMetadata::from_json(
   value : Json,
   expected_resource~ : String,
   allow_insecure_loopback? : Bool = false,
@@ -83,8 +83,8 @@ pub fn parse_protected_resource_metadata(
     resource_identifiers_match(resource, expected_resource)
   }
   let root_fallback_matches = if allow_same_origin_root {
-    let actual = parse_absolute_uri(resource)
-    let expected = parse_absolute_uri(expected_resource)
+    let actual = AbsoluteUri::parse(resource)
+    let expected = AbsoluteUri::parse(expected_resource)
     actual.scheme.equal_ignore_ascii_case(expected.scheme) &&
     actual.authority.equal_ignore_ascii_case(expected.authority) &&
     (actual.path.is_empty() || actual.path == "/") &&
@@ -127,7 +127,7 @@ pub struct AuthorizationServerMetadata {
 }
 
 ///|
-pub fn parse_authorization_server_metadata(
+pub fn AuthorizationServerMetadata::from_json(
   value : Json,
   expected_issuer~ : String,
   allow_insecure_loopback? : Bool = false,

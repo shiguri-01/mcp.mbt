@@ -85,11 +85,9 @@ fn parse_string_map(
 }
 
 ///|
-fn parse_completion_request(params : Json?) -> CompletionRequest raise McpError {
-  let value = match params {
-    Some(value) => value
-    None => raise InvalidParams("completion/complete params are required")
-  }
+pub fn CompletionRequest::from_json(
+  value : Json,
+) -> CompletionRequest raise McpError {
   let fields = expect_object(value, "completion/complete params")
   let argument = expect_object(
     match fields.get("argument") {

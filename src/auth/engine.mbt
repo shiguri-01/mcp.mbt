@@ -58,7 +58,7 @@ pub async fn AuthorizationEngine::authorize(
       "token endpoint returned HTTP " + response.status.to_string(),
     )
   }
-  let tokens = parse_token_response(response_json(response))
+  let tokens = OAuthTokens::from_json(response_json(response))
   if !tokens.scope.is_empty() || scopes.is_empty() {
     tokens
   } else {
@@ -111,7 +111,7 @@ pub async fn AuthorizationEngine::refresh(
       "token endpoint returned HTTP " + response.status.to_string(),
     )
   }
-  let refreshed = parse_token_response(response_json(response))
+  let refreshed = OAuthTokens::from_json(response_json(response))
   // RFC 6749 permits omission of refresh_token in a refresh response; keep
   // the bound token instead of silently discarding refresh capability.
   if refreshed.refresh_token is Some(_) && !refreshed.scope.is_empty() {

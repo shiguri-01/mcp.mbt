@@ -42,7 +42,7 @@ pub async fn discover_protected_resource_metadata(
   let using_generated_candidates = challenge_metadata is None
   let candidates = match challenge_metadata {
     Some(url) => {
-      ignore(parse_absolute_uri(url))
+      ignore(AbsoluteUri::parse(url))
       [url]
     }
     None => protected_resource_metadata_urls(resource_uri)
@@ -51,7 +51,7 @@ pub async fn discover_protected_resource_metadata(
   for url in candidates {
     let response = provider.send(discovery_get(url))
     if response.status == 200 {
-      return parse_protected_resource_metadata(
+      return ProtectedResourceMetadata::from_json(
         response_json(response),
         expected_resource=resource_uri,
         allow_insecure_loopback=provider.allow_insecure_loopback,
@@ -74,7 +74,7 @@ pub async fn discover_authorization_server_metadata(
   for url in authorization_server_metadata_urls(issuer) {
     let response = provider.send(discovery_get(url))
     if response.status == 200 {
-      return parse_authorization_server_metadata(
+      return AuthorizationServerMetadata::from_json(
         response_json(response),
         expected_issuer=issuer,
         allow_insecure_loopback=provider.allow_insecure_loopback,

@@ -227,7 +227,7 @@ pub fn Client::decode_response(
   let result = rpc_response_result(message)
   match require_result_type(result) {
     "complete" => Complete(result)
-    "input_required" => InputRequired(parse_input_required_result(result))
+    "input_required" => InputRequired(InputRequiredResult::from_json(result))
     result_type =>
       if self.extension_result_types.contains(result_type) {
         ExtensionResult(result_type, result)
@@ -243,7 +243,7 @@ pub fn Client::decode_discover(
   message : Json,
 ) -> DiscoverResult raise McpError {
   match self.decode_response(message) {
-    Complete(result) => decode_discover_result(result)
+    Complete(result) => DiscoverResult::from_json(result)
     InputRequired(_) =>
       raise InvalidRequest("server/discover cannot return input_required")
     ExtensionResult(result_type, _) =>

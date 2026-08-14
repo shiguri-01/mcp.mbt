@@ -36,7 +36,7 @@ fn resource_parameter(
   exact_resource : Bool,
 ) -> String raise AuthError {
   if exact_resource {
-    ignore(parse_absolute_uri(resource))
+    ignore(AbsoluteUri::parse(resource))
     resource
   } else {
     canonical_resource_uri(resource)
@@ -147,7 +147,7 @@ pub fn refresh_token_request(
 }
 
 ///|
-pub fn parse_token_response(value : Json) -> OAuthTokens raise AuthError {
+pub fn OAuthTokens::from_json(value : Json) -> OAuthTokens raise AuthError {
   guard value is Object(fields) else {
     raise AuthorizationFailed("token response must be an object")
   }

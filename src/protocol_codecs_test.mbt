@@ -69,7 +69,7 @@ test "discover and request implementation codecs retain icons and metadata" {
     fail("expected discover metadata and server icons")
   }
 
-  let request_meta = try! @mcp.decode_request_meta(
+  let request_meta = try! @mcp.RequestMeta::from_json(
     Json::object({
       "io.modelcontextprotocol/protocolVersion": Json::string(
         @mcp.LATEST_PROTOCOL_VERSION,
@@ -89,7 +89,7 @@ test "discover and request implementation codecs retain icons and metadata" {
 
 ///|
 test "client capabilities and unknown properties round trip" {
-  let meta = try! @mcp.decode_request_meta(
+  let meta = try! @mcp.RequestMeta::from_json(
     Json::object({
       "io.modelcontextprotocol/protocolVersion": Json::string(
         @mcp.LATEST_PROTOCOL_VERSION,

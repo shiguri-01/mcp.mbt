@@ -59,11 +59,11 @@ fn parse_ttl_ms(
 
 ///|
 /// Decode a `server/discover` result after the JSON-RPC envelope is removed.
-pub fn decode_discover_result(value : Json) -> DiscoverResult raise McpError {
+pub fn DiscoverResult::from_json(value : Json) -> DiscoverResult raise McpError {
   let context = "discover result"
   let fields = expect_object(value, context)
   match fields.get("resultType") {
-    Some(result_type) if parse_result_type(result_type) == Complete => ()
+    Some(result_type) if ResultType::from_json(result_type) == Complete => ()
     None => ()
     _ => raise InvalidRequest("discover result.resultType must be 'complete'")
   }
@@ -86,16 +86,17 @@ pub fn decode_discover_result(value : Json) -> DiscoverResult raise McpError {
     raise InvalidParams("\{context}.capabilities is required")
   }
   let scope = match fields.get("cacheScope") {
-    Some(value) => parse_cache_scope(value)
+    Some(value) => CacheScope::from_json(value)
     None => raise InvalidParams("\{context}.cacheScope is required")
   }
   DiscoverResult(
     supported_versions~,
-    capabilities=parse_server_capabilities(capabilities),
+    capabilities=ServerCapabilities::from_json(capabilities),
     instructions?=get_optional_string(fields, "instructions", context),
     cache_policy=CachePolicy(ttl_ms=parse_ttl_ms(fields, context), scope~),
     meta?=match fields.get("_meta") {
-      Some(value) => Some(parse_result_meta(value, "\{context}._meta"))
+      Some(value) =>
+        Some(ResultMeta::from_json(value, context="\{context}._meta"))
       None => None
     },
   )
@@ -106,7 +107,7 @@ pub impl @json.FromJson for DiscoverResult with fn from_json(
   value : Json,
   path : @json.JsonPath,
 ) -> DiscoverResult raise {
-  decode_discover_result(value) catch {
+  DiscoverResult::from_json(value) catch {
     error => raise JsonDecodeError((path, error.message()))
   }
 }

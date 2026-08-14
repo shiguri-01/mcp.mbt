@@ -14,10 +14,10 @@ pub fn validate_authorization_response(
   issuer_parameter_required~ : Bool,
   expected_redirect_uri? : String,
 ) -> AuthorizationCode raise AuthError {
-  let callback = parse_absolute_uri(callback_uri)
+  let callback = AbsoluteUri::parse(callback_uri)
   let parameters = parse_query(callback.query.unwrap_or(""))
   if expected_redirect_uri is Some(expected) {
-    let redirect = parse_absolute_uri(expected)
+    let redirect = AbsoluteUri::parse(expected)
     if callback.scheme != redirect.scheme ||
       callback.authority != redirect.authority ||
       callback.path != redirect.path {

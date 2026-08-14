@@ -499,11 +499,11 @@ fn parse_context(
 ) -> RequestContext raise McpError {
   let fields = expect_object(request.params, "request params")
   let meta = match fields.get("_meta") {
-    Some(value) => decode_request_meta(value)
+    Some(value) => RequestMeta::from_json(value)
     None => raise InvalidParams("request params._meta is required")
   }
   let input_responses = match fields.get("inputResponses") {
-    Some(value) => Some(parse_input_responses(value))
+    Some(value) => Some(InputResponse::map_from_json(value))
     None => None
   }
   let request_state = get_optional_string(
@@ -917,25 +917,22 @@ async fn Server::dispatch_request(
   self.registry_frozen = true
   let context = parse_context(request, hooks~)
   self.ensure_supported_version(context)
-  let fields = expect_object(request.params, "request params")
   match request.method_name {
     "server/discover" => self.discover()
-    "tools/list" =>
-      self.list_tools(parse_list_params(fields, "tools/list params"))
-    "tools/call" => self.call_tool(context, parse_call_tool_params(fields))
+    "tools/list" => self.list_tools(ListParams::from_json(request.params))
+    "tools/call" =>
+      self.call_tool(context, CallToolParams::from_json(request.params))
     "resources/list" =>
-      self.list_resources(parse_list_params(fields, "resources/list params"))
+      self.list_resources(ListParams::from_json(request.params))
     "resources/templates/list" =>
-      self.list_resource_templates(
-        parse_list_params(fields, "resources/templates/list params"),
-      )
+      self.list_resource_templates(ListParams::from_json(request.params))
     "resources/read" =>
-      self.read_resource(context, parse_read_resource_params(fields))
-    "prompts/list" =>
-      self.list_prompts(parse_list_params(fields, "prompts/list params"))
-    "prompts/get" => self.get_prompt(context, parse_get_prompt_params(fields))
+      self.read_resource(context, ReadResourceParams::from_json(request.params))
+    "prompts/list" => self.list_prompts(ListParams::from_json(request.params))
+    "prompts/get" =>
+      self.get_prompt(context, GetPromptParams::from_json(request.params))
     "completion/complete" =>
-      self.complete(context, parse_completion_request(Some(request.params)))
+      self.complete(context, CompletionRequest::from_json(request.params))
     "subscriptions/listen" =>
       raise InvalidRequest(
         "subscriptions/listen must be handled as a transport stream",

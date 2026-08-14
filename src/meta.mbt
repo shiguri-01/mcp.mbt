@@ -122,7 +122,7 @@ fn parse_request_implementation(
 
 ///|
 /// Decode the request `_meta` object at the MCP protocol boundary.
-pub fn decode_request_meta(value : Json) -> RequestMeta raise McpError {
+pub fn RequestMeta::from_json(value : Json) -> RequestMeta raise McpError {
   let context = "request params._meta"
   let fields = expect_object(value, context)
   validate_meta_map(fields)
@@ -157,7 +157,7 @@ pub fn decode_request_meta(value : Json) -> RequestMeta raise McpError {
         )
       None => None
     },
-    client_capabilities=parse_client_capabilities(
+    client_capabilities=ClientCapabilities::from_json(
       caps,
       context="\{context}.io.modelcontextprotocol/clientCapabilities",
     ),

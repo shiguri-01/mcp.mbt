@@ -85,7 +85,7 @@ pub impl ToJson for InputRequest with fn to_json(self : InputRequest) -> Json {
 }
 
 ///|
-pub fn parse_input_request(value : Json) -> InputRequest raise McpError {
+pub fn InputRequest::from_json(value : Json) -> InputRequest raise McpError {
   let fields = expect_object(value, "input request")
   InputRequest(
     method_name=get_string(fields, "method", "input request"),
@@ -108,18 +108,23 @@ pub fn InputResponse::InputResponse(result : Json) -> InputResponse {
 }
 
 ///|
+pub fn InputResponse::from_json(value : Json) -> InputResponse {
+  InputResponse(value)
+}
+
+///|
 pub impl ToJson for InputResponse with fn to_json(self : InputResponse) -> Json {
   self.result
 }
 
 ///|
-pub fn parse_input_responses(
+pub fn InputResponse::map_from_json(
   value : Json,
 ) -> Map[String, InputResponse] raise McpError {
   let fields = expect_object(value, "inputResponses")
   let responses : Map[String, InputResponse] = Map([])
   for key, result in fields {
-    responses[key] = InputResponse(result)
+    responses[key] = InputResponse::from_json(result)
   }
   responses
 }
@@ -398,12 +403,12 @@ pub impl ToJson for InputRequiredResult with fn to_json(
 }
 
 ///|
-pub fn parse_input_required_result(
+pub fn InputRequiredResult::from_json(
   value : Json,
 ) -> InputRequiredResult raise McpError {
   let fields = expect_object(value, "input_required result")
   guard fields.get("resultType") is Some(result_type) &&
-    parse_result_type(result_type) == InputRequired else {
+    ResultType::from_json(result_type) == InputRequired else {
     raise InvalidRequest("result.resultType must be 'input_required'")
   }
   InputRequiredResult(
@@ -411,7 +416,7 @@ pub fn parse_input_required_result(
       Some(Object(values)) => {
         let requests : Map[String, InputRequest] = Map([])
         for key, request in values {
-          requests[key] = parse_input_request(request)
+          requests[key] = InputRequest::from_json(request)
         }
         Some(requests)
       }
@@ -421,7 +426,9 @@ pub fn parse_input_required_result(
     request_state?=get_optional_string(fields, "requestState", "result"),
     meta?=match fields.get("_meta") {
       Some(value) =>
-        Some(parse_result_meta(value, "input_required result._meta"))
+        Some(
+          ResultMeta::from_json(value, context="input_required result._meta"),
+        )
       None => None
     },
   )

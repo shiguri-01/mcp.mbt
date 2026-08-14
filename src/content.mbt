@@ -77,6 +77,36 @@ pub impl ToJson for Annotations with fn to_json(self : Annotations) -> Json {
 }
 
 ///|
+pub fn Annotations::from_json(
+  value : Json,
+  context? : String = "annotations",
+) -> Annotations raise McpError {
+  let fields = expect_object(value, context)
+  let audience : Array[Role] = match fields.get("audience") {
+    None => []
+    Some(Array(values)) => {
+      let audience : Array[Role] = []
+      for value in values {
+        let role : Role = @json.from_json(value) catch {
+          JsonDecodeError((_, message)) =>
+            raise InvalidParams("\{context}.audience[]: \{message}")
+        }
+        audience.push(role)
+      }
+      audience
+    }
+    Some(_) => raise InvalidParams("\{context}.audience must be an array")
+  }
+  let priority = match fields.get("priority") {
+    Some(Number(value, ..)) => Some(value)
+    Some(Null) | None => None
+    Some(_) => raise InvalidParams("\{context}.priority must be a number")
+  }
+  let last_modified = get_optional_string(fields, "lastModified", context)
+  Annotations(audience~, priority?, last_modified?)
+}
+
+///|
 /// A link to a readable resource returned as content.
 ///
 /// `size`, when known, is the raw resource byte length before base64 encoding
@@ -286,6 +316,60 @@ pub fn Content::embedded_resource(
 /// Construct a content that links to a readable resource.
 pub fn Content::resource_link(resource_link : ResourceLink) -> Content {
   ResourceLink(resource_link)
+}
+
+///|
+/// Decode one official MCP content union value.
+pub fn Content::from_json(value : Json) -> Content raise McpError {
+  let context = "content"
+  let fields = expect_object(value, context)
+  let annotations = optional_annotations(fields, context)
+  let meta = optional_meta_json(fields, context)
+  match get_string(fields, "type", context) {
+    "text" =>
+      Content::text(get_string(fields, "text", context), annotations?, meta?)
+    "image" =>
+      Content::image(
+        data=get_string(fields, "data", context),
+        mime_type=get_string(fields, "mimeType", context),
+        annotations?,
+        meta?,
+      )
+    "audio" =>
+      Content::audio(
+        data=get_string(fields, "data", context),
+        mime_type=get_string(fields, "mimeType", context),
+        annotations?,
+        meta?,
+      )
+    "resource" =>
+      Content::embedded_resource(
+        resource=decode_resource_content(
+          match fields.get("resource") {
+            Some(resource) => resource
+            None => raise InvalidParams("content.resource is required")
+          },
+          "content.resource",
+        ),
+        annotations?,
+        meta?,
+      )
+    "resource_link" =>
+      Content::resource_link(
+        ResourceLink(
+          uri=get_string(fields, "uri", context),
+          name=get_string(fields, "name", context),
+          title?=get_optional_string(fields, "title", context),
+          description?=get_optional_string(fields, "description", context),
+          mime_type?=get_optional_string(fields, "mimeType", context),
+          icons=decode_icons(fields, context),
+          annotations?,
+          size?=optional_size(fields, context),
+          meta?,
+        ),
+      )
+    other => raise InvalidParams("unknown content type: \{other}")
+  }
 }
 
 ///|

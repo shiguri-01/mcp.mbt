@@ -19,9 +19,9 @@ pub impl ToJson for RootsCapability with fn to_json(self : RootsCapability) -> J
 }
 
 ///|
-fn parse_roots_capability(
+pub fn RootsCapability::from_json(
   value : Json,
-  context : String,
+  context? : String = "roots capability",
 ) -> RootsCapability raise McpError {
   let fields = expect_object(value, context)
   RootsCapability(
@@ -47,9 +47,9 @@ pub impl ToJson for SamplingCapability with fn to_json(
 }
 
 ///|
-fn parse_sampling_capability(
+pub fn SamplingCapability::from_json(
   value : Json,
-  context : String,
+  context? : String = "sampling capability",
 ) -> SamplingCapability raise McpError {
   ignore(expect_object(value, context))
   SamplingCapability()
@@ -88,9 +88,9 @@ pub impl ToJson for ElicitationCapability with fn to_json(
 }
 
 ///|
-fn parse_elicitation_capability(
+pub fn ElicitationCapability::from_json(
   value : Json,
-  context : String,
+  context? : String = "elicitation capability",
 ) -> ElicitationCapability raise McpError {
   let fields = expect_object(value, context)
   ElicitationCapability(
@@ -252,7 +252,7 @@ fn parse_capability_map(
 }
 
 ///|
-fn parse_client_capabilities(
+pub fn ClientCapabilities::from_json(
   value : Json,
   context? : String = "client capabilities",
 ) -> ClientCapabilities raise McpError {
@@ -266,15 +266,19 @@ fn parse_client_capabilities(
   }
   ClientCapabilities(
     roots?=match fields.get("roots") {
-      Some(v) => Some(parse_roots_capability(v, "\{context}.roots"))
+      Some(v) => Some(RootsCapability::from_json(v, context="\{context}.roots"))
       None => None
     },
     sampling?=match fields.get("sampling") {
-      Some(v) => Some(parse_sampling_capability(v, "\{context}.sampling"))
+      Some(v) =>
+        Some(SamplingCapability::from_json(v, context="\{context}.sampling"))
       None => None
     },
     elicitation?=match fields.get("elicitation") {
-      Some(v) => Some(parse_elicitation_capability(v, "\{context}.elicitation"))
+      Some(v) =>
+        Some(
+          ElicitationCapability::from_json(v, context="\{context}.elicitation"),
+        )
       None => None
     },
     extensions=parse_capability_map(fields, "extensions", context),
@@ -304,9 +308,9 @@ pub impl ToJson for ToolsCapability with fn to_json(self : ToolsCapability) -> J
 }
 
 ///|
-fn parse_tools_capability(
+pub fn ToolsCapability::from_json(
   value : Json,
-  context : String,
+  context? : String = "tools capability",
 ) -> ToolsCapability raise McpError {
   let fields = expect_object(value, context)
   ToolsCapability(
@@ -335,9 +339,9 @@ pub impl ToJson for PromptsCapability with fn to_json(self : PromptsCapability) 
 }
 
 ///|
-fn parse_prompts_capability(
+pub fn PromptsCapability::from_json(
   value : Json,
-  context : String,
+  context? : String = "prompts capability",
 ) -> PromptsCapability raise McpError {
   let fields = expect_object(value, context)
   PromptsCapability(
@@ -371,9 +375,9 @@ pub impl ToJson for ResourcesCapability with fn to_json(
 }
 
 ///|
-fn parse_resources_capability(
+pub fn ResourcesCapability::from_json(
   value : Json,
-  context : String,
+  context? : String = "resources capability",
 ) -> ResourcesCapability raise McpError {
   let fields = expect_object(value, context)
   ResourcesCapability(
@@ -398,9 +402,9 @@ pub impl ToJson for LoggingCapability with fn to_json(self : LoggingCapability) 
 }
 
 ///|
-fn parse_logging_capability(
+pub fn LoggingCapability::from_json(
   value : Json,
-  context : String,
+  context? : String = "logging capability",
 ) -> LoggingCapability raise McpError {
   ignore(expect_object(value, context))
   LoggingCapability()
@@ -493,8 +497,10 @@ pub impl ToJson for ServerCapabilities with fn to_json(
 }
 
 ///|
-fn parse_server_capabilities(value : Json) -> ServerCapabilities raise McpError {
-  let context = "server capabilities"
+pub fn ServerCapabilities::from_json(
+  value : Json,
+  context? : String = "server capabilities",
+) -> ServerCapabilities raise McpError {
   let fields = expect_object(value, context)
   let extra : Map[String, Json] = Map([])
   for key, item in fields {
@@ -511,20 +517,25 @@ fn parse_server_capabilities(value : Json) -> ServerCapabilities raise McpError 
   }
   ServerCapabilities(
     tools?=match fields.get("tools") {
-      Some(value) => Some(parse_tools_capability(value, "\{context}.tools"))
+      Some(value) =>
+        Some(ToolsCapability::from_json(value, context="\{context}.tools"))
       None => None
     },
     resources?=match fields.get("resources") {
       Some(value) =>
-        Some(parse_resources_capability(value, "\{context}.resources"))
+        Some(
+          ResourcesCapability::from_json(value, context="\{context}.resources"),
+        )
       None => None
     },
     prompts?=match fields.get("prompts") {
-      Some(value) => Some(parse_prompts_capability(value, "\{context}.prompts"))
+      Some(value) =>
+        Some(PromptsCapability::from_json(value, context="\{context}.prompts"))
       None => None
     },
     logging?=match fields.get("logging") {
-      Some(value) => Some(parse_logging_capability(value, "\{context}.logging"))
+      Some(value) =>
+        Some(LoggingCapability::from_json(value, context="\{context}.logging"))
       None => None
     },
     completions=match fields.get("completions") {

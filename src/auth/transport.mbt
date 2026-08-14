@@ -19,7 +19,7 @@ pub fn HttpRequest::HttpRequest(
   headers? : Map[String, String] = Map([]),
   body? : String = "",
 ) -> HttpRequest raise AuthError {
-  ignore(parse_absolute_uri(url))
+  ignore(AbsoluteUri::parse(url))
   { request_method, url, headers: headers.copy(), body }
 }
 

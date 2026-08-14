@@ -148,7 +148,7 @@ fn parse_quoted(value : String, index0 : Int) -> (String, Int) raise AuthError {
 ///|
 /// Parse one Bearer challenge. Attribute names are case-insensitive; quoted
 /// values support HTTP quoted-pair escaping.
-pub fn parse_bearer_challenge(
+pub fn BearerChallenge::parse(
   value : String,
 ) -> BearerChallenge raise AuthError {
   let source = value.trim().to_owned()

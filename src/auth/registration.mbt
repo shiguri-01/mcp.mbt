@@ -14,7 +14,7 @@ pub fn dynamic_registration_request(
     raise UnsupportedRegistration("client name and redirect URI are required")
   }
   for redirect_uri in redirect_uris {
-    ignore(parse_absolute_uri(redirect_uri))
+    ignore(AbsoluteUri::parse(redirect_uri))
   }
   let grants = [Json::string("authorization_code")]
   if wants_refresh_token {
@@ -40,7 +40,7 @@ pub fn dynamic_registration_request(
 }
 
 ///|
-pub fn parse_dynamic_registration_response(
+pub fn ClientCredentials::from_registration_json(
   value : Json,
   requested_token_endpoint_auth_method? : TokenEndpointAuthMethod = None,
 ) -> ClientCredentials raise AuthError {

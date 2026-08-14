@@ -38,7 +38,7 @@ test "descriptor constructors enforce numeric wire constraints" {
 test "result decoders enforce descriptor numeric constraints" {
   assert_invalid_params(() => {
     ignore(
-      @mcp.decode_content(
+      @mcp.Content::from_json(
         Json::object({
           "type": Json::string("resource_link"),
           "uri": Json::string("memory://a"),
@@ -50,7 +50,7 @@ test "result decoders enforce descriptor numeric constraints" {
   })
   assert_invalid_params(() => {
     ignore(
-      @mcp.decode_content(
+      @mcp.Content::from_json(
         Json::object({
           "type": Json::string("text"),
           "text": Json::string("a"),
@@ -59,9 +59,9 @@ test "result decoders enforce descriptor numeric constraints" {
       ),
     )
   })
-  assert_invalid_params(fn() -> Unit raise @mcp.McpError {
+  assert_invalid_params(() => {
     ignore(
-      @mcp.decode_complete_result(
+      @mcp.CompleteResult::from_json(
         Json::object({
           "resultType": Json::string("complete"),
           "completion": Json::object({
@@ -224,9 +224,9 @@ test "prompt argument descriptor names are unique" {
 
 ///|
 test "decoded prompt argument descriptor names are unique" {
-  assert_invalid_params(fn() -> Unit raise @mcp.McpError {
+  assert_invalid_params(() => {
     ignore(
-      @mcp.decode_list_prompts_result(
+      @mcp.ListPromptsResult::from_json(
         Json::object({
           "resultType": Json::string("complete"),
           "prompts": [

@@ -33,7 +33,7 @@ fn valid_scheme(scheme : String) -> Bool {
 /// Parse the absolute hierarchical URI shape used by MCP HTTP authorization.
 /// User-info and fragments are rejected to keep credential destinations
 /// unambiguous.
-pub fn parse_absolute_uri(value : String) -> AbsoluteUri raise AuthError {
+pub fn AbsoluteUri::parse(value : String) -> AbsoluteUri raise AuthError {
   if value.contains("#"[:]) {
     raise InvalidUri("URI fragments are not allowed")
   }
@@ -79,7 +79,7 @@ fn path_without_trailing_slash(path : String) -> String {
 /// Scheme and authority are lower-cased; the endpoint path and query remain
 /// significant, and fragments are rejected by parsing.
 pub fn canonical_resource_uri(value : String) -> String raise AuthError {
-  let uri = parse_absolute_uri(value)
+  let uri = AbsoluteUri::parse(value)
   let path = path_without_trailing_slash(uri.path)
   let base = uri.scheme.to_lower() + "://" + uri.authority.to_lower() + path
   match uri.query {
@@ -102,7 +102,7 @@ pub fn resource_identifiers_match(
 pub fn protected_resource_metadata_urls(
   resource_uri : String,
 ) -> Array[String] raise AuthError {
-  let uri = parse_absolute_uri(resource_uri)
+  let uri = AbsoluteUri::parse(resource_uri)
   let suffix = path_without_trailing_slash(uri.path)
   let path_specific = origin(uri) +
     "/.well-known/oauth-protected-resource" +
@@ -125,7 +125,7 @@ pub fn protected_resource_metadata_urls(
 pub fn authorization_server_metadata_urls(
   issuer : String,
 ) -> Array[String] raise AuthError {
-  let uri = parse_absolute_uri(issuer)
+  let uri = AbsoluteUri::parse(issuer)
   let issuer_path = path_without_trailing_slash(uri.path)
   [
     origin(uri) + "/.well-known/oauth-authorization-server" + issuer_path,
@@ -214,7 +214,7 @@ pub fn validate_secure_uri(
   value : String,
   allow_loopback_http? : Bool = false,
 ) -> AbsoluteUri raise AuthError {
-  let uri = parse_absolute_uri(value)
+  let uri = AbsoluteUri::parse(value)
   if uri.scheme.equal_ignore_ascii_case("https") {
     return uri
   }
