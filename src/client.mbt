@@ -255,19 +255,3 @@ pub fn Client::decode_discover(
 }
 
 ///|
-pub fn structured_content(result : Json) -> Json raise McpError {
-  let fields = expect_object(result, "tools/call result")
-  match fields.get("structuredContent") {
-    Some(value) => value
-    None => raise InvalidRequest("tools/call result has no structuredContent")
-  }
-}
-
-///|
-pub fn[T : FromJson] decode_structured_content(
-  result : Json,
-) -> T raise McpError {
-  @json.from_json(structured_content(result)) catch {
-    error => raise InvalidParams(error.to_string())
-  }
-}

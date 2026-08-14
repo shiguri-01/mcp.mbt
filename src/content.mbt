@@ -316,6 +316,20 @@ pub fn CallToolResult::CallToolResult(
 }
 
 ///|
+/// Decode the optional structured content as the caller's domain type.
+pub fn[T : FromJson] CallToolResult::decode_structured(
+  self : CallToolResult,
+) -> T raise McpError {
+  match self.structured_content {
+    Some(value) =>
+      @json.from_json(value) catch {
+        error => raise InvalidParams(error.to_string())
+      }
+    None => raise InvalidRequest("tools/call result has no structuredContent")
+  }
+}
+
+///|
 pub impl ToJson for CallToolResult with fn to_json(self : CallToolResult) -> Json {
   let fields : Map[String, Json] = {
     "content": self.content.map(fn(block) { block.to_json() }).to_json(),

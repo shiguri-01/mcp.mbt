@@ -1131,7 +1131,8 @@ pub async fn[T : FromJson] Client::call_tool_as(
   options? : @mcp.RequestOptions = @mcp.RequestOptions(),
 ) -> @mcp.HandlerOutcome[T] raise @mcp.McpError {
   match self.call_tool_raw(name~, arguments~, input_schema?, options~) {
-    Complete(result) => Complete(@mcp.decode_structured_content(result))
+    Complete(result) =>
+      Complete(@mcp.decode_call_tool_result(result).decode_structured())
     InputRequired(value) => InputRequired(value)
     ExtensionResult(result_type, value) => ExtensionResult(result_type, value)
   }

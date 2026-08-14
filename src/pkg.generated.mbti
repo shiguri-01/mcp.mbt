@@ -35,8 +35,6 @@ pub fn decode_read_resource_result(Json) -> ReadResourceResult raise McpError
 
 pub fn decode_request_meta(Json) -> RequestMeta raise McpError
 
-pub fn[T : @json.FromJson] decode_structured_content(Json) -> T raise McpError
-
 pub let latest_protocol_version : String
 
 pub fn logging_message_notification(level~ : LoggingLevel, data~ : Json, logger? : String) -> Json
@@ -58,8 +56,6 @@ pub fn prompts_list_changed_notification(subscription_id~ : Json) -> Json
 pub fn resource_updated_notification(uri~ : String, subscription_id~ : Json) -> Json
 
 pub fn resources_list_changed_notification(subscription_id~ : Json) -> Json
-
-pub fn structured_content(Json) -> Json raise McpError
 
 pub fn subscriptions_acknowledged_notification(subscription_id~ : Json, notifications~ : SubscriptionFilter) -> Json
 
@@ -116,6 +112,7 @@ pub struct CallToolResult {
   meta : ResultMeta?
 } derive(Eq, @debug.Debug)
 pub fn CallToolResult::CallToolResult(content~ : Array[ContentBlock], structured_content? : Json, is_error? : Bool, meta? : ResultMeta) -> Self
+pub fn[T : @json.FromJson] CallToolResult::decode_structured(Self) -> T raise McpError
 pub fn CallToolResult::error_text(String, annotations? : Annotations, meta? : Json) -> Self
 pub fn CallToolResult::json(Json) -> Self
 pub fn[T : ToJson] CallToolResult::structured(T) -> Self
