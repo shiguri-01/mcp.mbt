@@ -120,7 +120,6 @@ pub fn CallToolResult::error_text(String, annotations? : Annotations, meta? : Js
 pub fn CallToolResult::json(Json) -> Self
 pub fn[T : ToJson] CallToolResult::structured(T) -> Self
 pub fn CallToolResult::text(String, annotations? : Annotations, meta? : Json) -> Self
-pub fn CallToolResult::text_json(String, Json, annotations? : Annotations, meta? : Json) -> Self
 pub impl ToJson for CallToolResult
 
 pub struct Client {
@@ -566,7 +565,6 @@ pub struct Tool {
   meta : Json?
 } derive(Eq, @debug.Debug)
 pub fn Tool::Tool(name~ : String, title? : String, description? : String, input_schema? : Json, output_schema? : Json, annotations? : ToolAnnotations, icons? : Array[Icon], meta? : Json) -> Self raise McpError
-pub fn Tool::text(name~ : String, title? : String, description? : String, input_schema? : Json, annotations? : ToolAnnotations) -> Self raise McpError
 pub impl ToJson for Tool
 
 pub struct ToolAnnotations {
