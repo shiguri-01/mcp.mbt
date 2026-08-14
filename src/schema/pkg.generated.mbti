@@ -28,6 +28,7 @@ pub fn string_enum(name~ : String, values~ : Array[String], description? : Strin
 pub suberror SchemaError {
   InvalidDocument(String)
   UnsupportedDialect(String)
+  UnsupportedKeyword(String)
   InvalidSchema(String)
 } derive(Eq, @debug.Debug)
 

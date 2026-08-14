@@ -142,8 +142,9 @@ global mutable resolver.
 ### 3. Instance validation
 
 `CompiledSchema::validate(instance)` returns `ValidationResult`, not a
-boolean and not an MCP error. The result contains assertion status and the
-annotations required by `unevaluatedProperties` and `unevaluatedItems`.
+boolean and not an MCP error. The result contains assertion status and
+bounded error paths; it does not pretend to provide annotation semantics for
+keywords that are outside the implemented subset.
 MCP maps this result to protocol errors or tool execution errors at the
 dispatcher boundary. Schema validation never raises `McpError` directly.
 
@@ -161,8 +162,9 @@ compatibility remain separate milestones.
 - `TransportError` represents I/O, framing, size, and stream errors.
 
 The codec names are fixed: `decode_*` consumes a `Json` value, `encode_*`
-creates a `Json` value, and `parse_*` handles text. No public `validate` helper
-duplicates constructor or codec validation.
+creates a `Json` value, and `parse_*` handles text. There is no free-standing
+validation helper that duplicates constructor or codec validation;
+`CompiledSchema::validate` is the one explicit instance-validation API.
 
 ## Implementation order
 

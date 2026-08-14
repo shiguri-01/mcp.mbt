@@ -136,6 +136,22 @@ test "string constraints are constructed and validated as typed schemas" {
 }
 
 ///|
+test "unsupported pattern validation is rejected instead of ignored" {
+  let document = try! Document::Document(
+    Json::object({
+      "type": Json::string("string"),
+      "pattern": Json::string("^[a-z]+$"),
+    }),
+  )
+  try document.compile() catch {
+    UnsupportedKeyword("pattern") => ()
+    _ => fail("pattern must be reported as unsupported")
+  } noraise {
+    _ => fail("pattern must not be silently ignored")
+  }
+}
+
+///|
 test "typed combinators preserve JSON Schema assertion semantics" {
   let positive = Schema::any_of([
     Schema::const_value(Json::string("yes")),

@@ -75,9 +75,9 @@ Tool schemas are compiled when registered. Calls are checked against
 checked against `outputSchema`; remote `$ref` fetching is deliberately disabled.
 Compound schemas use one processing dialect; a resource that selects a different
 dialect fails registration. The typed builder supports JSON Schema string
-length bounds. Pattern keywords are preserved when supplied through
-`Schema::raw`, but pattern evaluation is not silently approximated by the
-portable runtime validator.
+length bounds. A `pattern` keyword supplied through `Schema::raw` is rejected
+by compilation until a compatible regular-expression evaluator is available;
+it is never silently ignored.
 Resource templates require a handler and expose captured simple `{variable}`
 expressions, so every advertised template is readable.
 

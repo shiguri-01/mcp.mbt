@@ -1,7 +1,10 @@
 # shiguri-01/mcp/schema
 
-Typed JSON Schema 2020-12 construction and validation. The package is
-independent of MCP and can be used for any JSON document.
+Typed JSON Schema 2020-12 construction and bounded instance validation. The
+package is independent of MCP and can be used for any JSON document. The
+implemented keyword subset is explicit; assertion keywords that this runtime
+cannot evaluate (for example `pattern`) are rejected at compile time instead
+of being silently ignored.
 
 Use this package next to the MoonBit input struct that derives `FromJson`:
 

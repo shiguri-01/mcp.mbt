@@ -344,6 +344,7 @@ pub fn Document::compile(
     raise InvalidSchema("schema exceeds max_nodes")
   }
   validate_references(self.value, 0, options.max_depth)
+  validate_supported_keywords(self.value, 0, options.max_depth)
   { document: self, options }
 }
 
@@ -432,6 +433,34 @@ fn validate_references(
     Array(values) =>
       for child in values {
         validate_references(child, depth + 1, max_depth)
+      }
+    _ => ()
+  }
+}
+
+///|
+/// The portable validator rejects keywords it cannot evaluate instead of
+/// silently accepting instances that were never checked.
+fn validate_supported_keywords(
+  value : Json,
+  depth : Int,
+  max_depth : Int,
+) -> Unit raise SchemaError {
+  if depth > max_depth {
+    raise InvalidSchema("schema exceeds max_depth")
+  }
+  match value {
+    Object(fields) => {
+      if fields.get("pattern") is Some(_) {
+        raise UnsupportedKeyword("pattern")
+      }
+      for _, child in fields {
+        validate_supported_keywords(child, depth + 1, max_depth)
+      }
+    }
+    Array(values) =>
+      for child in values {
+        validate_supported_keywords(child, depth + 1, max_depth)
       }
     _ => ()
   }
