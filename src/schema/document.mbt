@@ -12,8 +12,11 @@ pub struct Document {
 
 ///|
 pub fn Document::new(value : Json) -> Document raise SchemaError {
+  if value is (True | False) {
+    return { value, dialect: draft_2020_12 }
+  }
   guard value is Object(fields) else {
-    raise InvalidDocument("a JSON Schema document must be an object")
+    raise InvalidDocument("a JSON Schema document must be an object or boolean")
   }
   let dialect = match fields.get("$schema") {
     None => draft_2020_12
@@ -145,6 +148,14 @@ fn validate_instance(
   if depth > options.max_depth {
     add_error(errors, path, "validation exceeded max_depth")
     return
+  }
+  match schema {
+    True => return
+    False => {
+      add_error(errors, path, "boolean schema is false")
+      return
+    }
+    _ => ()
   }
   guard schema is Object(fields) else { return }
   match fields.get("type") {
