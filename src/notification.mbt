@@ -10,7 +10,12 @@ pub fn cancelled_notification(
   }
   let params : Map[String, Json] = { "requestId": request_id }
   put_optional_string(params, "reason", reason)
-  jsonrpc_notification("notifications/cancelled", params=Json::object(params))
+  @jsonrpc.Notification(
+    method_name="notifications/cancelled",
+    params=Json::object(params),
+  ).to_json() catch {
+    _ => Json::null()
+  }
 }
 
 ///|
@@ -30,15 +35,22 @@ pub fn progress_notification(
     None => ()
   }
   put_optional_string(params, "message", message)
-  jsonrpc_notification("notifications/progress", params=Json::object(params))
+  @jsonrpc.Notification(
+    method_name="notifications/progress",
+    params=Json::object(params),
+  ).to_json() catch {
+    _ => Json::null()
+  }
 }
 
 ///|
 pub fn tools_list_changed_notification(subscription_id~ : Json) -> Json {
-  jsonrpc_notification(
-    "notifications/tools/list_changed",
+  @jsonrpc.Notification(
+    method_name="notifications/tools/list_changed",
     params=subscription_params(subscription_id),
-  )
+  ).to_json() catch {
+    _ => Json::null()
+  }
 }
 
 ///|
@@ -53,10 +65,12 @@ fn subscription_params(subscription_id : Json) -> Json {
 
 ///|
 pub fn resources_list_changed_notification(subscription_id~ : Json) -> Json {
-  jsonrpc_notification(
-    "notifications/resources/list_changed",
+  @jsonrpc.Notification(
+    method_name="notifications/resources/list_changed",
     params=subscription_params(subscription_id),
-  )
+  ).to_json() catch {
+    _ => Json::null()
+  }
 }
 
 ///|
@@ -67,16 +81,20 @@ pub fn resource_updated_notification(
 ) -> Json {
   let params : Map[String, Json] = { "uri": Json::string(uri) }
   params["_meta"] = subscription_notification_meta(subscription_id)
-  jsonrpc_notification(
-    "notifications/resources/updated",
+  @jsonrpc.Notification(
+    method_name="notifications/resources/updated",
     params=Json::object(params),
-  )
+  ).to_json() catch {
+    _ => Json::null()
+  }
 }
 
 ///|
 pub fn prompts_list_changed_notification(subscription_id~ : Json) -> Json {
-  jsonrpc_notification(
-    "notifications/prompts/list_changed",
+  @jsonrpc.Notification(
+    method_name="notifications/prompts/list_changed",
     params=subscription_params(subscription_id),
-  )
+  ).to_json() catch {
+    _ => Json::null()
+  }
 }

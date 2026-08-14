@@ -135,15 +135,17 @@ pub fn subscriptions_acknowledged_notification(
   subscription_id~ : Json,
   notifications~ : SubscriptionFilter,
 ) -> Json {
-  jsonrpc_notification(
-    "notifications/subscriptions/acknowledged",
+  @jsonrpc.Notification(
+    method_name="notifications/subscriptions/acknowledged",
     params=Json::object({
       "_meta": Json::object({
         "io.modelcontextprotocol/subscriptionId": subscription_id,
       }),
       "notifications": notifications.to_json(),
     }),
-  )
+  ).to_json() catch {
+    _ => Json::null()
+  }
 }
 
 ///|
@@ -173,7 +175,8 @@ pub fn Subscription::close_response(self : Subscription) -> Json {
     server_info=self.server_info,
     meta~,
   )
-  rpc_result_response(self.id, result)
+  let request_id : @jsonrpc.RequestId = try! @json.from_json(self.id)
+  @jsonrpc.response_success(id=request_id, result~).to_json()
 }
 
 ///|
@@ -185,13 +188,19 @@ pub fn Server::accept_subscription(
   message : Json,
 ) -> Subscription raise McpError {
   self.registry_frozen = true
-  let request = parse_rpc_request(message)
+  let decoded = @jsonrpc.decode(message) catch {
+    error => raise jsonrpc_error(error)
+  }
+  let request = match decoded {
+    @jsonrpc.Message::Request(request) => request
+    _ => raise InvalidRequest("expected subscriptions/listen request")
+  }
   if request.method_name != "subscriptions/listen" {
     raise InvalidRequest("expected subscriptions/listen request")
   }
   let context = parse_context(request)
   self.ensure_supported_version(context)
-  let fields = request.params
+  let fields = expect_object(request.params, "subscriptions/listen params")
   guard fields.get("notifications") is Some(value) else {
     raise InvalidParams("subscriptions/listen params.notifications is required")
   }

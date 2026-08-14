@@ -193,7 +193,7 @@ pub impl FromJson for ErrorObject with fn from_json(value, path) -> ErrorObject 
 ///|
 pub enum Response[Result] {
   Success(id~ : RequestId, result~ : Result)
-  Failure(id~ : RequestId, error~ : ErrorObject)
+  Failure(id~ : RequestId?, error~ : ErrorObject)
 }
 
 ///|
@@ -206,7 +206,7 @@ pub fn[Result] response_success(
 
 ///|
 pub fn[Result] response_failure(
-  id~ : RequestId,
+  id? : RequestId,
   error~ : ErrorObject,
 ) -> Response[Result] {
   Failure(id~, error~)
@@ -224,7 +224,10 @@ pub impl[Result : ToJson] ToJson for Response[Result] with fn to_json(self) -> J
     Failure(id~, error~) =>
       Json::object({
         "jsonrpc": Json::string(JSON_RPC_VERSION),
-        "id": id.to_json(),
+        "id": match id {
+          Some(id) => id.to_json()
+          None => Json::null()
+        },
         "error": error.to_json(),
       })
   }
@@ -285,13 +288,19 @@ pub fn decode(value : Json) -> Message raise JsonRpcDecodeError {
       }
     }
     None => {
-      let id = match fields.get("id") {
-        Some(id) => decode_id(id)
-        None =>
-          raise JsonRpcDecodeError::InvalidMessage("response id is required")
+      let id : RequestId? = match fields.get("id") {
+        Some(Null) | None => None
+        Some(id) => Some(decode_id(id))
       }
       match (fields.get("result"), fields.get("error")) {
-        (Some(result), None) => Message::Response(Success(id~, result~))
+        (Some(result), None) =>
+          match id {
+            Some(id) => Message::Response(Success(id~, result~))
+            None =>
+              raise JsonRpcDecodeError::InvalidMessage(
+                "success response id is required",
+              )
+          }
         (None, Some(error)) =>
           Message::Response(Failure(id~, error=decode_error(error)))
         _ =>

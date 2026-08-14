@@ -43,13 +43,13 @@ test "extension result types require an advertised extension mapping" {
   let client = try! Client(name="client", version="1", capabilities~, extension_result_types={
     "paused": "com.example/flow",
   })
-  let response = rpc_result_response(
-    Json::number(1.0),
-    Json::object({
+  let response = @jsonrpc.response_success(
+    id=try! @jsonrpc.RequestId::number(1.0),
+    result=Json::object({
       "resultType": Json::string("paused"),
       "resumeToken": Json::string("next"),
     }),
-  )
+  ).to_json()
   assert_true(client.decode_response(response) is ExtensionResult("paused", _))
   let strict = try! Client(name="strict", version="1")
   try strict.decode_response(response) catch {

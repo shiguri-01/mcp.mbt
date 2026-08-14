@@ -57,5 +57,10 @@ pub fn logging_message_notification(
 ) -> Json {
   let params : Map[String, Json] = { "level": level.to_json(), "data": data }
   put_optional_string(params, "logger", logger)
-  jsonrpc_notification("notifications/message", params=Json::object(params))
+  @jsonrpc.Notification(
+    method_name="notifications/message",
+    params=Json::object(params),
+  ).to_json() catch {
+    _ => Json::null()
+  }
 }

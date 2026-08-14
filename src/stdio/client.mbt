@@ -327,9 +327,10 @@ fn response_id(message : Json) -> Json? raise @mcp.McpError {
       raise InvalidRequest(
         "server-to-client JSON-RPC requests are not valid in MCP 2026-07-28",
       )
-    @jsonrpc.Message::Response(@jsonrpc.Response::Success(id~, ..))
-    | @jsonrpc.Message::Response(@jsonrpc.Response::Failure(id~, ..)) =>
+    @jsonrpc.Message::Response(@jsonrpc.Response::Success(id~, ..)) =>
       Some(id.as_json())
+    @jsonrpc.Message::Response(@jsonrpc.Response::Failure(id~, ..)) =>
+      id.map(fn(id) { id.as_json() })
   }
 }
 

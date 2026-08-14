@@ -494,10 +494,10 @@ fn get_prompt_arguments(
 
 ///|
 fn parse_context(
-  request : RpcRequest,
+  request : @jsonrpc.Request[Json],
   hooks? : RequestHooks = RequestHooks(),
 ) -> RequestContext raise McpError {
-  let fields = request.params
+  let fields = expect_object(request.params, "request params")
   let meta = match fields.get("_meta") {
     Some(value) => decode_request_meta(value)
     None => raise InvalidParams("request params._meta is required")
@@ -911,13 +911,13 @@ async fn Server::complete(
 ///|
 async fn Server::dispatch_request(
   self : Server,
-  request : RpcRequest,
+  request : @jsonrpc.Request[Json],
   hooks? : RequestHooks = RequestHooks(),
 ) -> Json raise McpError {
   self.registry_frozen = true
   let context = parse_context(request, hooks~)
   self.ensure_supported_version(context)
-  let fields = request.params
+  let fields = expect_object(request.params, "request params")
   match request.method_name {
     "server/discover" => self.discover()
     "tools/list" =>
@@ -935,10 +935,7 @@ async fn Server::dispatch_request(
       self.list_prompts(parse_list_params(fields, "prompts/list params"))
     "prompts/get" => self.get_prompt(context, parse_get_prompt_params(fields))
     "completion/complete" =>
-      self.complete(
-        context,
-        parse_completion_request(Some(Json::object(fields))),
-      )
+      self.complete(context, parse_completion_request(Some(request.params)))
     "subscriptions/listen" =>
       raise InvalidRequest(
         "subscriptions/listen must be handled as a transport stream",
@@ -949,19 +946,10 @@ async fn Server::dispatch_request(
           self.outcome_json(
             context,
             method_name,
-            handler(context, Json::object(request.params)),
+            handler(context, request.params),
           )
         None => raise MethodNotFound(method_name)
       }
-  }
-}
-
-///|
-fn response_error_id(message : Json) -> @jsonrpc.RequestId? {
-  let decoded = @jsonrpc.decode(message) catch { _ => return None }
-  match decoded {
-    @jsonrpc.Message::Request(request) => Some(request.id)
-    _ => None
   }
 }
 
@@ -980,17 +968,40 @@ pub async fn Server::handle_jsonrpc_with_hooks(
   message : Json,
   hooks~ : RequestHooks,
 ) -> Json? {
-  if is_rpc_notification(message) {
-    return None
+  let decoded = @jsonrpc.decode(message) catch {
+    error => {
+      let response : @jsonrpc.Response[Json] = @jsonrpc.response_failure(
+        error=InvalidRequest(
+          match error {
+            InvalidMessage(msg) => msg
+          },
+        ).to_error_object(),
+      )
+      return Some(response.to_json())
+    }
   }
-  let id = response_error_id(message)
-  try {
-    let request = parse_rpc_request(message)
-    let result = self.dispatch_request(request, hooks~)
-    Some(rpc_result_response(request.id.as_json(), result))
-  } catch {
-    error => Some(rpc_error_response(id, error))
-  } noraise {
-    response => response
+  match decoded {
+    @jsonrpc.Message::Notification(_) => None
+    @jsonrpc.Message::Response(_) => {
+      let response : @jsonrpc.Response[Json] = @jsonrpc.response_failure(
+        error=InvalidRequest("MCP server expected a request").to_error_object(),
+      )
+      Some(response.to_json())
+    }
+    @jsonrpc.Message::Request(request) =>
+      try {
+        let result = self.dispatch_request(request, hooks~)
+        Some(@jsonrpc.response_success(id=request.id, result~).to_json())
+      } catch {
+        error => {
+          let response : @jsonrpc.Response[Json] = @jsonrpc.response_failure(
+            id=request.id,
+            error=error.to_error_object(),
+          )
+          Some(response.to_json())
+        }
+      } noraise {
+        response => response
+      }
   }
 }

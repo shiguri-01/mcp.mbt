@@ -400,9 +400,10 @@ fn request_method_name(message : Json) -> String? {
 fn request_id(message : Json) -> Json? {
   match decode_jsonrpc_message(message) {
     Some(@jsonrpc.Message::Request(request)) => Some(request.id.as_json())
-    Some(@jsonrpc.Message::Response(@jsonrpc.Response::Success(id~, ..)))
-    | Some(@jsonrpc.Message::Response(@jsonrpc.Response::Failure(id~, ..))) =>
+    Some(@jsonrpc.Message::Response(@jsonrpc.Response::Success(id~, ..))) =>
       Some(id.as_json())
+    Some(@jsonrpc.Message::Response(@jsonrpc.Response::Failure(id~, ..))) =>
+      id.map(fn(id) { id.as_json() })
     Some(@jsonrpc.Message::Notification(_)) | None => None
   }
 }

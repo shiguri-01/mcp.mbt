@@ -21,7 +21,7 @@ pub const PARSE_ERROR : Int = -32700
 
 pub fn decode(Json) -> Message raise JsonRpcDecodeError
 
-pub fn[Result] response_failure(id~ : RequestId, error~ : ErrorObject) -> Response[Result]
+pub fn[Result] response_failure(id? : RequestId, error~ : ErrorObject) -> Response[Result]
 
 pub fn[Result] response_success(id~ : RequestId, result~ : Result) -> Response[Result]
 
@@ -77,7 +77,7 @@ pub impl @json.FromJson for RequestId
 
 pub enum Response[Result] {
   Success(id~ : RequestId, result~ : Result)
-  Failure(id~ : RequestId, error~ : ErrorObject)
+  Failure(id~ : RequestId?, error~ : ErrorObject)
 }
 pub impl[Result : ToJson] ToJson for Response[Result]
 

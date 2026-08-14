@@ -53,10 +53,10 @@ pub fn Client::Client(
 }
 
 ///|
-fn Client::fresh_id(self : Client) -> Json {
+fn Client::fresh_id(self : Client) -> @jsonrpc.RequestId {
   let id = self.next_request_id
   self.next_request_id += 1
-  Json::number(id.to_double(), repr="\{id}")
+  try! @jsonrpc.RequestId::number(id.to_double(), repr="\{id}")
 }
 
 ///|
@@ -71,16 +71,15 @@ pub fn Client::request_raw(
   params? : Map[String, Json] = Map([]),
   options? : RequestOptions = RequestOptions(),
 ) -> Json raise McpError {
-  rpc_request(
-    self.fresh_id(),
-    method_name,
-    options.request_params(
-      params,
-      client_capabilities=self.capabilities,
-      client_info=self.info,
-      protocol_version=self.protocol_version,
-    ),
+  let payload = options.request_params(
+    params,
+    client_capabilities=self.capabilities,
+    client_info=self.info,
+    protocol_version=self.protocol_version,
   )
+  @jsonrpc.Request(id=self.fresh_id(), method_name~, params=payload).to_json() catch {
+    _ => Json::null()
+  }
 }
 
 ///|
