@@ -11,6 +11,13 @@ pub enum Schema {
   String
   Array(Schema)
   Object(Map[String, Schema], Array[String], Bool)
+  Const(Json)
+  Enum(Array[Json])
+  AllOf(Array[Schema])
+  AnyOf(Array[Schema])
+  OneOf(Array[Schema])
+  Not(Schema)
+  Ref(String)
   Raw(Json)
 } derive(Debug, Eq)
 
@@ -52,6 +59,53 @@ pub fn Schema::string() -> Schema {
 ///|
 pub fn Schema::array(items~ : Schema) -> Schema {
   Array(items)
+}
+
+///|
+pub fn Schema::const_value(value : Json) -> Schema {
+  Const(value)
+}
+
+///|
+pub fn Schema::enum_values(values : Array[Json]) -> Schema raise SchemaError {
+  if values.is_empty() {
+    raise InvalidSchema("JSON Schema enum must not be empty")
+  }
+  Enum(values.copy())
+}
+
+///|
+pub fn Schema::all_of(values : Array[Schema]) -> Schema {
+  AllOf(values.copy())
+}
+
+///|
+pub fn Schema::any_of(values : Array[Schema]) -> Schema raise SchemaError {
+  if values.is_empty() {
+    raise InvalidSchema("JSON Schema anyOf must not be empty")
+  }
+  AnyOf(values.copy())
+}
+
+///|
+pub fn Schema::one_of(values : Array[Schema]) -> Schema raise SchemaError {
+  if values.is_empty() {
+    raise InvalidSchema("JSON Schema oneOf must not be empty")
+  }
+  OneOf(values.copy())
+}
+
+///|
+pub fn Schema::not(value : Schema) -> Schema {
+  Not(value)
+}
+
+///|
+pub fn Schema::reference(reference : String) -> Schema raise SchemaError {
+  if !reference.has_prefix("#") {
+    raise InvalidSchema("network JSON Schema references are disabled")
+  }
+  Ref(reference)
 }
 
 ///|
@@ -98,6 +152,16 @@ pub fn Schema::to_json(self : Schema) -> Json {
       fields["additionalProperties"] = Json::boolean(additional_properties)
       Json::object(fields)
     }
+    Const(value) => Json::object({ "const": value })
+    Enum(values) => Json::object({ "enum": values.to_json() })
+    AllOf(values) =>
+      Json::object({ "allOf": values.map(value => value.to_json()).to_json() })
+    AnyOf(values) =>
+      Json::object({ "anyOf": values.map(value => value.to_json()).to_json() })
+    OneOf(values) =>
+      Json::object({ "oneOf": values.map(value => value.to_json()).to_json() })
+    Not(value) => Json::object({ "not": value.to_json() })
+    Ref(reference) => Json::object({ "$ref": Json::string(reference) })
     Raw(value) => value
   }
 }
@@ -378,6 +442,65 @@ fn validate_instance(
       add_error(errors, path, "value is not in enum")
     _ => ()
   }
+  match fields.get("const") {
+    Some(expected) if expected != instance =>
+      add_error(errors, path, "value does not match const")
+    _ => ()
+  }
+  match fields.get("allOf") {
+    Some(Array(values)) =>
+      for child in values {
+        validate_instance(
+          child,
+          root,
+          instance,
+          path,
+          depth + 1,
+          options,
+          errors,
+        )
+      }
+    _ => ()
+  }
+  match fields.get("anyOf") {
+    Some(Array(values)) => {
+      let mut matched = false
+      for child in values {
+        if schema_matches(child, root, instance, path, depth + 1, options) {
+          matched = true
+        }
+      }
+      if !matched {
+        add_error(errors, path, "value does not match anyOf")
+      }
+    }
+    _ => ()
+  }
+  match fields.get("oneOf") {
+    Some(Array(values)) => {
+      let mut matches = 0
+      for child in values {
+        if schema_matches(child, root, instance, path, depth + 1, options) {
+          matches += 1
+        }
+      }
+      if matches != 1 {
+        add_error(errors, path, "value must match exactly one oneOf branch")
+      }
+    }
+    _ => ()
+  }
+  match fields.get("not") {
+    Some(child) if schema_matches(
+        child,
+        root,
+        instance,
+        path,
+        depth + 1,
+        options,
+      ) => add_error(errors, path, "value matches a not schema")
+    _ => ()
+  }
   match (fields.get("properties"), instance) {
     (Some(Object(properties)), Object(instance_fields)) =>
       for name, property_schema in properties {
@@ -433,4 +556,18 @@ fn validate_instance(
       }
     _ => ()
   }
+}
+
+///|
+fn schema_matches(
+  schema : Json,
+  root : Json,
+  instance : Json,
+  path : String,
+  depth : Int,
+  options : CompileOptions,
+) -> Bool {
+  let branch_errors : Array[String] = []
+  validate_instance(schema, root, instance, path, depth, options, branch_errors)
+  branch_errors.is_empty()
 }

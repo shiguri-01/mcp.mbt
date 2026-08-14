@@ -86,18 +86,32 @@ pub enum Schema {
   String
   Array(Schema)
   Object(Map[String, Schema], Array[String], Bool)
+  Const(Json)
+  Enum(Array[Json])
+  AllOf(Array[Schema])
+  AnyOf(Array[Schema])
+  OneOf(Array[Schema])
+  Not(Schema)
+  Ref(String)
   Raw(Json)
 } derive(Eq, @debug.Debug)
+pub fn Schema::all_of(Array[Self]) -> Self
 pub fn Schema::always() -> Self
+pub fn Schema::any_of(Array[Self]) -> Self raise SchemaError
 pub fn Schema::array(items~ : Self) -> Self
 pub fn Schema::boolean() -> Self
+pub fn Schema::const_value(Json) -> Self
 pub fn Schema::document(Self) -> Document raise SchemaError
+pub fn Schema::enum_values(Array[Json]) -> Self raise SchemaError
 pub fn Schema::integer() -> Self
 pub fn Schema::never() -> Self
+pub fn Schema::not(Self) -> Self
 pub fn Schema::null() -> Self
 pub fn Schema::number() -> Self
 pub fn Schema::object(properties~ : Map[String, Self], required? : Array[String], additional_properties? : Bool) -> Self raise SchemaError
+pub fn Schema::one_of(Array[Self]) -> Self raise SchemaError
 pub fn Schema::raw(Json) -> Self raise SchemaError
+pub fn Schema::reference(String) -> Self raise SchemaError
 pub fn Schema::string() -> Self
 pub fn Schema::to_json(Self) -> Json
 

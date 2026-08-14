@@ -112,3 +112,18 @@ test "typed Schema constructors produce a validated document" {
     compiled.validate(Json::object({ "name": Json::number(1.0) })).valid,
   )
 }
+
+///|
+test "typed combinators preserve JSON Schema assertion semantics" {
+  let positive = Schema::any_of([
+    Schema::const_value(Json::string("yes")),
+    Schema::const_value(Json::string("ok")),
+  ]) catch {
+    _ => abort("anyOf construction failed")
+  }
+  let exact = Schema::const_value(Json::string("yes"))
+  let document = try! Schema::all_of([positive, Schema::not(exact)]).document()
+  let result = document.compile() catch { _ => abort("compile failed") }
+  assert_false(result.validate(Json::string("yes")).valid)
+  assert_true(result.validate(Json::string("ok")).valid)
+}
