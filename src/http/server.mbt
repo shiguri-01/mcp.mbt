@@ -578,7 +578,7 @@ async fn handle_request(
 /// Serve a stateless MCP 2026-07-28 registry at one POST endpoint.
 ///
 /// GET streams, DELETE session termination, and `MCP-Session-Id` are not part
-/// of this protocol revision. Ordinary responses are JSON unless
+/// of the MCP 2026-07-28 transport contract. Ordinary responses are JSON unless
 /// `ServerOptions(stream_responses=true)` is selected; that mode sends
 /// request-scoped progress notifications and the final response over SSE.
 pub async fn serve(
