@@ -84,15 +84,6 @@ pub fn object(
 }
 
 ///|
-/// Encode a typed object schema for APIs that still accept a JSON Schema value.
-pub fn object_json(
-  properties : Array[Property],
-  additional_properties? : Bool = false,
-) -> Json raise SchemaError {
-  object(properties, additional_properties~).to_json()
-}
-
-///|
 /// Build an object field from a typed JSON Schema fragment.
 fn property(
   name~ : String,
@@ -104,7 +95,7 @@ fn property(
 
 ///|
 /// Build a JSON Schema string type fragment.
-pub fn string_schema(description? : String) -> Schema {
+fn string_schema(description? : String) -> Schema {
   match description {
     Some(value) => Schema::description(Schema::string(), value)
     None => Schema::string()
@@ -113,7 +104,7 @@ pub fn string_schema(description? : String) -> Schema {
 
 ///|
 /// Build a JSON Schema integer type fragment.
-pub fn integer_schema(description? : String) -> Schema {
+fn integer_schema(description? : String) -> Schema {
   match description {
     Some(value) => Schema::description(Schema::integer(), value)
     None => Schema::integer()
@@ -122,7 +113,7 @@ pub fn integer_schema(description? : String) -> Schema {
 
 ///|
 /// Build a JSON Schema number type fragment.
-pub fn number_schema(description? : String) -> Schema {
+fn number_schema(description? : String) -> Schema {
   match description {
     Some(value) => Schema::description(Schema::number(), value)
     None => Schema::number()
@@ -131,7 +122,7 @@ pub fn number_schema(description? : String) -> Schema {
 
 ///|
 /// Build a JSON Schema boolean type fragment.
-pub fn boolean_schema(description? : String) -> Schema {
+fn boolean_schema(description? : String) -> Schema {
   match description {
     Some(value) => Schema::description(Schema::boolean(), value)
     None => Schema::boolean()
@@ -143,7 +134,7 @@ pub fn boolean_schema(description? : String) -> Schema {
 
 ///|
 /// Build a JSON Schema array type fragment.
-pub fn array_schema(items~ : Schema, description? : String) -> Schema {
+fn array_schema(items~ : Schema, description? : String) -> Schema {
   let schema = Schema::array(items~)
   match description {
     Some(text) => Schema::description(schema, text)
@@ -153,7 +144,7 @@ pub fn array_schema(items~ : Schema, description? : String) -> Schema {
 
 ///|
 /// Build a JSON Schema string enum type fragment.
-pub fn string_enum_schema(
+fn string_enum_schema(
   values : Array[String],
   description? : String,
 ) -> Schema raise SchemaError {
