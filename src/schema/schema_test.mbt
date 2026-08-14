@@ -33,3 +33,13 @@ test "primitive JsonSchema implementations produce typed documents" {
   assert_true(try! string_document.compile().validate(Json::string("ok")).valid)
   assert_false(try! int_document.compile().validate(Json::string("no")).valid)
 }
+
+///|
+test "container JsonSchema implementations are built without JSON literals" {
+  let strings = try! schema_of((None : Array[String]?)).document().compile()
+  assert_true(strings.validate(Json::array([Json::string("ok")])).valid)
+  assert_false(strings.validate(Json::array([Json::number(1.0)])).valid)
+  let optional = try! schema_of((None : Int??)).document().compile()
+  assert_true(optional.validate(Json::null()).valid)
+  assert_true(optional.validate(Json::number(1.0)).valid)
+}

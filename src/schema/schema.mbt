@@ -30,6 +30,16 @@ pub impl JsonSchema for Double with fn json_schema() -> Schema {
 }
 
 ///|
+pub impl[T : JsonSchema] JsonSchema for Array[T] with fn json_schema() -> Schema {
+  Schema::array(items=schema_of((None : T?)))
+}
+
+///|
+pub impl[T : JsonSchema] JsonSchema for T? with fn json_schema() -> Schema raise SchemaError {
+  Schema::any_of([Schema::null(), schema_of((None : T?))])
+}
+
+///|
 /// The JSON Schema dialect used by MCP `2026-07-28` when `$schema` is absent.
 pub let draft_2020_12 : String = "https://json-schema.org/draft/2020-12/schema"
 

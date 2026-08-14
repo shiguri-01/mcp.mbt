@@ -101,3 +101,5 @@ pub impl JsonSchema for Int
 pub impl JsonSchema for Int64
 pub impl JsonSchema for Double
 pub impl JsonSchema for String
+pub impl[T : JsonSchema] JsonSchema for T?
+pub impl[T : JsonSchema] JsonSchema for Array[T]
