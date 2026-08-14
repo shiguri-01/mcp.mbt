@@ -16,23 +16,6 @@ pub(all) suberror TransportError {
 } derive(Eq, @debug.Debug)
 
 // Types and methods
-pub struct InboundFrame {
-  status : Int
-  headers : Map[String, String]
-  body : String
-}
-pub fn InboundFrame::InboundFrame(status~ : Int, headers? : Map[String, String], body? : String) -> Self
-pub fn InboundFrame::body(Self) -> String
-pub fn InboundFrame::headers(Self) -> Map[String, String]
-pub fn InboundFrame::status(Self) -> Int
-
-pub struct OutboundFrame {
-  body : String
-  headers : Map[String, String]
-}
-pub fn OutboundFrame::OutboundFrame(body~ : String, headers? : Map[String, String]) -> Self
-pub fn OutboundFrame::body(Self) -> String
-pub fn OutboundFrame::headers(Self) -> Map[String, String]
 
 // Type aliases
 
@@ -43,5 +26,5 @@ pub(open) trait FrameStream {
 }
 
 pub(open) trait FrameTransport {
-  async fn exchange(Self, OutboundFrame) -> InboundFrame raise TransportError
+  async fn exchange(Self, String, Map[String, String]) -> (Int, Map[String, String], String) raise TransportError
 }

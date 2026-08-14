@@ -32,12 +32,6 @@ pub struct Tool {
 } derive(Debug, Eq)
 
 ///|
-/// The stable identifier used by `tools/list` and `tools/call`.
-pub fn Tool::name(self : Tool) -> String {
-  self.name
-}
-
-///|
 /// Construct a tool descriptor.
 pub fn Tool::Tool(
   name~ : String,

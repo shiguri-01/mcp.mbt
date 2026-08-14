@@ -30,10 +30,10 @@ pub fn FrameTransport::FrameTransport(
 ///|
 pub impl @transport.FrameTransport for FrameTransport with fn exchange(
   self : FrameTransport,
-  frame : @transport.OutboundFrame,
-) -> @transport.InboundFrame raise @transport.TransportError {
-  let headers = frame.headers()
-  let body = @utf8.encode(frame.body())
+  body_text : String,
+  headers : Map[String, String],
+) -> (Int, Map[String, String], String) raise @transport.TransportError {
+  let body = @utf8.encode(body_text)
   let stream = @async_http.post_stream(self.endpoint, headers~) catch {
     error => raise @transport.TransportError::Io(error.to_string())
   }
@@ -55,11 +55,7 @@ pub impl @transport.FrameTransport for FrameTransport with fn exchange(
       raise @transport.TransportError::InvalidFrame(subject)
     BodyReadFailed(message~, ..) => raise @transport.TransportError::Io(message)
   }
-  @transport.InboundFrame(
-    status=response.code,
-    headers=response.headers,
-    body=response_body,
-  )
+  (response.code, response.headers, response_body)
 }
 
 ///|

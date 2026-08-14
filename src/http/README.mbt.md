@@ -40,7 +40,7 @@ access to fields outside the core result model.
 ```mbt nocheck
 let listed = client.list_tools()
 for tool in listed.tools {
-  println(tool.name())
+  println(tool.name)
 }
 match client.call_tool(name="greet", arguments={ "name": "MoonBit" }) {
   Complete(result) => println(result.content.length().to_string())

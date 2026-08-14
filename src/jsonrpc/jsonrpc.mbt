@@ -81,13 +81,6 @@ pub fn[Params] Request::Request(
 }
 
 ///|
-pub fn[Params] Request::parts(
-  self : Request[Params],
-) -> (RequestId, String, Params) {
-  (self.id, self.method_name, self.params)
-}
-
-///|
 pub impl[Params : ToJson] ToJson for Request[Params] with fn to_json(self) -> Json {
   Json::object({
     "jsonrpc": Json::string(JSON_RPC_VERSION),
@@ -118,13 +111,6 @@ pub fn[Params] Notification::Notification(
 }
 
 ///|
-pub fn[Params] Notification::parts(
-  self : Notification[Params],
-) -> (String, Params) {
-  (self.method_name, self.params)
-}
-
-///|
 pub impl[Params : ToJson] ToJson for Notification[Params] with fn to_json(self) -> Json {
   Json::object({
     "jsonrpc": Json::string(JSON_RPC_VERSION),
@@ -150,19 +136,6 @@ pub fn ErrorObject::ErrorObject(
 }
 
 ///|
-pub fn ErrorObject::code(self : ErrorObject) -> Int {
-  self.code
-}
-
-///|
-pub fn ErrorObject::message(self : ErrorObject) -> String {
-  self.message
-}
-
-///|
-pub fn ErrorObject::data(self : ErrorObject) -> Json? {
-  self.data
-}
 
 ///|
 pub impl ToJson for ErrorObject with fn to_json(self) -> Json {
@@ -222,14 +195,6 @@ pub fn[Result] response_failure(
   error~ : ErrorObject,
 ) -> Response[Result] {
   Failure(id~, error~)
-}
-
-///|
-pub fn[Result] Response::id(self : Response[Result]) -> RequestId {
-  match self {
-    Success(id~, ..) => id
-    Failure(id~, ..) => id
-  }
 }
 
 ///|

@@ -314,7 +314,7 @@ fn request_id(message : Json) -> Json raise @mcp.McpError {
     _ => raise InvalidRequest("stdio request is not a JSON-RPC request")
   }
   match decoded {
-    @jsonrpc.Message::Request(request) => request.parts().0.as_json()
+    @jsonrpc.Message::Request(request) => request.id.as_json()
     _ => raise InvalidRequest("stdio request must be a JSON-RPC request")
   }
 }
@@ -330,7 +330,9 @@ fn response_id(message : Json) -> Json? raise @mcp.McpError {
       raise InvalidRequest(
         "server-to-client JSON-RPC requests are not valid in MCP 2026-07-28",
       )
-    @jsonrpc.Message::Response(response) => Some(response.id().as_json())
+    @jsonrpc.Message::Response(@jsonrpc.Response::Success(id~, ..))
+    | @jsonrpc.Message::Response(@jsonrpc.Response::Failure(id~, ..)) =>
+      Some(id.as_json())
   }
 }
 

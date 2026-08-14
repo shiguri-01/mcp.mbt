@@ -26,8 +26,9 @@ fn parse_rpc_request(message : Json) -> RpcRequest raise McpError {
   }
   match decoded {
     @jsonrpc.Message::Request(request) => {
-      let (request_id, method_name, params) = request.parts()
-      let id = request_id.as_json()
+      let id = request.id.as_json()
+      let method_name = request.method_name
+      let params = request.params
       guard params is Object(_) else {
         raise InvalidParams("request params must be an object")
       }
@@ -109,9 +110,9 @@ fn rpc_response_result(message : Json) -> Json raise McpError {
       result
     @jsonrpc.Message::Response(@jsonrpc.Response::Failure(error~, ..)) =>
       raise McpError::from_rpc_parts(
-        error.code(),
-        error.message(),
-        data?=error.data(),
+        error.code,
+        error.message,
+        data?=error.data,
       )
     _ => raise InvalidRequest("JSON-RPC response expected")
   }

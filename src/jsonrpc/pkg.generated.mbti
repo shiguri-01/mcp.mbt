@@ -29,9 +29,6 @@ pub struct ErrorObject {
   data : Json?
 }
 pub fn ErrorObject::ErrorObject(code~ : Int, message~ : String, data? : Json) -> Self
-pub fn ErrorObject::code(Self) -> Int
-pub fn ErrorObject::data(Self) -> Json?
-pub fn ErrorObject::message(Self) -> String
 pub impl ToJson for ErrorObject
 pub impl @json.FromJson for ErrorObject
 
@@ -46,7 +43,6 @@ pub struct Notification[Params] {
   params : Params
 }
 pub fn[Params] Notification::Notification(method_name~ : String, params~ : Params) -> Self[Params] raise JsonRpcValidationError
-pub fn[Params] Notification::parts(Self[Params]) -> (String, Params)
 pub impl[Params : ToJson] ToJson for Notification[Params]
 
 pub struct Request[Params] {
@@ -55,7 +51,6 @@ pub struct Request[Params] {
   params : Params
 }
 pub fn[Params] Request::Request(id~ : RequestId, method_name~ : String, params~ : Params) -> Self[Params] raise JsonRpcValidationError
-pub fn[Params] Request::parts(Self[Params]) -> (RequestId, String, Params)
 pub impl[Params : ToJson] ToJson for Request[Params]
 
 pub enum RequestId {
@@ -72,7 +67,6 @@ pub enum Response[Result] {
   Success(id~ : RequestId, result~ : Result)
   Failure(id~ : RequestId, error~ : ErrorObject)
 }
-pub fn[Result] Response::id(Self[Result]) -> RequestId
 pub impl[Result : ToJson] ToJson for Response[Result]
 
 // Type aliases
