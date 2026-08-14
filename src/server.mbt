@@ -51,20 +51,6 @@ fn schema_validation_error(
 }
 
 ///|
-/// Return the registered input schema for a tool.
-///
-/// Transport adapters use this read-only view to validate metadata mirrored
-/// outside the JSON-RPC body while keeping the server registry authoritative.
-pub fn Server::tool_input_schema(self : Server, name : String) -> Json? {
-  match self.tools.get(name) {
-    Some(registered) => Some(copy_json(registered.tool.input_schema))
-    None => None
-  }
-}
-
-///|
-
-///|
 struct RegisteredResource {
   resource : Resource
   handler : ResourceHandler
@@ -151,6 +137,8 @@ pub struct Server {
   supported_versions : Array[String]
   priv mut registry_frozen : Bool
   priv tools : Map[String, RegisteredTool]
+  /// Read-only descriptor snapshot for transport adapters.
+  tool_schemas : Map[String, Tool]
   priv resources : Map[String, RegisteredResource]
   priv resource_templates : Map[String, RegisteredResourceTemplate]
   priv prompts : Map[String, RegisteredPrompt]
@@ -203,6 +191,7 @@ pub fn Server::Server(
     supported_versions: supported_versions.copy(),
     registry_frozen: false,
     tools: Map([]),
+    tool_schemas: Map([]),
     resources: Map([]),
     resource_templates: Map([]),
     prompts: Map([]),
@@ -271,6 +260,7 @@ fn Server::register_tool(
     None => None
   }
   self.tools[tool.name] = { tool, handler, input_validator, output_validator }
+  self.tool_schemas[tool.name] = tool
 }
 
 ///|

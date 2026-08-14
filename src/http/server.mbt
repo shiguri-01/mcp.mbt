@@ -374,13 +374,15 @@ fn validate_tool_call_headers(
     Some(value) => value
     None => Json::object({})
   }
-  match server.tool_input_schema(name) {
-    Some(schema) =>
+  match server.tool_schemas.get(name) {
+    Some(tool) => {
+      let schema = tool.input_schema
       validate_tool_argument_headers(request.headers, schema, arguments) catch {
         InvalidHeaderSchema(message) => raise @mcp.InternalError(message)
         InvalidHeaderValue(message) | HeaderMismatch(message) =>
           raise @mcp.HeaderMismatch(message)
       }
+    }
     None => ()
   }
 }
