@@ -56,6 +56,10 @@ pub fn Tool::Tool(
   meta? : Json,
 ) -> Tool raise McpError {
   validate_tool_input_schema(input_schema)
+  match output_schema {
+    Some(schema) => validate_tool_document(schema, "tool outputSchema")
+    None => ()
+  }
   {
     name,
     title,
@@ -70,12 +74,31 @@ pub fn Tool::Tool(
 
 ///|
 fn validate_tool_input_schema(schema : Json) -> Unit raise McpError {
+  validate_tool_document(schema, "tool inputSchema")
   guard schema is Object(fields) else {
     raise InvalidParams("tool inputSchema must be a JSON Schema object")
   }
   guard fields.get("type") is Some(String("object")) else {
     raise InvalidParams("tool inputSchema root type must be \"object\"")
   }
+}
+
+///|
+fn validate_tool_document(
+  schema : Json,
+  context : String,
+) -> Unit raise McpError {
+  let document = @schema.Document::Document(schema) catch {
+    _ => raise InvalidParams("\{context} is not a valid JSON Schema document")
+  }
+  ignore(
+    document.compile() catch {
+      _ =>
+        raise InvalidParams(
+          "\{context} is not a compilable JSON Schema document",
+        )
+    },
+  )
 }
 
 ///|
