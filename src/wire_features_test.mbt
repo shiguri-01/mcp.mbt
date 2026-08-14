@@ -38,6 +38,24 @@ test "tool input schema requires an object root" {
 }
 
 ///|
+test "tool constructor rejects network schema references" {
+  try
+    @mcp.Tool(
+      name="invalid-ref",
+      input_schema=Json::object({
+        "type": Json::string("object"),
+        "$ref": Json::string("https://example.com/schema.json"),
+      }),
+    )
+  catch {
+    @mcp.InvalidParams(_) => ()
+    _ => fail("expected InvalidParams")
+  } noraise {
+    _ => fail("expected network reference to raise")
+  }
+}
+
+///|
 test "prompt metadata and messages match the content union" {
   let prompt = @mcp.Prompt(name="review", icons=[
     @mcp.Icon(src="data:image/png;base64,AA=="),
