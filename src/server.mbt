@@ -497,7 +497,7 @@ fn parse_context(
   request : RpcRequest,
   hooks? : RequestHooks = RequestHooks(),
 ) -> RequestContext raise McpError {
-  let fields = expect_object(request.params, "request params")
+  let fields = request.params
   let meta = match fields.get("_meta") {
     Some(value) => decode_request_meta(value)
     None => raise InvalidParams("request params._meta is required")
@@ -510,7 +510,7 @@ fn parse_context(
     fields, "requestState", "request params",
   )
   RequestContext(
-    request_id=request.id,
+    request_id=request.id.as_json(),
     method_name=request.method_name,
     meta~,
     input_responses?,
@@ -689,14 +689,14 @@ fn Server::discover(self : Server) -> Json raise McpError {
 ///|
 fn Server::list_tools(
   self : Server,
-  fields : Map[String, Json],
+  params : ListParams,
 ) -> Json raise McpError {
   if self.tools.is_empty() {
     raise MethodNotFound("tools/list")
   }
   let page = paginate(
     Array::from_iter(self.tools.values().map(item => item.tool)),
-    cursor?=get_optional_string(fields, "cursor", "tools/list params"),
+    cursor?=params.cursor,
   )
   let payload : Map[String, Json] = {
     "tools": page.items.map(item => item.to_json()).to_json(),
@@ -709,18 +709,13 @@ fn Server::list_tools(
 async fn Server::call_tool(
   self : Server,
   context : RequestContext,
-  fields : Map[String, Json],
+  params : CallToolParams,
 ) -> Json raise McpError {
   if self.tools.is_empty() {
     raise MethodNotFound("tools/call")
   }
-  let name = get_string(fields, "name", "tools/call params")
-  let arguments = match fields.get("arguments") {
-    Some(Object(_) as value) => value
-    Some(Null) | None => Json::object({})
-    Some(_) =>
-      raise InvalidParams("tools/call params.arguments must be an object")
-  }
+  let name = params.name
+  let arguments = params.arguments
   match self.tools.get(name) {
     Some(registered) => {
       if schema_validation_error(registered.input_validator, arguments)
@@ -762,14 +757,14 @@ async fn Server::call_tool(
 ///|
 fn Server::list_resources(
   self : Server,
-  fields : Map[String, Json],
+  params : ListParams,
 ) -> Json raise McpError {
   if self.resources.is_empty() && self.resource_templates.is_empty() {
     raise MethodNotFound("resources/list")
   }
   let page = paginate(
     Array::from_iter(self.resources.values().map(item => item.resource)),
-    cursor?=get_optional_string(fields, "cursor", "resources/list params"),
+    cursor?=params.cursor,
   )
   let payload : Map[String, Json] = {
     "resources": page.items.map(item => item.to_json()).to_json(),
@@ -781,7 +776,7 @@ fn Server::list_resources(
 ///|
 fn Server::list_resource_templates(
   self : Server,
-  fields : Map[String, Json],
+  params : ListParams,
 ) -> Json raise McpError {
   if self.resource_templates.is_empty() {
     raise MethodNotFound("resources/templates/list")
@@ -790,9 +785,7 @@ fn Server::list_resource_templates(
     Array::from_iter(
       self.resource_templates.values().map(item => item.template),
     ),
-    cursor?=get_optional_string(
-      fields, "cursor", "resources/templates/list params",
-    ),
+    cursor?=params.cursor,
   )
   let payload : Map[String, Json] = {
     "resourceTemplates": page.items.map(item => item.to_json()).to_json(),
@@ -805,12 +798,12 @@ fn Server::list_resource_templates(
 async fn Server::read_resource(
   self : Server,
   context : RequestContext,
-  fields : Map[String, Json],
+  params : ReadResourceParams,
 ) -> Json raise McpError {
   if self.resources.is_empty() && self.resource_templates.is_empty() {
     raise MethodNotFound("resources/read")
   }
-  let uri = get_string(fields, "uri", "resources/read params")
+  let uri = params.uri
   match self.resources.get(uri) {
     Some(registered) =>
       match (registered.handler)(context, uri) {
@@ -841,14 +834,14 @@ async fn Server::read_resource(
 ///|
 fn Server::list_prompts(
   self : Server,
-  fields : Map[String, Json],
+  params : ListParams,
 ) -> Json raise McpError {
   if self.prompts.is_empty() {
     raise MethodNotFound("prompts/list")
   }
   let page = paginate(
     Array::from_iter(self.prompts.values().map(item => item.prompt)),
-    cursor?=get_optional_string(fields, "cursor", "prompts/list params"),
+    cursor?=params.cursor,
   )
   let payload : Map[String, Json] = {
     "prompts": page.items.map(item => item.to_json()).to_json(),
@@ -861,15 +854,15 @@ fn Server::list_prompts(
 async fn Server::get_prompt(
   self : Server,
   context : RequestContext,
-  fields : Map[String, Json],
+  params : GetPromptParams,
 ) -> Json raise McpError {
   if self.prompts.is_empty() {
     raise MethodNotFound("prompts/get")
   }
-  let name = get_string(fields, "name", "prompts/get params")
+  let name = params.name
   match self.prompts.get(name) {
     Some(registered) => {
-      let arguments = get_prompt_arguments(fields)
+      let arguments = params.arguments
       for argument in registered.prompt.arguments {
         if argument.required && !arguments.contains(argument.name) {
           raise InvalidParams(
@@ -899,12 +892,11 @@ fn completion_key(reference : CompletionReference) -> String {
 async fn Server::complete(
   self : Server,
   context : RequestContext,
-  params : Json,
+  request : CompletionRequest,
 ) -> Json raise McpError {
   if self.completions.is_empty() {
     raise MethodNotFound("completion/complete")
   }
-  let request = parse_completion_request(Some(params))
   let key = completion_key(request.reference)
   match self.completions.get(key) {
     Some(handler) =>
@@ -925,17 +917,28 @@ async fn Server::dispatch_request(
   self.registry_frozen = true
   let context = parse_context(request, hooks~)
   self.ensure_supported_version(context)
-  let fields = expect_object(request.params, "request params")
+  let fields = request.params
   match request.method_name {
     "server/discover" => self.discover()
-    "tools/list" => self.list_tools(fields)
-    "tools/call" => self.call_tool(context, fields)
-    "resources/list" => self.list_resources(fields)
-    "resources/templates/list" => self.list_resource_templates(fields)
-    "resources/read" => self.read_resource(context, fields)
-    "prompts/list" => self.list_prompts(fields)
-    "prompts/get" => self.get_prompt(context, fields)
-    "completion/complete" => self.complete(context, request.params)
+    "tools/list" =>
+      self.list_tools(parse_list_params(fields, "tools/list params"))
+    "tools/call" => self.call_tool(context, parse_call_tool_params(fields))
+    "resources/list" =>
+      self.list_resources(parse_list_params(fields, "resources/list params"))
+    "resources/templates/list" =>
+      self.list_resource_templates(
+        parse_list_params(fields, "resources/templates/list params"),
+      )
+    "resources/read" =>
+      self.read_resource(context, parse_read_resource_params(fields))
+    "prompts/list" =>
+      self.list_prompts(parse_list_params(fields, "prompts/list params"))
+    "prompts/get" => self.get_prompt(context, parse_get_prompt_params(fields))
+    "completion/complete" =>
+      self.complete(
+        context,
+        parse_completion_request(Some(Json::object(fields))),
+      )
     "subscriptions/listen" =>
       raise InvalidRequest(
         "subscriptions/listen must be handled as a transport stream",
@@ -946,7 +949,7 @@ async fn Server::dispatch_request(
           self.outcome_json(
             context,
             method_name,
-            handler(context, request.params),
+            handler(context, Json::object(request.params)),
           )
         None => raise MethodNotFound(method_name)
       }
@@ -954,9 +957,10 @@ async fn Server::dispatch_request(
 }
 
 ///|
-fn response_error_id(message : Json) -> Json? {
-  match message {
-    Object({ "id": String(_) | Number(_) as id, .. }) => Some(id)
+fn response_error_id(message : Json) -> @jsonrpc.RequestId? {
+  let decoded = @jsonrpc.decode(message) catch { _ => return None }
+  match decoded {
+    @jsonrpc.Message::Request(request) => Some(request.id)
     _ => None
   }
 }
@@ -983,7 +987,7 @@ pub async fn Server::handle_jsonrpc_with_hooks(
   try {
     let request = parse_rpc_request(message)
     let result = self.dispatch_request(request, hooks~)
-    Some(rpc_result_response(request.id, result))
+    Some(rpc_result_response(request.id.as_json(), result))
   } catch {
     error => Some(rpc_error_response(id, error))
   } noraise {

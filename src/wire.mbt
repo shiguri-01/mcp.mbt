@@ -1,14 +1,14 @@
 ///|
 /// MCP's wire layer is an adapter around the canonical JSON-RPC package.
 ///
-/// JSON-RPC framing, ids, and envelope validation live in `jsonrpc`.  This
+/// JSON-RPC framing, ids, and envelope validation live in `jsonrpc`. This
 /// file only translates that package's result into MCP errors and applies
-/// MCP-specific result rules.  There is deliberately no second JSON-RPC
+/// MCP-specific result rules. There is deliberately no second JSON-RPC
 /// implementation in the MCP package.
 priv struct RpcRequest {
-  id : Json
+  id : @jsonrpc.RequestId
   method_name : String
-  params : Json
+  params : Map[String, Json]
 }
 
 ///|
@@ -26,11 +26,11 @@ fn parse_rpc_request(message : Json) -> RpcRequest raise McpError {
   }
   match decoded {
     @jsonrpc.Message::Request(request) => {
-      let id = request.id.as_json()
+      let id = request.id
       let method_name = request.method_name
-      let params = request.params
-      guard params is Object(_) else {
-        raise InvalidParams("request params must be an object")
+      let params = match request.params {
+        Object(fields) => fields
+        _ => raise InvalidParams("request params must be an object")
       }
       { id, method_name, params }
     }
@@ -72,18 +72,9 @@ fn rpc_result_response(id : Json, result : Json) -> Json {
 }
 
 ///|
-fn rpc_error_response(id : Json?, error : McpError) -> Json {
-  let request_id : @jsonrpc.RequestId? = id.map(fn(value) {
-    @json.from_json(value) catch {
-      _ => @jsonrpc.RequestId::string("")
-    }
-  })
-  let error_object = @jsonrpc.ErrorObject(
-    code=error.code(),
-    message=error.message(),
-    data?=error.data(),
-  )
-  match request_id {
+fn rpc_error_response(id : @jsonrpc.RequestId?, error : McpError) -> Json {
+  let error_object = error.to_error_object()
+  match id {
     Some(id) => {
       let response : @jsonrpc.Response[Json] = @jsonrpc.response_failure(
         id~,
@@ -93,7 +84,7 @@ fn rpc_error_response(id : Json?, error : McpError) -> Json {
     }
     None =>
       Json::object({
-        "jsonrpc": Json::string("2.0"),
+        "jsonrpc": Json::string(@jsonrpc.JSON_RPC_VERSION),
         "id": Json::null(),
         "error": error_object.to_json(),
       })
@@ -109,11 +100,7 @@ fn rpc_response_result(message : Json) -> Json raise McpError {
     @jsonrpc.Message::Response(@jsonrpc.Response::Success(result~, ..)) =>
       result
     @jsonrpc.Message::Response(@jsonrpc.Response::Failure(error~, ..)) =>
-      raise McpError::from_rpc_parts(
-        error.code,
-        error.message,
-        data?=error.data,
-      )
+      raise McpError::from_error_object(error)
     _ => raise InvalidRequest("JSON-RPC response expected")
   }
 }

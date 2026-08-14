@@ -191,7 +191,7 @@ pub fn Server::accept_subscription(
   }
   let context = parse_context(request)
   self.ensure_supported_version(context)
-  let fields = expect_object(request.params, "subscriptions/listen params")
+  let fields = request.params
   guard fields.get("notifications") is Some(value) else {
     raise InvalidParams("subscriptions/listen params.notifications is required")
   }
@@ -210,5 +210,5 @@ pub fn Server::accept_subscription(
       []
     },
   )
-  { id: request.id, notifications: honored, server_info: self.info }
+  { id: request.id.as_json(), notifications: honored, server_info: self.info }
 }

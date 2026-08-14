@@ -42,11 +42,19 @@ pub fn logging_message_notification(level~ : LoggingLevel, data~ : Json, logger?
 
 pub fn parse_cache_scope(Json) -> CacheScope raise McpError
 
+pub fn parse_call_tool_params(Map[String, Json]) -> CallToolParams raise McpError
+
+pub fn parse_get_prompt_params(Map[String, Json]) -> GetPromptParams raise McpError
+
 pub fn parse_input_request(Json) -> InputRequest raise McpError
 
 pub fn parse_input_required_result(Json) -> InputRequiredResult raise McpError
 
 pub fn parse_input_responses(Json) -> Map[String, InputResponse] raise McpError
+
+pub fn parse_list_params(Map[String, Json], String) -> ListParams raise McpError
+
+pub fn parse_read_resource_params(Map[String, Json]) -> ReadResourceParams raise McpError
 
 pub fn parse_result_type(Json) -> ResultType raise McpError
 
@@ -107,6 +115,12 @@ pub(all) enum CacheScope {
 } derive(Eq, @debug.Debug)
 pub fn CacheScope::to_string(Self) -> String
 pub impl ToJson for CacheScope
+
+pub struct CallToolParams {
+  name : String
+  arguments : Json
+} derive(Eq, @debug.Debug)
+pub fn CallToolParams::CallToolParams(name~ : String, arguments? : Json) -> Self raise McpError
 
 pub struct CallToolResult {
   content : Array[Content]
@@ -215,6 +229,12 @@ pub struct ElicitationCapability {
 pub fn ElicitationCapability::ElicitationCapability(form? : Json, url? : Json) -> Self
 pub impl ToJson for ElicitationCapability
 
+pub struct GetPromptParams {
+  name : String
+  arguments : Map[String, String]
+} derive(Eq, @debug.Debug)
+pub fn GetPromptParams::GetPromptParams(name~ : String, arguments? : Map[String, String]) -> Self raise McpError
+
 pub struct GetPromptResult {
   description : String?
   messages : Array[PromptMessage]
@@ -280,6 +300,11 @@ pub struct InputResponse {
 } derive(Eq, @debug.Debug)
 pub fn InputResponse::InputResponse(Json) -> Self
 pub impl ToJson for InputResponse
+
+pub struct ListParams {
+  cursor : String?
+} derive(Eq, @debug.Debug)
+pub fn ListParams::ListParams(cursor? : String) -> Self
 
 pub struct ListPromptsResult {
   prompts : Array[Prompt]
@@ -363,6 +388,11 @@ pub struct PromptsCapability {
 } derive(Eq, @debug.Debug)
 pub fn PromptsCapability::PromptsCapability(list_changed? : Bool) -> Self
 pub impl ToJson for PromptsCapability
+
+pub struct ReadResourceParams {
+  uri : String
+} derive(Eq, @debug.Debug)
+pub fn ReadResourceParams::ReadResourceParams(uri~ : String) -> Self raise McpError
 
 pub struct ReadResourceResult {
   contents : Array[ResourceContent]
