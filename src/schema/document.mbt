@@ -116,7 +116,7 @@ pub fn Schema::object(
 ) -> Schema raise SchemaError {
   for name in required {
     if properties.get(name) is None {
-      raise InvalidSchema("required property is not declared: {name}")
+      raise InvalidSchema("required property is not declared: \{name}")
     }
   }
   Object(properties, required.copy(), additional_properties)
@@ -434,7 +434,7 @@ fn validate_instance(
   guard resolved is Object(fields) else { return }
   match fields.get("type") {
     Some(String(type_name)) if !type_matches(type_name, instance) =>
-      add_error(errors, path, "value does not match type {type_name}")
+      add_error(errors, path, "value does not match type \{type_name}")
     _ => ()
   }
   match fields.get("enum") {
@@ -525,7 +525,7 @@ fn validate_instance(
       for name in names {
         match name {
           String(name) if instance_fields.get(name) is None =>
-            add_error(errors, path, "required property is missing: {name}")
+            add_error(errors, path, "required property is missing: \{name}")
           _ => ()
         }
       }
@@ -536,7 +536,7 @@ fn validate_instance(
     (Some(False), Some(Object(properties)), Object(instance_fields)) =>
       for name, _ in instance_fields {
         if properties.get(name) is None {
-          add_error(errors, path, "additional property is not allowed: {name}")
+          add_error(errors, path, "additional property is not allowed: \{name}")
         }
       }
     _ => ()
