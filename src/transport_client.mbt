@@ -9,8 +9,21 @@ pub async fn[T : @transport.FrameTransport] Client::exchange(
   transport : T,
   request : Json,
 ) -> Json raise McpError {
+  self.exchange_with_headers(transport, request, Map([]))
+}
+
+///|
+/// Send one protocol request through an adapter with caller-supplied
+/// transport metadata.  The metadata is intentionally opaque here: HTTP
+/// `Mcp-*` rules and stdio framing belong to their adapters.
+pub async fn[T : @transport.FrameTransport] Client::exchange_with_headers(
+  self : Client,
+  transport : T,
+  request : Json,
+  headers : Map[String, String],
+) -> Json raise McpError {
   let body = Json::stringify(request)
-  let frame = @transport.OutboundFrame::OutboundFrame(body~)
+  let frame = @transport.OutboundFrame::OutboundFrame(body~, headers~)
   let response = transport.exchange(frame) catch {
     @transport.TransportError::Closed =>
       raise InternalError("transport closed before an MCP response")
