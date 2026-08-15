@@ -76,17 +76,17 @@ pub fn RequestMeta::RequestMeta(
     protocol_version,
     client_info: client_info.map(value => value.copy()),
     client_capabilities: client_capabilities.copy(),
-    progress_token: copy_optional_json(progress_token),
+    progress_token: progress_token.map(fn(p) { p.copy() }),
     log_level,
-    extra: copy_json_map(extra),
+    extra: extra.copy_json(),
   }
 }
 
 ///|
 pub impl ToJson for RequestMeta with fn to_json(self : RequestMeta) -> Json {
   // Vendor metadata is inserted first so protocol-reserved keys always win.
-  let fields = copy_json_map(self.extra)
-  put_optional_json(fields, "progressToken", self.progress_token)
+  let fields = self.extra.copy_json()
+  fields.set_opt("progressToken", self.progress_token.map(fn(p) { p.copy() }))
   fields["io.modelcontextprotocol/protocolVersion"] = Json::string(
     self.protocol_version,
   )
@@ -236,11 +236,11 @@ pub fn RequestOptions::RequestOptions(
     copied
   })
   {
-    progress_token: copy_optional_json(progress_token),
+    progress_token: progress_token.map(fn(p) { p.copy() }),
     log_level,
     input_responses: copied_responses,
     request_state,
-    meta: copy_json_map(meta),
+    meta: meta.copy_json(),
   }
 }
 
@@ -302,7 +302,7 @@ pub fn RequestOptions::request_params(
     }
     fields["inputResponses"] = Json::object(values)
   }
-  put_optional_string(fields, "requestState", self.request_state)
+  fields.set_opt("requestState", self.request_state.map(Json::string))
   Json::object(fields)
 }
 
@@ -336,7 +336,7 @@ pub fn RequestContext::RequestContext(
     meta,
     input_responses,
     request_state,
-    transport_meta: copy_optional_json(hooks.transport_meta),
+    transport_meta: hooks.transport_meta.map(fn(m) { m.copy() }),
     hooks,
   }
 }

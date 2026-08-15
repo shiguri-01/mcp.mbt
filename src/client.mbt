@@ -102,7 +102,7 @@ pub fn Client::list_tools_request(
   options? : RequestOptions = RequestOptions(),
 ) -> Json raise McpError {
   let params : Map[String, Json] = Map([])
-  put_optional_string(params, "cursor", cursor)
+  params.set_opt("cursor", cursor.map(Json::string))
   self.request_raw(method_name="tools/list", params~, options~)
 }
 
@@ -113,7 +113,9 @@ pub fn Client::call_tool_request(
   arguments? : Json = Json::object({}),
   options? : RequestOptions = RequestOptions(),
 ) -> Json raise McpError {
-  ignore(expect_object(arguments, "tool arguments"))
+  guard arguments is Object(_) else {
+    raise InvalidParams("tool arguments must be an object")
+  }
   self.request_raw(
     method_name="tools/call",
     params={ "name": Json::string(name), "arguments": arguments },
@@ -128,7 +130,7 @@ pub fn Client::list_resources_request(
   options? : RequestOptions = RequestOptions(),
 ) -> Json raise McpError {
   let params : Map[String, Json] = Map([])
-  put_optional_string(params, "cursor", cursor)
+  params.set_opt("cursor", cursor.map(Json::string))
   self.request_raw(method_name="resources/list", params~, options~)
 }
 
@@ -139,7 +141,7 @@ pub fn Client::list_resource_templates_request(
   options? : RequestOptions = RequestOptions(),
 ) -> Json raise McpError {
   let params : Map[String, Json] = Map([])
-  put_optional_string(params, "cursor", cursor)
+  params.set_opt("cursor", cursor.map(Json::string))
   self.request_raw(method_name="resources/templates/list", params~, options~)
 }
 
@@ -163,7 +165,7 @@ pub fn Client::list_prompts_request(
   options? : RequestOptions = RequestOptions(),
 ) -> Json raise McpError {
   let params : Map[String, Json] = Map([])
-  put_optional_string(params, "cursor", cursor)
+  params.set_opt("cursor", cursor.map(Json::string))
   self.request_raw(method_name="prompts/list", params~, options~)
 }
 
@@ -174,7 +176,9 @@ pub fn Client::get_prompt_request(
   arguments? : Json = Json::object({}),
   options? : RequestOptions = RequestOptions(),
 ) -> Json raise McpError {
-  ignore(expect_object(arguments, "prompt arguments"))
+  guard arguments is Object(_) else {
+    raise InvalidParams("prompt arguments must be an object")
+  }
   self.request_raw(
     method_name="prompts/get",
     params={ "name": Json::string(name), "arguments": arguments },

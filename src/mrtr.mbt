@@ -11,68 +11,691 @@ pub fn InputRequest::InputRequest(
   method_name~ : String,
   params? : Json = Json::object({}),
 ) -> InputRequest raise McpError {
-  let fields = expect_object(params, "input request params")
-  validate_core_input_request(method_name, fields)
+  guard params is Object(fields) else {
+    raise InvalidParams("input request params must be an object")
+  }
+  ignore(parse_core_input_request(method_name, fields))
   { method_name, params }
 }
 
 ///|
-fn validate_core_input_request(
+pub(all) enum SamplingToolResultBlock {
+  Text(text~ : String)
+  Image(data~ : String, mime_type~ : String)
+  Audio(data~ : String, mime_type~ : String)
+  ResourceLink(uri~ : String, name~ : String)
+  EmbeddedResource(uri~ : String, text~ : String?, blob~ : String?)
+} derive(Debug, Eq)
+
+///|
+pub fn SamplingToolResultBlock::from_json(
+  value : Json,
+) -> SamplingToolResultBlock raise McpError {
+  match value {
+    Object({ "type": String("text"), "text": String(text), .. }) => Text(text~)
+    Object({ "type": String("text"), .. }) =>
+      raise InvalidParams("sampling tool result text.text is required")
+    Object(
+      {
+        "type": String("image"),
+        "data": String(data),
+        "mimeType": String(mime_type),
+        ..
+      }
+    ) => Image(data~, mime_type~)
+    Object({ "type": String("image"), "data": String(_), .. }) =>
+      raise InvalidParams("sampling tool result media.mimeType is required")
+    Object({ "type": String("image"), .. }) =>
+      raise InvalidParams("sampling tool result media.data is required")
+    Object(
+      {
+        "type": String("audio"),
+        "data": String(data),
+        "mimeType": String(mime_type),
+        ..
+      }
+    ) => Audio(data~, mime_type~)
+    Object({ "type": String("audio"), "data": String(_), .. }) =>
+      raise InvalidParams("sampling tool result media.mimeType is required")
+    Object({ "type": String("audio"), .. }) =>
+      raise InvalidParams("sampling tool result media.data is required")
+    Object(
+      {
+        "type": String("resource_link"),
+        "uri": String(uri),
+        "name": String(name),
+        ..
+      }
+    ) => ResourceLink(uri~, name~)
+    Object({ "type": String("resource_link"), "uri": String(_), .. }) =>
+      raise InvalidParams("sampling resource link.name is required")
+    Object({ "type": String("resource_link"), .. }) =>
+      raise InvalidParams("sampling resource link.uri is required")
+    Object(
+      {
+        "type": String("resource"),
+        "resource": Object({ "uri": String(uri), .. } as res),
+        ..
+      }
+    ) => {
+      let text = match res {
+        { "text": String(t), .. } => Some(t)
+        _ => None
+      }
+      let blob = match res {
+        { "blob": String(b), .. } => Some(b)
+        _ => None
+      }
+      if text is None && blob is None {
+        raise InvalidParams("sampling embedded resource requires text or blob")
+      }
+      EmbeddedResource(uri~, text~, blob~)
+    }
+    Object({ "type": String("resource"), "resource": Object(_), .. }) =>
+      raise InvalidParams("sampling embedded resource.uri is required")
+    Object({ "type": String("resource"), .. }) =>
+      raise InvalidParams("sampling embedded resource is required")
+    Object({ "type": String(_), .. }) =>
+      raise InvalidParams("sampling tool result content type is invalid")
+    Object(_) =>
+      raise InvalidParams("sampling tool result content type is invalid")
+    _ =>
+      raise InvalidParams(
+        "sampling tool result content block must be an object",
+      )
+  }
+}
+
+///|
+pub impl ToJson for SamplingToolResultBlock with fn to_json(
+  self : SamplingToolResultBlock,
+) -> Json {
+  match self {
+    Text(text~) =>
+      Json::object({ "type": Json::string("text"), "text": Json::string(text) })
+    Image(data~, mime_type~) =>
+      Json::object({
+        "type": Json::string("image"),
+        "data": Json::string(data),
+        "mimeType": Json::string(mime_type),
+      })
+    Audio(data~, mime_type~) =>
+      Json::object({
+        "type": Json::string("audio"),
+        "data": Json::string(data),
+        "mimeType": Json::string(mime_type),
+      })
+    ResourceLink(uri~, name~) =>
+      Json::object({
+        "type": Json::string("resource_link"),
+        "uri": Json::string(uri),
+        "name": Json::string(name),
+      })
+    EmbeddedResource(uri~, text~, blob~) => {
+      let res_fields : Map[String, Json] = { "uri": Json::string(uri) }
+      res_fields.set_opt("text", text.map(Json::string))
+      res_fields.set_opt("blob", blob.map(Json::string))
+      Json::object({
+        "type": Json::string("resource"),
+        "resource": Json::object(res_fields),
+      })
+    }
+  }
+}
+
+///|
+pub(all) enum SamplingContentBlock {
+  Text(text~ : String)
+  Image(data~ : String, mime_type~ : String)
+  Audio(data~ : String, mime_type~ : String)
+  ToolUse(id~ : String, name~ : String, input~ : Map[String, Json])
+  ToolResult(tool_use_id~ : String, content~ : Array[SamplingToolResultBlock])
+} derive(Debug, Eq)
+
+///|
+pub fn SamplingContentBlock::from_json(
+  value : Json,
+) -> SamplingContentBlock raise McpError {
+  match value {
+    Object({ "type": String("text"), "text": String(text), .. }) => Text(text~)
+    Object({ "type": String("text"), .. }) =>
+      raise InvalidParams("sampling text content.text is required")
+    Object(
+      {
+        "type": String("image"),
+        "data": String(data),
+        "mimeType": String(mime_type),
+        ..
+      }
+    ) => Image(data~, mime_type~)
+    Object({ "type": String("image"), "data": String(_), .. }) =>
+      raise InvalidParams("sampling media content.mimeType is required")
+    Object({ "type": String("image"), .. }) =>
+      raise InvalidParams("sampling media content.data is required")
+    Object(
+      {
+        "type": String("audio"),
+        "data": String(data),
+        "mimeType": String(mime_type),
+        ..
+      }
+    ) => Audio(data~, mime_type~)
+    Object({ "type": String("audio"), "data": String(_), .. }) =>
+      raise InvalidParams("sampling media content.mimeType is required")
+    Object({ "type": String("audio"), .. }) =>
+      raise InvalidParams("sampling media content.data is required")
+    Object(
+      {
+        "type": String("tool_use"),
+        "id": String(id),
+        "name": String(name),
+        "input": Object(input),
+        ..
+      }
+    ) => ToolUse(id~, name~, input~)
+    Object(
+      { "type": String("tool_use"), "id": String(_), "name": String(_), .. }
+    ) => raise InvalidParams("sampling tool use input must be an object")
+    Object({ "type": String("tool_use"), "id": String(_), .. }) =>
+      raise InvalidParams("sampling tool use content.name is required")
+    Object({ "type": String("tool_use"), .. }) =>
+      raise InvalidParams("sampling tool use content.id is required")
+    Object(
+      {
+        "type": String("tool_result"),
+        "toolUseId": String(tool_use_id),
+        "content": Array(contents),
+        ..
+      }
+    ) => {
+      let parsed_contents : Array[SamplingToolResultBlock] = []
+      for content in contents {
+        parsed_contents.push(SamplingToolResultBlock::from_json(content))
+      }
+      ToolResult(tool_use_id~, content=parsed_contents)
+    }
+    Object({ "type": String("tool_result"), "toolUseId": String(_), .. }) =>
+      raise InvalidParams("sampling tool result content must be an array")
+    Object({ "type": String("tool_result"), .. }) =>
+      raise InvalidParams("sampling tool result content.toolUseId is required")
+    Object({ "type": String(_), .. }) =>
+      raise InvalidParams("sampling content.type is invalid")
+    Object(_) => raise InvalidParams("sampling content.type is required")
+    _ => raise InvalidParams("sampling content must be an object")
+  }
+}
+
+///|
+pub impl ToJson for SamplingContentBlock with fn to_json(
+  self : SamplingContentBlock,
+) -> Json {
+  match self {
+    Text(text~) =>
+      Json::object({ "type": Json::string("text"), "text": Json::string(text) })
+    Image(data~, mime_type~) =>
+      Json::object({
+        "type": Json::string("image"),
+        "data": Json::string(data),
+        "mimeType": Json::string(mime_type),
+      })
+    Audio(data~, mime_type~) =>
+      Json::object({
+        "type": Json::string("audio"),
+        "data": Json::string(data),
+        "mimeType": Json::string(mime_type),
+      })
+    ToolUse(id~, name~, input~) =>
+      Json::object({
+        "type": Json::string("tool_use"),
+        "id": Json::string(id),
+        "name": Json::string(name),
+        "input": Json::object(input),
+      })
+    ToolResult(tool_use_id~, content~) =>
+      Json::object({
+        "type": Json::string("tool_result"),
+        "toolUseId": Json::string(tool_use_id),
+        "content": Json::array(content.map(fn(c) { c.to_json() })),
+      })
+  }
+}
+
+///|
+pub(all) enum SamplingContent {
+  Single(SamplingContentBlock)
+  Multiple(Array[SamplingContentBlock])
+} derive(Debug, Eq)
+
+///|
+pub fn SamplingContent::from_json(
+  value : Json,
+) -> SamplingContent raise McpError {
+  match value {
+    Array(values) if !values.is_empty() => {
+      let blocks : Array[SamplingContentBlock] = []
+      for item in values {
+        blocks.push(SamplingContentBlock::from_json(item))
+      }
+      Multiple(blocks)
+    }
+    Object(_) => Single(SamplingContentBlock::from_json(value))
+    _ => raise InvalidParams("sampling content must be an object or array")
+  }
+}
+
+///|
+pub impl ToJson for SamplingContent with fn to_json(self : SamplingContent) -> Json {
+  match self {
+    Single(block) => block.to_json()
+    Multiple(blocks) => Json::array(blocks.map(fn(b) { b.to_json() }))
+  }
+}
+
+///|
+pub struct SamplingMessage {
+  role : Role
+  content : SamplingContent
+} derive(Debug, Eq)
+
+///|
+pub fn SamplingMessage::from_json(
+  value : Json,
+) -> SamplingMessage raise McpError {
+  match value {
+    Object({ "role": String("user"), "content": content_val, .. }) => {
+      let content = SamplingContent::from_json(content_val)
+      { role: Role::User, content }
+    }
+    Object({ "role": String("assistant"), "content": content_val, .. }) => {
+      let content = SamplingContent::from_json(content_val)
+      { role: Role::Assistant, content }
+    }
+    Object({ "role": String("user" | "assistant"), .. }) =>
+      raise InvalidParams("sampling message.content is required")
+    Object({ "role": _, .. }) =>
+      raise InvalidParams("sampling message.role is invalid")
+    Object(_) => raise InvalidParams("sampling message.role is invalid")
+    _ => raise InvalidParams("sampling message must be an object")
+  }
+}
+
+///|
+pub impl ToJson for SamplingMessage with fn to_json(self : SamplingMessage) -> Json {
+  Json::object({
+    "role": self.role.to_json(),
+    "content": self.content.to_json(),
+  })
+}
+
+///|
+pub struct SamplingCreateMessageParams {
+  messages : Array[SamplingMessage]
+  max_tokens : Double
+} derive(Debug, Eq)
+
+///|
+pub fn SamplingCreateMessageParams::from_json(
+  fields : Map[String, Json],
+) -> SamplingCreateMessageParams raise McpError {
+  match fields {
+    { "messages": Array(messages_arr), "maxTokens": Number(max_tokens, ..), .. } => {
+      let messages : Array[SamplingMessage] = []
+      for message_json in messages_arr {
+        messages.push(SamplingMessage::from_json(message_json))
+      }
+      { messages, max_tokens }
+    }
+    { "messages": Array(_), .. } =>
+      raise InvalidParams("sampling/createMessage params.maxTokens is required")
+    _ =>
+      raise InvalidParams(
+        "sampling/createMessage params.messages must be an array",
+      )
+  }
+}
+
+///|
+pub struct SamplingCreateMessageResult {
+  model : String
+  role : Role
+  content : SamplingContent
+} derive(Debug, Eq)
+
+///|
+pub fn SamplingCreateMessageResult::from_json(
+  fields : Map[String, Json],
+) -> SamplingCreateMessageResult raise McpError {
+  match fields {
+    {
+      "model": String(model),
+      "role": String("user"),
+      "content": content_val,
+      ..
+    } => {
+      let content = SamplingContent::from_json(content_val)
+      { model, role: Role::User, content }
+    }
+    {
+      "model": String(model),
+      "role": String("assistant"),
+      "content": content_val,
+      ..
+    } => {
+      let content = SamplingContent::from_json(content_val)
+      { model, role: Role::Assistant, content }
+    }
+    { "model": String(_), "role": String("user" | "assistant"), .. } =>
+      raise InvalidParams("sampling response.content is required")
+    { "model": String(_), .. } =>
+      raise InvalidParams("sampling response.role is invalid")
+    _ => raise InvalidParams("sampling response.model is required")
+  }
+}
+
+///|
+pub(all) enum ElicitationPrimitiveType {
+  String
+  Number
+  Integer
+  Boolean
+  Enum(Array[String])
+} derive(Debug, Eq)
+
+///|
+pub struct ElicitationPrimitiveSchema {
+  schema_type : ElicitationPrimitiveType
+  raw : Json
+} derive(Debug, Eq)
+
+///|
+pub fn ElicitationPrimitiveSchema::from_json(
+  value : Json,
+) -> ElicitationPrimitiveSchema raise McpError {
+  match value {
+    Object({ "type": String("string"), .. }) =>
+      { schema_type: String, raw: value }
+    Object({ "type": String("number"), .. }) =>
+      { schema_type: Number, raw: value }
+    Object({ "type": String("integer"), .. }) =>
+      { schema_type: Integer, raw: value }
+    Object({ "type": String("boolean"), .. }) =>
+      { schema_type: Boolean, raw: value }
+    Object(
+      {
+        "type": String("array"),
+        "items": Object({ "type": String("string"), "enum": Array(arr), .. }),
+        ..
+      }
+    ) => {
+      let strings : Array[String] = []
+      for it in arr {
+        if it is String(s) {
+          strings.push(s)
+        }
+      }
+      { schema_type: Enum(strings), raw: value }
+    }
+    Object(
+      {
+        "type": String("array"),
+        "items": Object({ "type": String("string"), "anyOf": Array(arr), .. }),
+        ..
+      }
+    ) => {
+      let strings : Array[String] = []
+      for it in arr {
+        if it is String(s) {
+          strings.push(s)
+        }
+      }
+      { schema_type: Enum(strings), raw: value }
+    }
+    Object(
+      {
+        "type": String("array"),
+        "items": Object({ "type": String("string"), .. }),
+        ..
+      }
+    ) =>
+      raise InvalidParams("elicitation array schema items require enum options")
+    Object({ "type": String("array"), "items": Object(_), .. }) =>
+      raise InvalidParams("elicitation array schema items must be strings")
+    Object({ "type": String("array"), "items": _, .. }) =>
+      raise InvalidParams("elicitation enum items must be an object")
+    Object({ "type": String("array"), .. }) =>
+      raise InvalidParams("elicitation array schema.items is required")
+    Object(_) =>
+      raise InvalidParams("elicitation properties must use primitive schemas")
+    _ => raise InvalidParams("elicitation primitive schema must be an object")
+  }
+}
+
+///|
+pub(all) enum ElicitationMode {
+  Url(String)
+  Form(
+    requested_schema~ : Json,
+    properties~ : Map[String, ElicitationPrimitiveSchema],
+    compiled_schema~ : @schema.CompiledSchema
+  )
+} derive(Debug)
+
+///|
+pub struct ElicitationCreateParams {
+  message : String
+  mode : ElicitationMode
+} derive(Debug)
+
+///|
+pub fn ElicitationCreateParams::from_json(
+  fields : Map[String, Json],
+) -> ElicitationCreateParams raise McpError {
+  guard fields is { "message": String(message), .. } else {
+    raise InvalidParams("elicitation/create params.message is required")
+  }
+  let parse_form = fn() -> ElicitationMode raise McpError {
+    guard fields
+      is {
+        "requestedSchema": Object(
+          { "type": String("object"), "properties": Object(properties_map), .. } as schema
+        ),
+        ..
+      } else {
+      guard fields is { "requestedSchema": Object(_), .. } else {
+        raise InvalidParams(
+          "elicitation/create form params.requestedSchema is required",
+        )
+      }
+      raise InvalidParams(
+        "elicitation/create requestedSchema requires object properties",
+      )
+    }
+    let properties : Map[String, ElicitationPrimitiveSchema] = Map([])
+    for key, property_schema in properties_map {
+      properties[key] = ElicitationPrimitiveSchema::from_json(property_schema)
+    }
+    let compiled_schema = compile_mrtr_schema(Json::object(schema))
+    ElicitationMode::Form(
+      requested_schema=Json::object(schema),
+      properties~,
+      compiled_schema~,
+    )
+  }
+  let mode = match fields {
+    { "mode": String("url"), "url": String(url), .. } =>
+      ElicitationMode::Url(url)
+    { "mode": String("url"), .. } =>
+      raise InvalidParams("elicitation/create params.url is required")
+    { "mode": String("form"), .. } => parse_form()
+    { "mode": String(_), .. } =>
+      raise InvalidParams("elicitation/create params.mode is invalid")
+    { "mode": _, .. } =>
+      raise InvalidParams("elicitation/create params.mode is invalid")
+    _ => parse_form()
+  }
+  { message, mode }
+}
+
+///|
+pub(all) enum ElicitationAction {
+  Accept
+  Decline
+  Cancel
+} derive(Debug, Eq)
+
+///|
+pub struct ElicitationCreateResult {
+  action : ElicitationAction
+  content : Json?
+} derive(Debug, Eq)
+
+///|
+pub fn ElicitationCreateResult::from_json(
+  fields : Map[String, Json],
+  request_params : Json,
+) -> ElicitationCreateResult raise McpError {
+  let action = match fields {
+    { "action": String("accept"), .. } => ElicitationAction::Accept
+    { "action": String("decline"), .. } => ElicitationAction::Decline
+    { "action": String("cancel"), .. } => ElicitationAction::Cancel
+    _ => raise InvalidParams("elicitation response.action is invalid")
+  }
+  let content = fields.get("content")
+  if action == Accept {
+    guard request_params is Object(request) else {
+      raise InvalidParams("elicitation request must be an object")
+    }
+    if !(request is { "mode": String("url"), .. }) {
+      guard content is Some(content_val) else {
+        raise InvalidParams(
+          "accepted form elicitation response.content is required",
+        )
+      }
+      guard request is { "requestedSchema": request_schema, .. } else {
+        raise InvalidParams("elicitation request.requestedSchema is required")
+      }
+      let validator = compile_mrtr_schema(request_schema)
+      let validation = validator.validate(content_val)
+      if !validation.valid {
+        let error = validation.errors.to_json().stringify()
+        raise InvalidParams(
+          "elicitation response.content does not match requestedSchema: \{error}",
+        )
+      }
+    }
+  }
+  { action, content }
+}
+
+///|
+pub struct Root {
+  uri : String
+  name : String?
+} derive(Debug, Eq)
+
+///|
+pub fn Root::from_json(value : Json) -> Root raise McpError {
+  match value {
+    Object({ "uri": String(uri), "name": String(name), .. }) =>
+      { uri, name: Some(name) }
+    Object({ "uri": String(uri), "name": Null, .. }) => { uri, name: None }
+    Object({ "uri": String(_), "name": _, .. }) =>
+      raise InvalidParams("roots response root.name must be a string")
+    Object({ "uri": String(uri), .. }) => { uri, name: None }
+    Object(_) => raise InvalidParams("roots response root.uri is required")
+    _ => raise InvalidParams("roots response root must be an object")
+  }
+}
+
+///|
+pub impl ToJson for Root with fn to_json(self : Root) -> Json {
+  let fields : Map[String, Json] = { "uri": Json::string(self.uri) }
+  fields.set_opt("name", self.name.map(Json::string))
+  Json::object(fields)
+}
+
+///|
+pub struct RootsListResult {
+  roots : Array[Root]
+} derive(Debug, Eq)
+
+///|
+pub fn RootsListResult::from_json(
+  fields : Map[String, Json],
+) -> RootsListResult raise McpError {
+  match fields {
+    { "roots": Array(roots_arr), .. } => {
+      let roots : Array[Root] = []
+      for root_json in roots_arr {
+        roots.push(Root::from_json(root_json))
+      }
+      { roots, }
+    }
+    _ => raise InvalidParams("roots response.roots is required")
+  }
+}
+
+///|
+pub impl ToJson for RootsListResult with fn to_json(self : RootsListResult) -> Json {
+  Json::object({ "roots": Json::array(self.roots.map(fn(r) { r.to_json() })) })
+}
+
+///|
+pub(all) enum CoreInputRequestPayload {
+  Elicitation(ElicitationCreateParams)
+  Sampling(SamplingCreateMessageParams)
+  Roots
+  Other(method_name~ : String, params~ : Map[String, Json])
+}
+
+///|
+pub fn parse_core_input_request(
   method_name : String,
   fields : Map[String, Json],
-) -> Unit raise McpError {
+) -> CoreInputRequestPayload raise McpError {
   match method_name {
-    "elicitation/create" => {
-      ignore(get_string(fields, "message", "elicitation/create params"))
-      match fields.get("mode") {
-        Some(String("url")) =>
-          ignore(get_string(fields, "url", "elicitation/create params"))
-        Some(String("form")) | None => {
-          guard fields.get("requestedSchema") is Some(Object(schema)) else {
-            raise InvalidParams(
-              "elicitation/create form params.requestedSchema is required",
-            )
-          }
-          guard schema.get("type") == Some(Json::string("object")) &&
-            schema.get("properties") is Some(Object(properties)) else {
-            raise InvalidParams(
-              "elicitation/create requestedSchema requires object properties",
-            )
-          }
-          for _, property_schema in properties {
-            validate_elicitation_primitive_schema(property_schema)
-          }
-          ignore(compile_mrtr_schema(Json::object(schema)))
-        }
-        Some(_) =>
-          raise InvalidParams("elicitation/create params.mode is invalid")
-      }
-    }
-    "sampling/createMessage" => {
-      guard fields.get("messages") is Some(Array(messages)) else {
-        raise InvalidParams(
-          "sampling/createMessage params.messages must be an array",
-        )
-      }
-      for message in messages {
-        let item = expect_object(message, "sampling message")
-        match item.get("role") {
-          Some(String("user" | "assistant")) => ()
-          _ => raise InvalidParams("sampling message.role is invalid")
-        }
-        guard item.get("content") is Some(content) else {
-          raise InvalidParams("sampling message.content is required")
-        }
-        validate_sampling_content(content)
-      }
-      guard fields.get("maxTokens") is Some(Number(_)) else {
-        raise InvalidParams(
-          "sampling/createMessage params.maxTokens is required",
-        )
-      }
-    }
-    "roots/list" => ()
-    _ => () // Explicit extension escape hatch.
+    "elicitation/create" =>
+      CoreInputRequestPayload::Elicitation(
+        ElicitationCreateParams::from_json(fields),
+      )
+    "sampling/createMessage" =>
+      CoreInputRequestPayload::Sampling(
+        SamplingCreateMessageParams::from_json(fields),
+      )
+    "roots/list" => CoreInputRequestPayload::Roots
+    _ => CoreInputRequestPayload::Other(method_name~, params=fields)
+  }
+}
+
+///|
+pub(all) enum CoreInputResponsePayload {
+  Elicitation(ElicitationCreateResult)
+  Sampling(SamplingCreateMessageResult)
+  Roots(RootsListResult)
+  Other(Map[String, Json])
+}
+
+///|
+pub fn parse_core_input_response(
+  method_name : String,
+  request_params : Json,
+  result : Json,
+) -> CoreInputResponsePayload raise McpError {
+  guard result is Object(fields) else {
+    raise InvalidParams("input response must be an object")
+  }
+  match method_name {
+    "elicitation/create" =>
+      CoreInputResponsePayload::Elicitation(
+        ElicitationCreateResult::from_json(fields, request_params),
+      )
+    "sampling/createMessage" =>
+      CoreInputResponsePayload::Sampling(
+        SamplingCreateMessageResult::from_json(fields),
+      )
+    "roots/list" =>
+      CoreInputResponsePayload::Roots(RootsListResult::from_json(fields))
+    _ => CoreInputResponsePayload::Other(fields)
   }
 }
 
@@ -121,7 +744,7 @@ pub struct InputResponse {
 
 ///|
 pub fn InputResponse::InputResponse(result : Json) -> InputResponse {
-  { result: copy_json(result) }
+  { result: result.copy() }
 }
 
 ///|
@@ -146,7 +769,9 @@ pub impl ToJson for InputResponse with fn to_json(self : InputResponse) -> Json 
 pub fn InputResponse::map_from_json(
   value : Json,
 ) -> Map[String, InputResponse] raise McpError {
-  let fields = expect_object(value, "inputResponses")
+  guard value is Object(fields) else {
+    raise InvalidParams("inputResponses must be an object")
+  }
   let responses : Map[String, InputResponse] = Map([])
   for key, result in fields {
     responses[key] = InputResponse::from_json(result)
@@ -184,13 +809,13 @@ pub fn InputRequiredResult::InputRequiredResult(
       for key, request in requests {
         copied[key] = InputRequest(
           method_name=request.method_name,
-          params=copy_json(request.params),
+          params=request.params.copy(),
         )
       }
       copied
     }),
     request_state,
-    meta: copy_optional_result_meta(meta),
+    meta: meta.map(fn(m) { m.copy() }),
   }
 }
 
@@ -216,10 +841,12 @@ pub fn InputRequiredResult::retry_options(
         }
       }
       for key, request in requests {
-        validate_core_input_response(
-          request.method_name,
-          request.params,
-          responses[key].result,
+        ignore(
+          parse_core_input_response(
+            request.method_name,
+            request.params,
+            responses[key].result,
+          ),
         )
       }
     }
@@ -237,70 +864,6 @@ pub fn InputRequiredResult::retry_options(
 }
 
 ///|
-fn validate_core_input_response(
-  method_name : String,
-  request_params : Json,
-  result : Json,
-) -> Unit raise McpError {
-  let fields = expect_object(result, "input response")
-  match method_name {
-    "elicitation/create" =>
-      match fields.get("action") {
-        Some(String("accept")) => {
-          let request = expect_object(request_params, "elicitation request")
-          if request.get("mode") is Some(String("url")) {
-            ()
-          } else {
-            guard fields.get("content") is Some(content) else {
-              raise InvalidParams(
-                "accepted form elicitation response.content is required",
-              )
-            }
-            let request_schema = match request.get("requestedSchema") {
-              Some(value) => value
-              None =>
-                raise InvalidParams(
-                  "elicitation request.requestedSchema is required",
-                )
-            }
-            let validator = compile_mrtr_schema(request_schema)
-            let validation = validator.validate(content)
-            if !validation.valid {
-              let error = validation.errors.to_json().stringify()
-              raise InvalidParams(
-                "elicitation response.content does not match requestedSchema: \{error}",
-              )
-            }
-          }
-        }
-        Some(String("decline" | "cancel")) => ()
-        _ => raise InvalidParams("elicitation response.action is invalid")
-      }
-    "sampling/createMessage" => {
-      ignore(get_string(fields, "model", "sampling response"))
-      guard fields.get("role") is Some(String("user" | "assistant")) else {
-        raise InvalidParams("sampling response.role is invalid")
-      }
-      guard fields.get("content") is Some(content) else {
-        raise InvalidParams("sampling response.content is required")
-      }
-      validate_sampling_content(content)
-    }
-    "roots/list" => {
-      guard fields.get("roots") is Some(Array(roots)) else {
-        raise InvalidParams("roots response.roots is required")
-      }
-      for root in roots {
-        let item = expect_object(root, "roots response root")
-        ignore(get_string(item, "uri", "roots response root"))
-        ignore(get_optional_string(item, "name", "roots response root"))
-      }
-    }
-    _ => ()
-  }
-}
-
-///|
 /// Compile an MRTR request schema through the independent JSON Schema package.
 fn compile_mrtr_schema(value : Json) -> @schema.CompiledSchema raise McpError {
   let document = @schema.Document(value) catch {
@@ -308,101 +871,6 @@ fn compile_mrtr_schema(value : Json) -> @schema.CompiledSchema raise McpError {
   }
   document.compile() catch {
     _ => raise InvalidParams("MRTR requestedSchema is not compilable")
-  }
-}
-
-///|
-fn validate_sampling_content(value : Json) -> Unit raise McpError {
-  let validate_one = fn(content : Json) -> Unit raise McpError {
-    let fields = expect_object(content, "sampling content")
-    match fields.get("type") {
-      Some(String("text")) =>
-        ignore(get_string(fields, "text", "sampling text content"))
-      Some(String("image" | "audio")) => {
-        ignore(get_string(fields, "data", "sampling media content"))
-        ignore(get_string(fields, "mimeType", "sampling media content"))
-      }
-      Some(String("tool_use")) => {
-        ignore(get_string(fields, "id", "sampling tool use content"))
-        ignore(get_string(fields, "name", "sampling tool use content"))
-        guard fields.get("input") is Some(Object(_)) else {
-          raise InvalidParams("sampling tool use input must be an object")
-        }
-      }
-      Some(String("tool_result")) => {
-        ignore(get_string(fields, "toolUseId", "sampling tool result content"))
-        guard fields.get("content") is Some(Array(contents)) else {
-          raise InvalidParams("sampling tool result content must be an array")
-        }
-        for content in contents {
-          validate_sampling_tool_result_content(content)
-        }
-      }
-      Some(String(_)) => raise InvalidParams("sampling content.type is invalid")
-      _ => raise InvalidParams("sampling content.type is required")
-    }
-  }
-  match value {
-    Array(values) if !values.is_empty() =>
-      for content in values {
-        validate_one(content)
-      }
-    Object(_) => validate_one(value)
-    _ => raise InvalidParams("sampling content must be an object or array")
-  }
-}
-
-///|
-fn validate_sampling_tool_result_content(value : Json) -> Unit raise McpError {
-  let fields = expect_object(value, "sampling tool result content block")
-  match fields.get("type") {
-    Some(String("text")) =>
-      ignore(get_string(fields, "text", "sampling tool result text"))
-    Some(String("image" | "audio")) => {
-      ignore(get_string(fields, "data", "sampling tool result media"))
-      ignore(get_string(fields, "mimeType", "sampling tool result media"))
-    }
-    Some(String("resource_link")) => {
-      ignore(get_string(fields, "uri", "sampling resource link"))
-      ignore(get_string(fields, "name", "sampling resource link"))
-    }
-    Some(String("resource")) => {
-      guard fields.get("resource") is Some(Object(resource)) else {
-        raise InvalidParams("sampling embedded resource is required")
-      }
-      ignore(get_string(resource, "uri", "sampling embedded resource"))
-      guard resource.get("text") is Some(String(_)) ||
-        resource.get("blob") is Some(String(_)) else {
-        raise InvalidParams("sampling embedded resource requires text or blob")
-      }
-    }
-    _ => raise InvalidParams("sampling tool result content type is invalid")
-  }
-}
-
-///|
-fn validate_elicitation_primitive_schema(value : Json) -> Unit raise McpError {
-  let fields = expect_object(value, "elicitation primitive schema")
-  match fields.get("type") {
-    Some(String("string" | "number" | "integer" | "boolean")) => ()
-    Some(String("array")) => {
-      let items = match fields.get("items") {
-        Some(value) => expect_object(value, "elicitation enum items")
-        None =>
-          raise InvalidParams("elicitation array schema.items is required")
-      }
-      guard items.get("type") == Some(Json::string("string")) else {
-        raise InvalidParams("elicitation array schema items must be strings")
-      }
-      guard items.get("enum") is Some(Array(_)) ||
-        items.get("anyOf") is Some(Array(_)) else {
-        raise InvalidParams(
-          "elicitation array schema items require enum options",
-        )
-      }
-    }
-    _ =>
-      raise InvalidParams("elicitation properties must use primitive schemas")
   }
 }
 
@@ -420,7 +888,7 @@ pub impl ToJson for InputRequiredResult with fn to_json(
     }
     fields["inputRequests"] = Json::object(values)
   }
-  put_optional_string(fields, "requestState", self.request_state)
+  fields.set_opt("requestState", self.request_state.map(Json::string))
   if self.meta is Some(value) {
     fields["_meta"] = value.to_json()
   }

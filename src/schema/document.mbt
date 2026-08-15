@@ -39,16 +39,13 @@ fn schema(node : SchemaNode) -> Schema {
 }
 
 ///|
-/// Add an optional integer keyword while preserving its decimal spelling.
-fn put_optional_int(
-  fields : Map[String, Json],
-  name : String,
-  value : Int?,
+fn[K : Eq + Hash, V] Map::set_opt(
+  self : Map[K, V],
+  key : K,
+  value : V?,
 ) -> Unit {
-  match value {
-    Some(value) =>
-      fields[name] = Json::number(value.to_double(), repr=value.to_string())
-    None => ()
+  if value is Some(v) {
+    self[key] = v
   }
 }
 
@@ -302,8 +299,14 @@ fn schema_node_to_json(node : SchemaNode) -> Json {
         "items": schema_node_to_json(items),
         "uniqueItems": Json::boolean(unique_items),
       }
-      put_optional_int(fields, "minItems", min_items)
-      put_optional_int(fields, "maxItems", max_items)
+      fields.set_opt(
+        "minItems",
+        min_items.map(fn(n) { Json::number(n.to_double(), repr=n.to_string()) }),
+      )
+      fields.set_opt(
+        "maxItems",
+        max_items.map(fn(n) { Json::number(n.to_double(), repr=n.to_string()) }),
+      )
       Json::object(fields)
     }
     Object(properties, required, additional_properties) => {
@@ -329,8 +332,18 @@ fn schema_node_to_json(node : SchemaNode) -> Json {
         Object(properties, required, additional_properties),
       )
       guard fields is Object(fields) else { return fields }
-      put_optional_int(fields, "minProperties", min_properties)
-      put_optional_int(fields, "maxProperties", max_properties)
+      fields.set_opt(
+        "minProperties",
+        min_properties.map(fn(n) {
+          Json::number(n.to_double(), repr=n.to_string())
+        }),
+      )
+      fields.set_opt(
+        "maxProperties",
+        max_properties.map(fn(n) {
+          Json::number(n.to_double(), repr=n.to_string())
+        }),
+      )
       Json::object(fields)
     }
     Const(value) => Json::object({ "const": value })
@@ -427,7 +440,7 @@ pub fn CompileOptions::CompileOptions(
 
 ///|
 pub fn CompileOptions::default() -> CompileOptions {
-  { max_depth: 128, max_nodes: 10000 }
+  try! CompileOptions()
 }
 
 ///|

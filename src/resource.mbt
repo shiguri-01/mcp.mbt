@@ -66,9 +66,9 @@ pub fn Resource::Resource(
     description,
     mime_type,
     icons: icons.map(icon => icon.copy()),
-    annotations: copy_optional_annotations(annotations),
+    annotations: annotations.map(fn(a) { a.copy() }),
     size,
-    meta: copy_optional_json(meta),
+    meta: meta.map(fn(m) { m.copy() }),
   }
 }
 
@@ -78,17 +78,20 @@ pub impl ToJson for Resource with fn to_json(self : Resource) -> Json {
     "uri": Json::string(self.uri),
     "name": Json::string(self.name),
   }
-  put_optional_string(fields, "title", self.title)
-  put_optional_string(fields, "description", self.description)
-  put_optional_string(fields, "mimeType", self.mime_type)
+  fields.set_opt("title", self.title.map(Json::string))
+  fields.set_opt("description", self.description.map(Json::string))
+  fields.set_opt("mimeType", self.mime_type.map(Json::string))
   if !self.icons.is_empty() {
     fields["icons"] = self.icons.map(fn(icon) { icon.to_json() }).to_json()
   }
   if self.annotations is Some(annotations) {
     fields["annotations"] = annotations.to_json()
   }
-  put_optional_int64(fields, "size", self.size)
-  put_optional_json(fields, "_meta", self.meta)
+  fields.set_opt(
+    "size",
+    self.size.map(fn(size) { Json::number(size.to_double(), repr="\{size}") }),
+  )
+  fields.set_opt("_meta", self.meta.map(fn(m) { m.copy() }))
   Json::object(fields)
 }
 
@@ -213,8 +216,8 @@ pub fn ResourceTemplate::ResourceTemplate(
     description,
     mime_type,
     icons: icons.map(icon => icon.copy()),
-    annotations: copy_optional_annotations(annotations),
-    meta: copy_optional_json(meta),
+    annotations: annotations.map(fn(a) { a.copy() }),
+    meta: meta.map(fn(m) { m.copy() }),
   }
 }
 
@@ -224,16 +227,16 @@ pub impl ToJson for ResourceTemplate with fn to_json(self : ResourceTemplate) ->
     "uriTemplate": Json::string(self.uri_template),
     "name": Json::string(self.name),
   }
-  put_optional_string(fields, "title", self.title)
-  put_optional_string(fields, "description", self.description)
-  put_optional_string(fields, "mimeType", self.mime_type)
+  fields.set_opt("title", self.title.map(Json::string))
+  fields.set_opt("description", self.description.map(Json::string))
+  fields.set_opt("mimeType", self.mime_type.map(Json::string))
   if !self.icons.is_empty() {
     fields["icons"] = self.icons.map(fn(icon) { icon.to_json() }).to_json()
   }
   if self.annotations is Some(annotations) {
     fields["annotations"] = annotations.to_json()
   }
-  put_optional_json(fields, "_meta", self.meta)
+  fields.set_opt("_meta", self.meta.map(fn(m) { m.copy() }))
   Json::object(fields)
 }
 
@@ -339,14 +342,14 @@ pub impl ToJson for ResourceContent with fn to_json(self : ResourceContent) -> J
     ResourceText(uri~, text~, mime_type~, meta~) => {
       fields["uri"] = Json::string(uri)
       fields["text"] = Json::string(text)
-      put_optional_string(fields, "mimeType", mime_type)
-      put_optional_json(fields, "_meta", meta)
+      fields.set_opt("mimeType", mime_type.map(Json::string))
+      fields.set_opt("_meta", meta.map(fn(m) { m.copy() }))
     }
     ResourceBlob(uri~, blob~, mime_type~, meta~) => {
       fields["uri"] = Json::string(uri)
       fields["blob"] = Json::string(blob)
-      put_optional_string(fields, "mimeType", mime_type)
-      put_optional_json(fields, "_meta", meta)
+      fields.set_opt("mimeType", mime_type.map(Json::string))
+      fields.set_opt("_meta", meta.map(fn(m) { m.copy() }))
     }
   }
   Json::object(fields)
@@ -424,7 +427,7 @@ pub fn ReadResourceResult::ReadResourceResult(
   {
     contents: contents.copy(),
     cache_policy,
-    meta: copy_optional_result_meta(meta),
+    meta: meta.map(fn(m) { m.copy() }),
   }
 }
 
@@ -481,7 +484,7 @@ pub impl @json.FromJson for ReadResourceResult with fn from_json(
     { "_meta": v, .. } => Some(@json.from_json(v, path=path.add_key("_meta")))
     _ => None
   }
-  { contents, cache_policy, meta }
+  ReadResourceResult(contents~, cache_policy?, meta?)
 }
 
 ///|
@@ -518,7 +521,7 @@ pub impl ToJson for ListResourcesResult with fn to_json(
     "resultType": ResultType::Complete.to_json(),
     "resources": self.resources.map(fn(r) { r.to_json() }).to_json(),
   }
-  put_optional_string(fields, "nextCursor", self.next_cursor)
+  fields.set_opt("nextCursor", self.next_cursor.map(Json::string))
   self.cache_policy.put(fields)
   if self.meta is Some(meta) {
     fields["_meta"] = meta.to_json()
@@ -591,7 +594,7 @@ pub impl ToJson for ListResourceTemplatesResult with fn to_json(
     .map(fn(t) { t.to_json() })
     .to_json(),
   }
-  put_optional_string(fields, "nextCursor", self.next_cursor)
+  fields.set_opt("nextCursor", self.next_cursor.map(Json::string))
   self.cache_policy.put(fields)
   if self.meta is Some(meta) {
     fields["_meta"] = meta.to_json()

@@ -184,7 +184,7 @@ pub impl FromJson for ErrorObject with fn from_json(value, path) -> ErrorObject 
             (path.add_key("message"), "error message must be a string"),
           )
       }
-      { code, message, data: fields.get("data") }
+      ErrorObject(code~, message~, data?=fields.get("data"))
     }
     _ => raise @json.JsonDecodeError((path, "JSON-RPC error must be an object"))
   }

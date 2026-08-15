@@ -91,12 +91,12 @@ pub impl @json.FromJson for SubscriptionFilter with fn from_json(value, path) ->
         ),
       )
   }
-  {
-    tools_list_changed: read_bool("toolsListChanged"),
-    prompts_list_changed: read_bool("promptsListChanged"),
-    resources_list_changed: read_bool("resourcesListChanged"),
-    resource_subscriptions,
-  }
+  SubscriptionFilter(
+    tools_list_changed=read_bool("toolsListChanged"),
+    prompts_list_changed=read_bool("promptsListChanged"),
+    resources_list_changed=read_bool("resourcesListChanged"),
+    resource_subscriptions~,
+  )
 }
 
 ///|
@@ -181,28 +181,37 @@ pub fn Subscription::close_response(self : Subscription) -> Json {
 /// Check whether a notification event is targeted at this subscription and
 /// allowed by its negotiated notification filter.
 pub fn Subscription::allows_event(self : Subscription, event : Json) -> Bool {
-  match decode_message_opt(event) {
-    Some(Notification({ method_name, params: Object(params) })) => {
-      guard params.get("_meta")
-        is Some(
-          Object({ "io.modelcontextprotocol/subscriptionId": sub_id, .. })
-        ) &&
-        sub_id == self.id else {
-        false
-      }
-      let filter = self.notifications
-      match method_name {
-        "notifications/tools/list_changed" => filter.tools_list_changed
-        "notifications/prompts/list_changed" => filter.prompts_list_changed
-        "notifications/resources/list_changed" => filter.resources_list_changed
-        "notifications/resources/updated" =>
-          match params.get("uri") {
-            Some(String(uri)) => filter.resource_subscriptions.contains(uri)
-            _ => false
-          }
-        _ => false
-      }
+  try {
+    guard @jsonrpc.decode(event)
+      is Notification(
+        {
+          method_name,
+          params: Object(
+            {
+              "_meta": Object(
+                { "io.modelcontextprotocol/subscriptionId": sub_id, .. }
+              ),
+              ..
+            } as params
+          ),
+        }
+      ) &&
+      sub_id == self.id else {
+      return false
     }
+    let filter = self.notifications
+    match method_name {
+      "notifications/tools/list_changed" => filter.tools_list_changed
+      "notifications/prompts/list_changed" => filter.prompts_list_changed
+      "notifications/resources/list_changed" => filter.resources_list_changed
+      "notifications/resources/updated" =>
+        match params.get("uri") {
+          Some(String(uri)) => filter.resource_subscriptions.contains(uri)
+          _ => false
+        }
+      _ => false
+    }
+  } catch {
     _ => false
   }
 }
@@ -216,9 +225,7 @@ pub fn Server::accept_subscription(
   message : Json,
 ) -> Subscription raise McpError {
   self.registry_frozen = true
-  let decoded = @jsonrpc.decode(message) catch {
-    error => raise jsonrpc_error(error)
-  }
+  let decoded = decode_message(message)
   let request = match decoded {
     @jsonrpc.Message::Request(request) => request
     _ => raise InvalidRequest("expected subscriptions/listen request")
@@ -228,7 +235,9 @@ pub fn Server::accept_subscription(
   }
   let context = parse_context(request)
   self.ensure_supported_version(context)
-  let fields = expect_object(request.params, "subscriptions/listen params")
+  guard request.params is Object(fields) else {
+    raise InvalidParams("subscriptions/listen params must be an object")
+  }
   guard fields.get("notifications") is Some(value) else {
     raise InvalidParams("subscriptions/listen params.notifications is required")
   }
@@ -253,12 +262,25 @@ pub fn Server::accept_subscription(
 ///|
 /// Extract the subscriptionId from a notification's `params._meta`.
 pub fn extract_subscription_id(message : Json) -> Json? {
-  match decode_message_opt(message) {
-    Some(Notification({ params: Object(params), .. })) =>
-      match params.get("_meta") {
-        Some(Object(meta)) => meta.get("io.modelcontextprotocol/subscriptionId")
-        _ => None
-      }
+  try {
+    guard @jsonrpc.decode(message)
+      is Notification(
+        {
+          params: Object(
+            {
+              "_meta": Object(
+                { "io.modelcontextprotocol/subscriptionId": sub_id, .. }
+              ),
+              ..
+            }
+          ),
+          ..,
+        }
+      ) else {
+      return None
+    }
+    Some(sub_id)
+  } catch {
     _ => None
   }
 }

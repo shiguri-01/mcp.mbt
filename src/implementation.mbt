@@ -44,7 +44,7 @@ fn Icon::copy(self : Icon) -> Icon {
 ///|
 pub impl ToJson for Icon with fn to_json(self : Icon) -> Json {
   let fields : Map[String, Json] = { "src": Json::string(self.src) }
-  put_optional_string(fields, "mimeType", self.mime_type)
+  fields.set_opt("mimeType", self.mime_type.map(Json::string))
   if !self.sizes.is_empty() {
     fields["sizes"] = self.sizes.to_json()
   }
@@ -127,12 +127,12 @@ pub impl ToJson for Implementation with fn to_json(self : Implementation) -> Jso
     "name": Json::string(self.name),
     "version": Json::string(self.version),
   }
-  put_optional_string(fields, "title", self.title)
-  put_optional_string(fields, "description", self.description)
+  fields.set_opt("title", self.title.map(Json::string))
+  fields.set_opt("description", self.description.map(Json::string))
   if !self.icons.is_empty() {
     fields["icons"] = self.icons.map(fn(icon) { icon.to_json() }).to_json()
   }
-  put_optional_string(fields, "websiteUrl", self.website_url)
+  fields.set_opt("websiteUrl", self.website_url.map(Json::string))
   Json::object(fields)
 }
 

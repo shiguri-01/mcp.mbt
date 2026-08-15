@@ -19,129 +19,42 @@ pub fn[T : @json.FromJson] decode_json(
 }
 
 ///|
-fn put_optional_string(
-  fields : Map[String, Json],
-  key : String,
-  value : String?,
+fn[K : Eq + Hash, V] Map::set_opt(
+  self : Map[K, V],
+  key : K,
+  value : V?,
 ) -> Unit {
-  if value is Some(value) {
-    fields[key] = Json::string(value)
-  }
-}
-
-///|
-fn put_optional_bool(
-  fields : Map[String, Json],
-  key : String,
-  value : Bool?,
-) -> Unit {
-  if value is Some(value) {
-    fields[key] = Json::boolean(value)
-  }
-}
-
-///|
-fn put_optional_int64(
-  fields : Map[String, Json],
-  key : String,
-  value : Int64?,
-) -> Unit {
-  if value is Some(value) {
-    fields[key] = Json::number(value.to_double(), repr="\{value}")
-  }
-}
-
-///|
-fn put_optional_json(
-  fields : Map[String, Json],
-  key : String,
-  value : Json?,
-) -> Unit {
-  if value is Some(value) {
-    fields[key] = copy_json(value)
+  if value is Some(v) {
+    self[key] = v
   }
 }
 
 ///|
 /// Copy a JSON value recursively before retaining caller-owned protocol data.
-fn copy_json(value : Json) -> Json {
-  match value {
-    Object(fields) => Json::object(copy_json_map(fields))
-    Array(values) => Json::array(values.map(copy_json))
-    _ => value
+fn Json::copy(self : Json) -> Json {
+  match self {
+    Object(fields) => {
+      let copied : Map[String, Json] = Map([])
+      for key, value in fields {
+        copied[key] = value.copy()
+      }
+      Json::object(copied)
+    }
+    Array(values) => Json::array(values.map(fn(v) { v.copy() }))
+    _ => self
   }
 }
 
 ///|
-fn copy_json_map(values : Map[String, Json]) -> Map[String, Json] {
+fn Map::copy_json(self : Map[String, Json]) -> Map[String, Json] {
   let copied : Map[String, Json] = Map([])
-  for key, value in values {
-    copied[key] = copy_json(value)
+  for key, value in self {
+    copied[key] = value.copy()
   }
   copied
 }
 
 ///|
-fn copy_optional_json(value : Json?) -> Json? {
-  value.map(copy_json)
-}
-
-///|
 fn empty_object_schema() -> Json {
   try! @schema.object([]).to_json()
-}
-
-///|
-fn expect_object(
-  value : Json,
-  context : String,
-) -> Map[String, Json] raise McpError {
-  match value {
-    Object(fields) => fields
-    _ => raise InvalidParams("\{context} must be an object")
-  }
-}
-
-///|
-fn get_string(
-  fields : Map[String, Json],
-  key : String,
-  context : String,
-) -> String raise McpError {
-  match fields.get(key) {
-    Some(String(value)) => value
-    Some(_) => raise InvalidParams("\{context}.\{key} must be a string")
-    None => raise InvalidParams("\{context}.\{key} is required")
-  }
-}
-
-///|
-fn get_optional_string(
-  fields : Map[String, Json],
-  key : String,
-  context : String,
-) -> String? raise McpError {
-  match fields.get(key) {
-    Some(String(value)) => Some(value)
-    Some(Null) | None => None
-    Some(_) => raise InvalidParams("\{context}.\{key} must be a string")
-  }
-}
-
-///|
-fn get_optional_fields(
-  fields : Map[String, Json],
-  key : String,
-  context : String,
-) -> Map[String, Json]? raise McpError {
-  match fields.get(key) {
-    Some(Object(value)) => Some(value)
-    Some(Null) | None => None
-    Some(_) => raise InvalidParams("\{context}.\{key} must be an object")
-  }
-}
-
-///|
-fn put_next_cursor(fields : Map[String, Json], cursor : String?) -> Unit {
-  put_optional_string(fields, "nextCursor", cursor)
 }

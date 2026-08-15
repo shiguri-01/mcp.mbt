@@ -290,12 +290,16 @@ fn origin_allowed(headers : Map[String, String], allowed : Set[String]) -> Bool 
 }
 
 ///|
-fn validate_request_metadata(message : Json) -> Unit raise @mcp.McpError {
-  guard is_jsonrpc_request(message) else { return }
+
+///|
+fn parse_request_metadata(
+  message : Json,
+) -> @mcp.RequestMeta? raise @mcp.McpError {
+  guard is_jsonrpc_request(message) else { return None }
   guard message is Object({ "params": Object({ "_meta": meta, .. }), .. }) else {
     raise @mcp.InvalidParams("request params._meta is required")
   }
-  ignore(@mcp.RequestMeta::from_json(meta))
+  Some(@mcp.RequestMeta::from_json(meta))
 }
 
 ///|
@@ -370,7 +374,7 @@ fn validate_post_request(
   server : @mcp.Server,
 ) -> Unit raise @mcp.McpError {
   validate_post_media(request)
-  validate_request_metadata(message)
+  ignore(parse_request_metadata(message))
   // The MCP dispatcher owns the server's version policy. HTTP only checks
   // header/body agreement here; an empty list disables the helper's default
   // standalone policy.
@@ -379,11 +383,18 @@ fn validate_post_request(
 }
 
 ///|
-fn validate_http_client_message(message : Json) -> Unit raise @mcp.McpError {
-  if !is_jsonrpc_request(message) && !is_jsonrpc_notification(message) {
-    raise @mcp.InvalidRequest(
-      "Streamable HTTP accepts client JSON-RPC requests or notifications only",
-    )
+
+///|
+fn decode_http_client_message(
+  message : Json,
+) -> @jsonrpc.Message raise @mcp.McpError {
+  let decoded = @mcp.decode_message(message)
+  match decoded {
+    Request(_) | Notification(_) => decoded
+    Response(_) =>
+      raise @mcp.InvalidRequest(
+        "Streamable HTTP accepts client JSON-RPC requests or notifications only",
+      )
   }
 }
 
@@ -447,7 +458,7 @@ async fn handle_post(
       return
     }
   }
-  validate_http_client_message(message) catch {
+  let decoded_message = decode_http_client_message(message) catch {
     error => {
       send_mcp_error(
         conn,
@@ -471,7 +482,7 @@ async fn handle_post(
       return
     }
   }
-  if is_jsonrpc_notification(message) {
+  if decoded_message is Notification(_) {
     (options.on_notification)(message) catch {
       _ => ()
     }

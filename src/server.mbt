@@ -204,9 +204,9 @@ pub fn Server::Server(
     resource_list_changed,
     prompt_list_changed,
     resource_subscriptions,
-    extensions: copy_json_map(extensions),
+    extensions: extensions.copy_json(),
     extension_result_types: extension_result_types.copy(),
-    experimental: copy_json_map(experimental),
+    experimental: experimental.copy_json(),
   }
 }
 
@@ -478,7 +478,9 @@ fn parse_context(
   request : @jsonrpc.Request[Json],
   hooks? : RequestHooks = RequestHooks(),
 ) -> RequestContext raise McpError {
-  let fields = expect_object(request.params, "request params")
+  guard request.params is Object(fields) else {
+    raise InvalidParams("request params must be an object")
+  }
   let meta = match fields.get("_meta") {
     Some(value) => RequestMeta::from_json(value)
     None => raise InvalidParams("request params._meta is required")
@@ -487,9 +489,12 @@ fn parse_context(
     Some(value) => Some(InputResponse::map_from_json(value))
     None => None
   }
-  let request_state = get_optional_string(
-    fields, "requestState", "request params",
-  )
+  let request_state = match fields.get("requestState") {
+    Some(String(s)) => Some(s)
+    Some(Null) | None => None
+    Some(_) =>
+      raise InvalidParams("request params.requestState must be a string")
+  }
   RequestContext(
     request_id=request.id.as_json(),
     method_name=request.method_name,
@@ -602,7 +607,10 @@ fn Server::input_required_json(
   result : InputRequiredResult,
 ) -> Json raise McpError {
   self.validate_input_requests(context, result)
-  let fields = expect_object(result.to_json(), "input_required result").copy()
+  guard result.to_json() is Object(fields) else {
+    raise InvalidParams("input_required result must be an object")
+  }
+  let fields = fields.copy_json()
   merge_result_meta(fields, server_info=self.info)
   Json::object(fields)
 }
@@ -618,7 +626,10 @@ fn Server::extension_result_json(
       "handler returned unregistered extension result type \{result_type}",
     )
   }
-  let fields = expect_object(result, "extension result").copy()
+  guard result is Object(fields) else {
+    raise InvalidParams("extension result must be an object")
+  }
+  let fields = fields.copy_json()
   fields["resultType"] = Json::string(result_type)
   merge_result_meta(fields, server_info=self.info)
   Json::object(fields)
@@ -651,7 +662,10 @@ fn Server::cacheable_complete(
   self : Server,
   payload : Json,
 ) -> Json raise McpError {
-  let fields = expect_object(payload, "cacheable result").copy()
+  guard payload is Object(fields) else {
+    raise InvalidParams("cacheable result must be an object")
+  }
+  let fields = fields.copy_json()
   self.cache_policy.put(fields)
   complete_result(Json::object(fields), server_info=self.info)
 }
@@ -682,7 +696,7 @@ fn Server::list_tools(
   let payload : Map[String, Json] = {
     "tools": page.items.map(item => item.to_json()).to_json(),
   }
-  put_next_cursor(payload, page.next_cursor)
+  payload.set_opt("nextCursor", page.next_cursor.map(Json::string))
   self.cacheable_complete(Json::object(payload))
 }
 
@@ -750,7 +764,7 @@ fn Server::list_resources(
   let payload : Map[String, Json] = {
     "resources": page.items.map(item => item.to_json()).to_json(),
   }
-  put_next_cursor(payload, page.next_cursor)
+  payload.set_opt("nextCursor", page.next_cursor.map(Json::string))
   self.cacheable_complete(Json::object(payload))
 }
 
@@ -771,7 +785,7 @@ fn Server::list_resource_templates(
   let payload : Map[String, Json] = {
     "resourceTemplates": page.items.map(item => item.to_json()).to_json(),
   }
-  put_next_cursor(payload, page.next_cursor)
+  payload.set_opt("nextCursor", page.next_cursor.map(Json::string))
   self.cacheable_complete(Json::object(payload))
 }
 
@@ -827,7 +841,7 @@ fn Server::list_prompts(
   let payload : Map[String, Json] = {
     "prompts": page.items.map(item => item.to_json()).to_json(),
   }
-  put_next_cursor(payload, page.next_cursor)
+  payload.set_opt("nextCursor", page.next_cursor.map(Json::string))
   self.cacheable_complete(Json::object(payload))
 }
 
@@ -977,8 +991,10 @@ pub async fn Server::handle_jsonrpc_with_hooks(
 ///|
 /// Check if a message is a `subscriptions/listen` request.
 pub fn is_subscription_request(message : Json) -> Bool {
-  match decode_message_opt(message) {
-    Some(Request(request)) => request.method_name == "subscriptions/listen"
+  try (
+    @jsonrpc.decode(message)
+    is Request({ method_name: "subscriptions/listen", .. })
+  ) catch {
     _ => false
   }
 }
@@ -992,9 +1008,10 @@ pub fn Server::is_subscription_request(self : Server, message : Json) -> Bool {
 ///|
 /// Check if a message is a `notifications/cancelled` notification.
 pub fn is_cancelled_notification(message : Json) -> Bool {
-  match decode_message_opt(message) {
-    Some(Notification(notification)) =>
-      notification.method_name == "notifications/cancelled"
+  try (
+    @jsonrpc.decode(message)
+    is Notification({ method_name: "notifications/cancelled", .. })
+  ) catch {
     _ => false
   }
 }
@@ -1076,10 +1093,10 @@ fn ServerSession::dispatch_subscription(
 
 ///|
 fn ServerSession::cancel_task(self : ServerSession, message : Json) -> Unit {
-  guard decode_message_opt(message) is Some(Notification({ params, .. })) else {
-    return
-  }
   try {
+    guard @jsonrpc.decode(message) is Notification({ params, .. }) else {
+      return
+    }
     let params = CancelledNotificationParams::from_json(params)
     let key = params.request_id.stringify()
     if self.active_tasks.get(key) is Some(active) {
@@ -1123,7 +1140,8 @@ fn ServerSession::dispatch_rpc(
 
 ///|
 fn ServerSession::handle_message(self : ServerSession, message : Json) -> Unit {
-  match decode_message_opt(message) {
+  let decoded = Some(@jsonrpc.decode(message)) catch { _ => None }
+  match decoded {
     Some(Request({ id, method_name: "subscriptions/listen", .. })) =>
       self.dispatch_subscription(id.as_json(), message)
     Some(Notification({ method_name: "notifications/cancelled", .. })) =>

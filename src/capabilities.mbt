@@ -14,7 +14,7 @@ pub fn RootsCapability::RootsCapability(
 ///|
 pub impl ToJson for RootsCapability with fn to_json(self : RootsCapability) -> Json {
   let fields : Map[String, Json] = Map([])
-  put_optional_bool(fields, "listChanged", self.list_changed)
+  fields.set_opt("listChanged", self.list_changed.map(Json::boolean))
   Json::object(fields)
 }
 
@@ -33,7 +33,7 @@ pub impl @json.FromJson for RootsCapability with fn from_json(
     Some(_) =>
       raise JsonDecodeError((path.add_key("listChanged"), "expected boolean"))
   }
-  { list_changed, }
+  RootsCapability(list_changed?)
 }
 
 ///|
@@ -92,7 +92,7 @@ pub fn ElicitationCapability::ElicitationCapability(
   form? : Json,
   url? : Json,
 ) -> ElicitationCapability {
-  { form: copy_optional_json(form), url: copy_optional_json(url) }
+  { form: form.map(fn(f) { f.copy() }), url: url.map(fn(u) { u.copy() }) }
 }
 
 ///|
@@ -107,8 +107,8 @@ pub impl ToJson for ElicitationCapability with fn to_json(
   self : ElicitationCapability,
 ) -> Json {
   let fields : Map[String, Json] = Map([])
-  put_optional_json(fields, "form", self.form)
-  put_optional_json(fields, "url", self.url)
+  fields.set_opt("form", self.form.map(fn(f) { f.copy() }))
+  fields.set_opt("url", self.url.map(fn(u) { u.copy() }))
   Json::object(fields)
 }
 
@@ -130,7 +130,7 @@ pub impl @json.FromJson for ElicitationCapability with fn from_json(
     Some(Null) | None => None
     Some(_) => raise JsonDecodeError((path.add_key("url"), "expected object"))
   }
-  { form, url }
+  ElicitationCapability(form?, url?)
 }
 
 ///|
@@ -165,9 +165,9 @@ pub fn ClientCapabilities::ClientCapabilities(
     roots,
     sampling,
     elicitation,
-    extensions: copy_json_map(extensions),
-    experimental: copy_json_map(experimental),
-    extra: copy_json_map(extra),
+    extensions: extensions.copy_json(),
+    experimental: experimental.copy_json(),
+    extra: extra.copy_json(),
   }
 }
 
@@ -293,7 +293,7 @@ fn put_capability_map(
   values : Map[String, Json],
 ) -> Unit {
   if !values.is_empty() {
-    fields[key] = Json::object(copy_json_map(values))
+    fields[key] = Json::object(values.copy_json())
   }
 }
 
@@ -301,7 +301,7 @@ fn put_capability_map(
 pub impl ToJson for ClientCapabilities with fn to_json(
   self : ClientCapabilities,
 ) -> Json {
-  let fields = copy_json_map(self.extra)
+  let fields = self.extra.copy_json()
   for key in ["roots", "sampling", "elicitation", "extensions", "experimental"] {
     fields.remove(key)
   }
@@ -332,7 +332,7 @@ fn parse_capability_map(
       } else if key == "experimental" {
         validate_experimental_keys(values, "\{context}.\{key}")
       }
-      copy_json_map(values)
+      values.copy_json()
     }
     Some(Null) | None => Map([])
     Some(_) => raise InvalidParams("\{context}.\{key} must be an object")
@@ -414,7 +414,7 @@ pub fn ToolsCapability::ToolsCapability(
 ///|
 pub impl ToJson for ToolsCapability with fn to_json(self : ToolsCapability) -> Json {
   let fields : Map[String, Json] = Map([])
-  put_optional_bool(fields, "listChanged", self.list_changed)
+  fields.set_opt("listChanged", self.list_changed.map(Json::boolean))
   Json::object(fields)
 }
 
@@ -433,7 +433,7 @@ pub impl @json.FromJson for ToolsCapability with fn from_json(
     Some(_) =>
       raise JsonDecodeError((path.add_key("listChanged"), "expected boolean"))
   }
-  { list_changed, }
+  ToolsCapability(list_changed?)
 }
 
 ///|
@@ -460,7 +460,7 @@ pub fn PromptsCapability::PromptsCapability(
 ///|
 pub impl ToJson for PromptsCapability with fn to_json(self : PromptsCapability) -> Json {
   let fields : Map[String, Json] = Map([])
-  put_optional_bool(fields, "listChanged", self.list_changed)
+  fields.set_opt("listChanged", self.list_changed.map(Json::boolean))
   Json::object(fields)
 }
 
@@ -479,7 +479,7 @@ pub impl @json.FromJson for PromptsCapability with fn from_json(
     Some(_) =>
       raise JsonDecodeError((path.add_key("listChanged"), "expected boolean"))
   }
-  { list_changed, }
+  PromptsCapability(list_changed?)
 }
 
 ///|
@@ -510,8 +510,8 @@ pub impl ToJson for ResourcesCapability with fn to_json(
   self : ResourcesCapability,
 ) -> Json {
   let fields : Map[String, Json] = Map([])
-  put_optional_bool(fields, "subscribe", self.subscribe)
-  put_optional_bool(fields, "listChanged", self.list_changed)
+  fields.set_opt("subscribe", self.subscribe.map(Json::boolean))
+  fields.set_opt("listChanged", self.list_changed.map(Json::boolean))
   Json::object(fields)
 }
 
@@ -537,7 +537,7 @@ pub impl @json.FromJson for ResourcesCapability with fn from_json(
     Some(_) =>
       raise JsonDecodeError((path.add_key("listChanged"), "expected boolean"))
   }
-  { subscribe, list_changed }
+  ResourcesCapability(subscribe?, list_changed?)
 }
 
 ///|
@@ -612,9 +612,9 @@ pub fn ServerCapabilities::ServerCapabilities(
     prompts,
     logging,
     completions,
-    extensions: copy_json_map(extensions),
-    experimental: copy_json_map(experimental),
-    extra: copy_json_map(extra),
+    extensions: extensions.copy_json(),
+    experimental: experimental.copy_json(),
+    extra: extra.copy_json(),
   }
 }
 
@@ -641,7 +641,7 @@ pub fn ServerCapabilities::empty() -> ServerCapabilities {
 pub impl ToJson for ServerCapabilities with fn to_json(
   self : ServerCapabilities,
 ) -> Json {
-  let fields = copy_json_map(self.extra)
+  let fields = self.extra.copy_json()
   for
     key in [
       "tools", "resources", "prompts", "logging", "completions", "extensions", "experimental",

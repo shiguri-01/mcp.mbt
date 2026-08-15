@@ -42,8 +42,8 @@ fn validate_prompt_argument_names(
 ///|
 pub impl ToJson for PromptArgument with fn to_json(self : PromptArgument) -> Json {
   let fields : Map[String, Json] = { "name": Json::string(self.name) }
-  put_optional_string(fields, "title", self.title)
-  put_optional_string(fields, "description", self.description)
+  fields.set_opt("title", self.title.map(Json::string))
+  fields.set_opt("description", self.description.map(Json::string))
   if self.required {
     fields["required"] = Json::boolean(true)
   }
@@ -81,7 +81,7 @@ pub impl @json.FromJson for PromptArgument with fn from_json(
     Some(_) =>
       raise JsonDecodeError((path.add_key("required"), "expected boolean"))
   }
-  { name, title, description, required }
+  PromptArgument(name~, title?, description?, required~)
 }
 
 ///|
@@ -117,15 +117,15 @@ pub fn Prompt::Prompt(
     description,
     arguments: arguments.copy(),
     icons: icons.map(icon => icon.copy()),
-    meta: copy_optional_json(meta),
+    meta: meta.map(fn(m) { m.copy() }),
   }
 }
 
 ///|
 pub impl ToJson for Prompt with fn to_json(self : Prompt) -> Json {
   let fields : Map[String, Json] = { "name": Json::string(self.name) }
-  put_optional_string(fields, "title", self.title)
-  put_optional_string(fields, "description", self.description)
+  fields.set_opt("title", self.title.map(Json::string))
+  fields.set_opt("description", self.description.map(Json::string))
   if !self.arguments.is_empty() {
     fields["arguments"] = self.arguments
       .map(fn(arg) { arg.to_json() })
@@ -134,7 +134,7 @@ pub impl ToJson for Prompt with fn to_json(self : Prompt) -> Json {
   if !self.icons.is_empty() {
     fields["icons"] = self.icons.map(fn(icon) { icon.to_json() }).to_json()
   }
-  put_optional_json(fields, "_meta", self.meta)
+  fields.set_opt("_meta", self.meta.map(fn(m) { m.copy() }))
   Json::object(fields)
 }
 
@@ -220,12 +220,12 @@ pub fn PromptMessage::PromptMessage(
 
 ///|
 pub fn PromptMessage::user(text : String) -> PromptMessage {
-  { role: User, content: Content::text(text) }
+  PromptMessage(role=User, content=Content::text(text))
 }
 
 ///|
 pub fn PromptMessage::assistant(text : String) -> PromptMessage {
-  { role: Assistant, content: Content::text(text) }
+  PromptMessage(role=Assistant, content=Content::text(text))
 }
 
 ///|
@@ -280,11 +280,7 @@ pub fn GetPromptResult::GetPromptResult(
   description? : String,
   meta? : ResultMeta,
 ) -> GetPromptResult {
-  {
-    description,
-    messages: messages.copy(),
-    meta: copy_optional_result_meta(meta),
-  }
+  { description, messages: messages.copy(), meta: meta.map(fn(m) { m.copy() }) }
 }
 
 ///|
@@ -292,7 +288,7 @@ pub impl ToJson for GetPromptResult with fn to_json(self : GetPromptResult) -> J
   let fields : Map[String, Json] = {
     "messages": self.messages.map(fn(message) { message.to_json() }).to_json(),
   }
-  put_optional_string(fields, "description", self.description)
+  fields.set_opt("description", self.description.map(Json::string))
   if self.meta is Some(meta) {
     fields["_meta"] = meta.to_json()
   }
@@ -330,7 +326,7 @@ pub impl @json.FromJson for GetPromptResult with fn from_json(
     { "_meta": v, .. } => Some(@json.from_json(v, path=path.add_key("_meta")))
     _ => None
   }
-  { description, messages, meta }
+  GetPromptResult(messages~, description?, meta?)
 }
 
 ///|
@@ -346,7 +342,7 @@ pub fn GetPromptResult::user(
   text : String,
   description? : String,
 ) -> GetPromptResult {
-  { description, messages: [PromptMessage::user(text)], meta: None }
+  GetPromptResult(messages=[PromptMessage::user(text)], description?)
 }
 
 ///|
@@ -364,7 +360,7 @@ pub impl ToJson for ListPromptsResult with fn to_json(self : ListPromptsResult) 
     "resultType": ResultType::Complete.to_json(),
     "prompts": self.prompts.map(fn(p) { p.to_json() }).to_json(),
   }
-  put_optional_string(fields, "nextCursor", self.next_cursor)
+  fields.set_opt("nextCursor", self.next_cursor.map(Json::string))
   self.cache_policy.put(fields)
   if self.meta is Some(meta) {
     fields["_meta"] = meta.to_json()

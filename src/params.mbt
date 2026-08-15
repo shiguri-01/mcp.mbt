@@ -23,7 +23,7 @@ pub impl @json.FromJson for ListParams with fn from_json(
     Some(_) =>
       raise JsonDecodeError((path.add_key("cursor"), "expected string"))
   }
-  { cursor, }
+  ListParams(cursor?)
 }
 
 ///|
@@ -85,7 +85,9 @@ pub impl @json.FromJson for CallToolParams with fn from_json(
     Some(_) =>
       raise JsonDecodeError((path.add_key("arguments"), "expected object"))
   }
-  { name, arguments }
+  CallToolParams(name~, arguments~) catch {
+    error => raise JsonDecodeError((path, error.message()))
+  }
 }
 
 ///|
@@ -132,7 +134,9 @@ pub impl @json.FromJson for ReadResourceParams with fn from_json(
       (path.add_key("uri"), "resource uri must not be empty"),
     )
   }
-  { uri, }
+  ReadResourceParams(uri~) catch {
+    error => raise JsonDecodeError((path, error.message()))
+  }
 }
 
 ///|
@@ -203,7 +207,9 @@ pub impl @json.FromJson for GetPromptParams with fn from_json(
     Some(_) =>
       raise JsonDecodeError((path.add_key("arguments"), "expected object"))
   }
-  { name, arguments }
+  GetPromptParams(name~, arguments~) catch {
+    error => raise JsonDecodeError((path, error.message()))
+  }
 }
 
 ///|
@@ -271,7 +277,9 @@ pub impl @json.FromJson for CancelledNotificationParams with fn from_json(
     Some(_) =>
       raise JsonDecodeError((path.add_key("reason"), "expected string"))
   }
-  { request_id, reason }
+  CancelledNotificationParams(request_id~, reason?) catch {
+    error => raise JsonDecodeError((path, error.message()))
+  }
 }
 
 ///|

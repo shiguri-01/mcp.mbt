@@ -35,7 +35,7 @@ pub impl ToJson for DiscoverResult with fn to_json(self : DiscoverResult) -> Jso
     "supportedVersions": self.supported_versions.to_json(),
     "capabilities": self.capabilities.to_json(),
   }
-  put_optional_string(fields, "instructions", self.instructions)
+  fields.set_opt("instructions", self.instructions.map(Json::string))
   self.cache_policy.put(fields)
   if self.meta is Some(value) {
     fields["_meta"] = value.to_json()

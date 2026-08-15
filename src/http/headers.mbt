@@ -398,52 +398,47 @@ fn request_method_name(message : Json) -> String? {
 
 ///|
 fn request_id(message : Json) -> Json? {
-  match decode_jsonrpc_message(message) {
-    Some(@jsonrpc.Message::Request(request)) => Some(request.id.as_json())
-    Some(@jsonrpc.Message::Response(@jsonrpc.Response::Success(id~, ..))) =>
-      Some(id.as_json())
-    Some(@jsonrpc.Message::Response(@jsonrpc.Response::Failure(id~, ..))) =>
-      id.map(fn(id) { id.as_json() })
-    Some(@jsonrpc.Message::Notification(_)) | None => None
+  try {
+    match @jsonrpc.decode(message) {
+      Request(request) => Some(request.id.as_json())
+      Response(Success(id~, ..)) => Some(id.as_json())
+      Response(Failure(id~, ..)) => id.map(fn(id) { id.as_json() })
+      Notification(_) => None
+    }
+  } catch {
+    _ => None
   }
 }
 
 ///|
 fn is_jsonrpc_request(message : Json) -> Bool {
-  match decode_jsonrpc_message(message) {
-    Some(@jsonrpc.Message::Request(_)) => true
+  try (@jsonrpc.decode(message) is Request(_)) catch {
     _ => false
   }
 }
 
 ///|
 fn is_jsonrpc_notification(message : Json) -> Bool {
-  match decode_jsonrpc_message(message) {
-    Some(@jsonrpc.Message::Notification(_)) => true
+  try (@jsonrpc.decode(message) is Notification(_)) catch {
     _ => false
   }
 }
 
 ///|
 fn is_jsonrpc_response(message : Json) -> Bool {
-  match decode_jsonrpc_message(message) {
-    Some(@jsonrpc.Message::Response(_)) => true
+  try (@jsonrpc.decode(message) is Response(_)) catch {
     _ => false
   }
 }
 
 ///|
-fn decode_jsonrpc_message(message : Json) -> @jsonrpc.Message? {
-  Some(@jsonrpc.decode(message)) catch {
-    _ => None
-  }
-}
-
-///|
 fn jsonrpc_error_code(message : Json) -> Double? {
-  match decode_jsonrpc_message(message) {
-    Some(@jsonrpc.Message::Response(@jsonrpc.Response::Failure(error~, ..))) =>
-      Some(error.code.to_double())
+  try {
+    match @jsonrpc.decode(message) {
+      Response(Failure(error~, ..)) => Some(error.code.to_double())
+      _ => None
+    }
+  } catch {
     _ => None
   }
 }

@@ -3,7 +3,9 @@
 ///
 /// It translates JSON-RPC envelopes into MCP semantics and errors without
 /// re-implementing JSON-RPC wire parsing.
-pub fn jsonrpc_error(error : @jsonrpc.JsonRpcDecodeError) -> McpError {
+pub fn McpError::from_jsonrpc_decode_error(
+  error : @jsonrpc.JsonRpcDecodeError,
+) -> McpError {
   match error {
     @jsonrpc.JsonRpcDecodeError::InvalidMessage(message) =>
       InvalidRequest(message)
@@ -13,14 +15,7 @@ pub fn jsonrpc_error(error : @jsonrpc.JsonRpcDecodeError) -> McpError {
 ///|
 pub fn decode_message(message : Json) -> @jsonrpc.Message raise McpError {
   @jsonrpc.decode(message) catch {
-    error => raise jsonrpc_error(error)
-  }
-}
-
-///|
-pub fn decode_message_opt(message : Json) -> @jsonrpc.Message? {
-  Some(@jsonrpc.decode(message)) catch {
-    _ => None
+    error => raise McpError::from_jsonrpc_decode_error(error)
   }
 }
 
@@ -74,7 +69,9 @@ fn rpc_response_result(message : Json) -> Json raise McpError {
 
 ///|
 fn require_result_type(result : Json) -> String raise McpError {
-  let fields = expect_object(result, "MCP result")
+  guard result is Object(fields) else {
+    raise InvalidRequest("MCP result must be an object")
+  }
   match fields.get("resultType") {
     Some(String("complete")) => "complete"
     Some(String("input_required")) => "input_required"
@@ -128,16 +125,25 @@ pub fn response_id(message : Json) -> Json? raise McpError {
 ///|
 /// Extract the progress token from a request's `params._meta.progressToken`.
 pub fn extract_request_progress_token(message : Json) -> Json? {
-  match decode_message_opt(message) {
-    Some(Request({ params: Object(params), .. })) =>
-      match params.get("_meta") {
-        Some(Object(meta)) =>
-          match meta.get("progressToken") {
-            Some(String(_) | Number(_) as token) => Some(token)
-            _ => None
-          }
-        _ => None
-      }
+  try {
+    guard @jsonrpc.decode(message)
+      is Request(
+        {
+          params: Object(
+            {
+              "_meta": Object(
+                { "progressToken": String(_) | Number(_) as token, .. }
+              ),
+              ..
+            }
+          ),
+          ..,
+        }
+      ) else {
+      return None
+    }
+    Some(token)
+  } catch {
     _ => None
   }
 }
@@ -145,16 +151,20 @@ pub fn extract_request_progress_token(message : Json) -> Json? {
 ///|
 /// Extract the progress token from a `notifications/progress` notification.
 pub fn extract_notification_progress_token(message : Json) -> Json? {
-  match decode_message_opt(message) {
-    Some(
-      Notification(
-        { method_name: "notifications/progress", params: Object(params) }
-      )
-    ) =>
-      match params.get("progressToken") {
-        Some(String(_) | Number(_) as token) => Some(token)
-        _ => None
-      }
+  try {
+    guard @jsonrpc.decode(message)
+      is Notification(
+        {
+          method_name: "notifications/progress",
+          params: Object(
+            { "progressToken": String(_) | Number(_) as token, .. }
+          ),
+        }
+      ) else {
+      return None
+    }
+    Some(token)
+  } catch {
     _ => None
   }
 }

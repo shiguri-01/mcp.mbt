@@ -1010,13 +1010,16 @@ test "Streamable HTTP accepts notification shapes but rejects responses" {
     "method": Json::string("notifications/cancelled"),
     "params": Json::object({}),
   })
-  try! validate_http_client_message(notification)
+  let decoded_notification = decode_http_client_message(notification) catch {
+    _ => fail("expected valid notification")
+  }
+  assert_true(decoded_notification is Notification(_))
   let response = Json::object({
     "jsonrpc": Json::string("2.0"),
     "id": Json::number(1.0),
     "result": Json::object({}),
   })
-  let rejected_response = try validate_http_client_message(response) catch {
+  let rejected_response = try decode_http_client_message(response) catch {
     @mcp.InvalidRequest(_) => true
     _ => false
   } noraise {

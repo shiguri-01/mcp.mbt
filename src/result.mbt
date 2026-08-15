@@ -51,7 +51,7 @@ pub fn ResultMeta::ResultMeta(
   validate_meta_map(extra)
   {
     server_info: server_info.map(value => value.copy()),
-    extra: copy_json_map(extra),
+    extra: extra.copy_json(),
   }
 }
 
@@ -60,13 +60,8 @@ pub fn ResultMeta::ResultMeta(
 fn ResultMeta::copy(self : ResultMeta) -> ResultMeta {
   {
     server_info: self.server_info.map(value => value.copy()),
-    extra: copy_json_map(self.extra),
+    extra: self.extra.copy_json(),
   }
-}
-
-///|
-fn copy_optional_result_meta(value : ResultMeta?) -> ResultMeta? {
-  value.map(meta => meta.copy())
 }
 
 ///|
@@ -118,7 +113,8 @@ fn merge_result_meta(
   extra? : Map[String, Json] = {},
 ) -> Unit raise McpError {
   let merged = match fields.get("_meta") {
-    Some(value) => expect_object(value, "result._meta").copy()
+    Some(Object(value)) => value.copy()
+    Some(_) => raise InvalidParams("result._meta must be an object")
     None => Map([])
   }
   validate_meta_map(merged)
@@ -141,7 +137,10 @@ pub fn complete_result(
   server_info? : Implementation,
   meta? : Map[String, Json] = {},
 ) -> Json raise McpError {
-  let fields = expect_object(value, "complete result").copy()
+  guard value is Object(fields) else {
+    raise InvalidParams("complete result must be an object")
+  }
+  let fields = fields.copy_json()
   fields["resultType"] = ResultType::Complete.to_json()
   merge_result_meta(fields, server_info?, extra=meta)
   Json::object(fields)

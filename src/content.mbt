@@ -57,11 +57,6 @@ fn Annotations::copy(self : Annotations) -> Annotations {
 }
 
 ///|
-fn copy_optional_annotations(value : Annotations?) -> Annotations? {
-  value.map(annotation => annotation.copy())
-}
-
-///|
 pub impl ToJson for Annotations with fn to_json(self : Annotations) -> Json {
   let fields : Map[String, Json] = Map([])
   if !self.audience.is_empty() {
@@ -72,7 +67,7 @@ pub impl ToJson for Annotations with fn to_json(self : Annotations) -> Json {
   if self.priority is Some(priority) {
     fields["priority"] = Json::number(priority)
   }
-  put_optional_string(fields, "lastModified", self.last_modified)
+  fields.set_opt("lastModified", self.last_modified.map(Json::string))
   Json::object(fields)
 }
 
@@ -122,7 +117,9 @@ pub impl @json.FromJson for Annotations with fn from_json(
     Some(_) =>
       raise JsonDecodeError((path.add_key("lastModified"), "expected string"))
   }
-  { audience, priority, last_modified }
+  Annotations(audience~, priority?, last_modified?) catch {
+    error => raise JsonDecodeError((path, error.message()))
+  }
 }
 
 ///|
@@ -172,9 +169,9 @@ pub fn ResourceLink::ResourceLink(
     description,
     mime_type,
     icons: icons.map(icon => icon.copy()),
-    annotations: copy_optional_annotations(annotations),
+    annotations: annotations.map(fn(a) { a.copy() }),
     size,
-    meta: copy_optional_json(meta),
+    meta: meta.map(fn(m) { m.copy() }),
   }
 }
 
@@ -185,17 +182,20 @@ pub impl ToJson for ResourceLink with fn to_json(self : ResourceLink) -> Json {
     "uri": Json::string(self.uri),
     "name": Json::string(self.name),
   }
-  put_optional_string(fields, "title", self.title)
-  put_optional_string(fields, "description", self.description)
-  put_optional_string(fields, "mimeType", self.mime_type)
+  fields.set_opt("title", self.title.map(Json::string))
+  fields.set_opt("description", self.description.map(Json::string))
+  fields.set_opt("mimeType", self.mime_type.map(Json::string))
   if !self.icons.is_empty() {
     fields["icons"] = self.icons.map(fn(icon) { icon.to_json() }).to_json()
   }
   if self.annotations is Some(annotations) {
     fields["annotations"] = annotations.to_json()
   }
-  put_optional_int64(fields, "size", self.size)
-  put_optional_json(fields, "_meta", self.meta)
+  fields.set_opt(
+    "size",
+    self.size.map(fn(size) { Json::number(size.to_double(), repr="\{size}") }),
+  )
+  fields.set_opt("_meta", self.meta.map(fn(m) { m.copy() }))
   Json::object(fields)
 }
 
@@ -235,7 +235,7 @@ fn put_content_metadata(
   if annotations is Some(annotations) {
     fields["annotations"] = annotations.to_json()
   }
-  put_optional_json(fields, "_meta", meta)
+  fields.set_opt("_meta", meta.map(fn(m) { m.copy() }))
 }
 
 ///|
@@ -288,8 +288,8 @@ pub fn Content::text(
 ) -> Content {
   TextContent(
     text~,
-    annotations=copy_optional_annotations(annotations),
-    meta=copy_optional_json(meta),
+    annotations=annotations.map(fn(a) { a.copy() }),
+    meta=meta.map(fn(m) { m.copy() }),
   )
 }
 
@@ -304,8 +304,8 @@ pub fn Content::image(
   ImageContent(
     data~,
     mime_type~,
-    annotations=copy_optional_annotations(annotations),
-    meta=copy_optional_json(meta),
+    annotations=annotations.map(fn(a) { a.copy() }),
+    meta=meta.map(fn(m) { m.copy() }),
   )
 }
 
@@ -320,8 +320,8 @@ pub fn Content::audio(
   AudioContent(
     data~,
     mime_type~,
-    annotations=copy_optional_annotations(annotations),
-    meta=copy_optional_json(meta),
+    annotations=annotations.map(fn(a) { a.copy() }),
+    meta=meta.map(fn(m) { m.copy() }),
   )
 }
 
@@ -334,8 +334,8 @@ pub fn Content::embedded_resource(
 ) -> Content {
   EmbeddedResource(
     resource~,
-    annotations=copy_optional_annotations(annotations),
-    meta=copy_optional_json(meta),
+    annotations=annotations.map(fn(a) { a.copy() }),
+    meta=meta.map(fn(m) { m.copy() }),
   )
 }
 

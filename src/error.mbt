@@ -101,7 +101,11 @@ fn parse_unsupported_version_data(
   guard data is Some(Object(fields)) else {
     raise InvalidRequest("-32022 error data must be an object")
   }
-  let requested = get_string(fields, "requested", "error data")
+  let requested = match fields.get("requested") {
+    Some(String(s)) => s
+    Some(_) => raise InvalidRequest("error data.requested must be a string")
+    None => raise InvalidRequest("error data.requested is required")
+  }
   let supported = match fields.get("supported") {
     Some(Array(values)) =>
       values.map(value => {

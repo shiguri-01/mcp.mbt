@@ -19,8 +19,6 @@ pub fn[T : @json.FromJson] decode_json(Json, context? : String) -> T raise McpEr
 
 pub fn decode_message(Json) -> @jsonrpc.Message raise McpError
 
-pub fn decode_message_opt(Json) -> @jsonrpc.Message?
-
 pub fn error_response(id? : @jsonrpc.RequestId, McpError) -> Json
 
 pub fn error_response_from_json_id(id? : Json, McpError) -> Json
@@ -35,9 +33,11 @@ pub fn is_cancelled_notification(Json) -> Bool
 
 pub fn is_subscription_request(Json) -> Bool
 
-pub fn jsonrpc_error(@jsonrpc.JsonRpcDecodeError) -> McpError
-
 pub fn logging_message_notification(level~ : LoggingLevel, data~ : Json, logger? : String) -> Json
+
+pub fn parse_core_input_request(String, Map[String, Json]) -> CoreInputRequestPayload raise McpError
+
+pub fn parse_core_input_response(String, Json, Json) -> CoreInputResponsePayload raise McpError
 
 pub fn progress_notification(progress_token~ : Json, progress~ : Double, total? : Double, message? : String) -> Json raise McpError
 
@@ -87,6 +87,7 @@ pub(all) suberror McpError {
 pub fn McpError::code(Self) -> Int
 pub fn McpError::data(Self) -> Json?
 pub fn McpError::from_error_object(@jsonrpc.ErrorObject) -> Self raise Self
+pub fn McpError::from_jsonrpc_decode_error(@jsonrpc.JsonRpcDecodeError) -> Self
 pub fn McpError::from_rpc_parts(Int, String, data? : Json) -> Self raise Self
 pub fn McpError::message(Self) -> String
 pub fn McpError::to_error_object(Self) -> @jsonrpc.ErrorObject
@@ -236,6 +237,7 @@ pub(all) enum CompletionReference {
 pub fn CompletionReference::prompt(name~ : String, title? : String) -> Self
 pub fn CompletionReference::resource(uri~ : String) -> Self
 pub impl ToJson for CompletionReference
+pub impl @json.FromJson for CompletionReference
 
 pub struct CompletionRequest {
   reference : CompletionReference
@@ -245,6 +247,7 @@ pub struct CompletionRequest {
   meta : Json?
 } derive(Eq, @debug.Debug)
 pub fn CompletionRequest::from_json(Json) -> Self raise McpError
+pub impl @json.FromJson for CompletionRequest
 
 pub(all) enum Content {
   TextContent(text~ : String, annotations~ : Annotations?, meta~ : Json?)
@@ -262,6 +265,20 @@ pub fn Content::text(String, annotations? : Annotations, meta? : Json) -> Self
 pub impl ToJson for Content
 pub impl @json.FromJson for Content
 
+pub(all) enum CoreInputRequestPayload {
+  Elicitation(ElicitationCreateParams)
+  Sampling(SamplingCreateMessageParams)
+  Roots
+  Other(method_name~ : String, params~ : Map[String, Json])
+}
+
+pub(all) enum CoreInputResponsePayload {
+  Elicitation(ElicitationCreateResult)
+  Sampling(SamplingCreateMessageResult)
+  Roots(RootsListResult)
+  Other(Map[String, Json])
+}
+
 pub struct DiscoverResult {
   supported_versions : Array[String]
   capabilities : ServerCapabilities
@@ -274,6 +291,12 @@ pub fn DiscoverResult::from_json(Json) -> Self raise McpError
 pub impl ToJson for DiscoverResult
 pub impl @json.FromJson for DiscoverResult
 
+pub(all) enum ElicitationAction {
+  Accept
+  Decline
+  Cancel
+} derive(Eq, @debug.Debug)
+
 pub struct ElicitationCapability {
   form : Json?
   url : Json?
@@ -282,6 +305,37 @@ pub fn ElicitationCapability::ElicitationCapability(form? : Json, url? : Json) -
 pub fn ElicitationCapability::from_json(Json, context? : String) -> Self raise McpError
 pub impl ToJson for ElicitationCapability
 pub impl @json.FromJson for ElicitationCapability
+
+pub struct ElicitationCreateParams {
+  message : String
+  mode : ElicitationMode
+} derive(@debug.Debug)
+pub fn ElicitationCreateParams::from_json(Map[String, Json]) -> Self raise McpError
+
+pub struct ElicitationCreateResult {
+  action : ElicitationAction
+  content : Json?
+} derive(Eq, @debug.Debug)
+pub fn ElicitationCreateResult::from_json(Map[String, Json], Json) -> Self raise McpError
+
+pub(all) enum ElicitationMode {
+  Url(String)
+  Form(requested_schema~ : Json, properties~ : Map[String, ElicitationPrimitiveSchema], compiled_schema~ : @schema.CompiledSchema)
+} derive(@debug.Debug)
+
+pub struct ElicitationPrimitiveSchema {
+  schema_type : ElicitationPrimitiveType
+  raw : Json
+} derive(Eq, @debug.Debug)
+pub fn ElicitationPrimitiveSchema::from_json(Json) -> Self raise McpError
+
+pub(all) enum ElicitationPrimitiveType {
+  String
+  Number
+  Integer
+  Boolean
+  Enum(Array[String])
+} derive(Eq, @debug.Debug)
 
 pub struct GetPromptParams {
   name : String
@@ -642,6 +696,13 @@ pub fn Role::to_string(Self) -> String
 pub impl ToJson for Role
 pub impl @json.FromJson for Role
 
+pub struct Root {
+  uri : String
+  name : String?
+} derive(Eq, @debug.Debug)
+pub fn Root::from_json(Json) -> Self raise McpError
+pub impl ToJson for Root
+
 pub struct RootsCapability {
   list_changed : Bool?
 } derive(Eq, @debug.Debug)
@@ -650,12 +711,65 @@ pub fn RootsCapability::from_json(Json, context? : String) -> Self raise McpErro
 pub impl ToJson for RootsCapability
 pub impl @json.FromJson for RootsCapability
 
+pub struct RootsListResult {
+  roots : Array[Root]
+} derive(Eq, @debug.Debug)
+pub fn RootsListResult::from_json(Map[String, Json]) -> Self raise McpError
+pub impl ToJson for RootsListResult
+
 pub struct SamplingCapability {
 } derive(Eq, @debug.Debug)
 pub fn SamplingCapability::SamplingCapability() -> Self
 pub fn SamplingCapability::from_json(Json, context? : String) -> Self raise McpError
 pub impl ToJson for SamplingCapability
 pub impl @json.FromJson for SamplingCapability
+
+pub(all) enum SamplingContent {
+  Single(SamplingContentBlock)
+  Multiple(Array[SamplingContentBlock])
+} derive(Eq, @debug.Debug)
+pub fn SamplingContent::from_json(Json) -> Self raise McpError
+pub impl ToJson for SamplingContent
+
+pub(all) enum SamplingContentBlock {
+  Text(text~ : String)
+  Image(data~ : String, mime_type~ : String)
+  Audio(data~ : String, mime_type~ : String)
+  ToolUse(id~ : String, name~ : String, input~ : Map[String, Json])
+  ToolResult(tool_use_id~ : String, content~ : Array[SamplingToolResultBlock])
+} derive(Eq, @debug.Debug)
+pub fn SamplingContentBlock::from_json(Json) -> Self raise McpError
+pub impl ToJson for SamplingContentBlock
+
+pub struct SamplingCreateMessageParams {
+  messages : Array[SamplingMessage]
+  max_tokens : Double
+} derive(Eq, @debug.Debug)
+pub fn SamplingCreateMessageParams::from_json(Map[String, Json]) -> Self raise McpError
+
+pub struct SamplingCreateMessageResult {
+  model : String
+  role : Role
+  content : SamplingContent
+} derive(Eq, @debug.Debug)
+pub fn SamplingCreateMessageResult::from_json(Map[String, Json]) -> Self raise McpError
+
+pub struct SamplingMessage {
+  role : Role
+  content : SamplingContent
+} derive(Eq, @debug.Debug)
+pub fn SamplingMessage::from_json(Json) -> Self raise McpError
+pub impl ToJson for SamplingMessage
+
+pub(all) enum SamplingToolResultBlock {
+  Text(text~ : String)
+  Image(data~ : String, mime_type~ : String)
+  Audio(data~ : String, mime_type~ : String)
+  ResourceLink(uri~ : String, name~ : String)
+  EmbeddedResource(uri~ : String, text~ : String?, blob~ : String?)
+} derive(Eq, @debug.Debug)
+pub fn SamplingToolResultBlock::from_json(Json) -> Self raise McpError
+pub impl ToJson for SamplingToolResultBlock
 
 pub struct Server {
   // private fields

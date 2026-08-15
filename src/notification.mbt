@@ -22,11 +22,8 @@ pub fn progress_notification(
     "progressToken": progress_token,
     "progress": Json::number(progress),
   }
-  match total {
-    Some(total) => params["total"] = Json::number(total)
-    None => ()
-  }
-  put_optional_string(params, "message", message)
+  params.set_opt("total", total.map(fn(n) { Json::number(n) }))
+  params.set_opt("message", message.map(Json::string))
   try! @jsonrpc.Notification(
     method_name="notifications/progress",
     params=Json::object(params),
