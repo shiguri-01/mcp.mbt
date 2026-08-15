@@ -715,16 +715,15 @@ pub impl @json.FromJson for InputRequest with fn from_json(
   guard value is Object(fields) else {
     raise JsonDecodeError((path, "expected object"))
   }
-  let method_name = match fields.get("method") {
-    Some(String(s)) => s
-    Some(_) =>
+  let method_name = match fields {
+    { "method": String(s), .. } => s
+    { "method": _, .. } =>
       raise JsonDecodeError((path.add_key("method"), "expected string"))
-    None =>
-      raise JsonDecodeError((path.add_key("method"), "method is required"))
+    _ => raise JsonDecodeError((path.add_key("method"), "method is required"))
   }
-  let params = match fields.get("params") {
-    Some(v) => v
-    None => Json::object({})
+  let params = match fields {
+    { "params": v, .. } => v
+    _ => Json::object({})
   }
   InputRequest(method_name~, params~) catch {
     error => raise JsonDecodeError((path, error.message()))
@@ -903,9 +902,8 @@ pub impl @json.FromJson for InputRequiredResult with fn from_json(
   guard value is Object(fields) else {
     raise JsonDecodeError((path, "expected object"))
   }
-  let input_requests : Map[String, InputRequest]? = match
-    fields.get("inputRequests") {
-    Some(Object(map)) => {
+  let input_requests : Map[String, InputRequest]? = match fields {
+    { "inputRequests": Object(map), .. } => {
       let requests : Map[String, InputRequest] = Map([])
       for k, v in map {
         requests[k] = @json.from_json(
@@ -915,15 +913,17 @@ pub impl @json.FromJson for InputRequiredResult with fn from_json(
       }
       Some(requests)
     }
-    Some(Null) | None => None
-    Some(_) =>
+    { "inputRequests": Null, .. } => None
+    { "inputRequests": _, .. } =>
       raise JsonDecodeError((path.add_key("inputRequests"), "expected object"))
+    _ => None
   }
-  let request_state = match fields.get("requestState") {
-    Some(String(s)) => Some(s)
-    Some(Null) | None => None
-    Some(_) =>
+  let request_state = match fields {
+    { "requestState": String(s), .. } => Some(s)
+    { "requestState": Null, .. } => None
+    { "requestState": _, .. } =>
       raise JsonDecodeError((path.add_key("requestState"), "expected string"))
+    _ => None
   }
   let meta : ResultMeta? = match fields {
     { "_meta": v, .. } => Some(@json.from_json(v, path=path.add_key("_meta")))

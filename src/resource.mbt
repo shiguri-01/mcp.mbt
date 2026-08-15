@@ -485,11 +485,11 @@ pub impl @json.FromJson for ReadResourceResult with fn from_json(
   guard value is Object(fields) else {
     raise JsonDecodeError((path, "expected object"))
   }
-  let contents_val = match fields.get("contents") {
-    Some(Array(arr)) => arr
-    Some(_) =>
+  let contents_val = match fields {
+    { "contents": Array(arr), .. } => arr
+    { "contents": _, .. } =>
       raise JsonDecodeError((path.add_key("contents"), "expected array"))
-    None =>
+    _ =>
       raise JsonDecodeError((path.add_key("contents"), "contents is required"))
   }
   let contents : Array[ResourceContent] = []
@@ -567,11 +567,11 @@ pub impl @json.FromJson for ListResourcesResult with fn from_json(
   guard value is Object(fields) else {
     raise JsonDecodeError((path, "expected object"))
   }
-  let res_val = match fields.get("resources") {
-    Some(Array(arr)) => arr
-    Some(_) =>
+  let res_val = match fields {
+    { "resources": Array(arr), .. } => arr
+    { "resources": _, .. } =>
       raise JsonDecodeError((path.add_key("resources"), "expected array"))
-    None =>
+    _ =>
       raise JsonDecodeError(
         (path.add_key("resources"), "resources is required"),
       )
@@ -582,11 +582,12 @@ pub impl @json.FromJson for ListResourcesResult with fn from_json(
       @json.from_json(it, path=path.add_key("resources").add_index(i)),
     )
   }
-  let next_cursor = match fields.get("nextCursor") {
-    Some(String(s)) => Some(s)
-    Some(Null) | None => None
-    Some(_) =>
+  let next_cursor = match fields {
+    { "nextCursor": String(s), .. } => Some(s)
+    { "nextCursor": Null, .. } => None
+    { "nextCursor": _, .. } =>
       raise JsonDecodeError((path.add_key("nextCursor"), "expected string"))
+    _ => None
   }
   let cache_policy : CachePolicy = @json.from_json(value) catch {
     JsonDecodeError((_, msg)) => raise JsonDecodeError((path, msg))
@@ -640,13 +641,13 @@ pub impl @json.FromJson for ListResourceTemplatesResult with fn from_json(
   guard value is Object(fields) else {
     raise JsonDecodeError((path, "expected object"))
   }
-  let t_val = match fields.get("resourceTemplates") {
-    Some(Array(arr)) => arr
-    Some(_) =>
+  let t_val = match fields {
+    { "resourceTemplates": Array(arr), .. } => arr
+    { "resourceTemplates": _, .. } =>
       raise JsonDecodeError(
         (path.add_key("resourceTemplates"), "expected array"),
       )
-    None =>
+    _ =>
       raise JsonDecodeError(
         (path.add_key("resourceTemplates"), "resourceTemplates is required"),
       )
@@ -657,11 +658,12 @@ pub impl @json.FromJson for ListResourceTemplatesResult with fn from_json(
       @json.from_json(it, path=path.add_key("resourceTemplates").add_index(i)),
     )
   }
-  let next_cursor = match fields.get("nextCursor") {
-    Some(String(s)) => Some(s)
-    Some(Null) | None => None
-    Some(_) =>
+  let next_cursor = match fields {
+    { "nextCursor": String(s), .. } => Some(s)
+    { "nextCursor": Null, .. } => None
+    { "nextCursor": _, .. } =>
       raise JsonDecodeError((path.add_key("nextCursor"), "expected string"))
+    _ => None
   }
   let cache_policy : CachePolicy = @json.from_json(value) catch {
     JsonDecodeError((_, msg)) => raise JsonDecodeError((path, msg))

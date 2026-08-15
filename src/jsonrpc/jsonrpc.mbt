@@ -354,22 +354,26 @@ fn make_notification(
 fn decode_error(value : Json) -> ErrorObject raise JsonRpcDecodeError {
   match value {
     Json::Object(fields) => {
-      let code = match fields.get("code") {
-        Some(Json::Number(value, ..)) if value.to_int().to_double() == value =>
-          value.to_int()
+      let code = match fields {
+        { "code": Json::Number(value, ..), .. } if value.to_int().to_double() ==
+          value => value.to_int()
         _ =>
           raise JsonRpcDecodeError::InvalidMessage(
             "error code must be an integer",
           )
       }
-      let message = match fields.get("message") {
-        Some(Json::String(value)) => value
+      let message = match fields {
+        { "message": Json::String(value), .. } => value
         _ =>
           raise JsonRpcDecodeError::InvalidMessage(
             "error message must be a string",
           )
       }
-      ErrorObject(code~, message~, data?=fields.get("data"))
+      let data = match fields {
+        { "data": data, .. } => Some(data)
+        _ => None
+      }
+      ErrorObject(code~, message~, data?)
     }
     _ => raise JsonRpcDecodeError::InvalidMessage("error must be an object")
   }

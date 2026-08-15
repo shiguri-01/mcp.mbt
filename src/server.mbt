@@ -481,19 +481,20 @@ fn parse_context(
   guard request.params is Object(fields) else {
     raise InvalidParams("request params must be an object")
   }
-  let meta = match fields.get("_meta") {
-    Some(value) => RequestMeta::from_json(value)
-    None => raise InvalidParams("request params._meta is required")
+  let meta = match fields {
+    { "_meta": value, .. } => RequestMeta::from_json(value)
+    _ => raise InvalidParams("request params._meta is required")
   }
-  let input_responses = match fields.get("inputResponses") {
-    Some(value) => Some(InputResponse::map_from_json(value))
-    None => None
+  let input_responses = match fields {
+    { "inputResponses": value, .. } => Some(InputResponse::map_from_json(value))
+    _ => None
   }
-  let request_state = match fields.get("requestState") {
-    Some(String(s)) => Some(s)
-    Some(Null) | None => None
-    Some(_) =>
+  let request_state = match fields {
+    { "requestState": String(s), .. } => Some(s)
+    { "requestState": Null, .. } => None
+    { "requestState": _, .. } =>
       raise InvalidParams("request params.requestState must be a string")
+    _ => None
   }
   RequestContext(
     request_id=request.id.as_json(),
@@ -711,42 +712,40 @@ async fn Server::call_tool(
   }
   let name = params.name
   let arguments = params.arguments
-  match self.tools.get(name) {
-    Some(registered) => {
-      if schema_validation_error(registered.input_validator, arguments)
-        is Some(error) {
-        return self.outcome_json(
-          context,
-          "tools/call",
-          Complete(
-            CallToolResult::error_text(
-              "Invalid tool arguments: inputSchema validation failed: \{error}",
-            ),
-          ),
-        )
-      }
-      let outcome = (registered.handler)(context, arguments)
-      match outcome {
-        Complete(result) =>
-          if registered.output_validator is Some(validator) && !result.is_error {
-            guard result.structured_content is Some(value) else {
-              raise InternalError(
-                "tool declares outputSchema but returned no structuredContent",
-              )
-            }
-            if schema_validation_error(validator, value) is Some(error) {
-              raise InternalError(
-                "tool structuredContent does not match outputSchema: \{error}",
-              )
-            }
-          }
-        InputRequired(_) => ()
-        ExtensionResult(_, _) => ()
-      }
-      self.outcome_json(context, "tools/call", outcome)
-    }
-    None => raise InvalidParams("unknown tool: \{name}")
+  guard self.tools.get(name) is Some(registered) else {
+    raise InvalidParams("unknown tool: \{name}")
   }
+  if schema_validation_error(registered.input_validator, arguments)
+    is Some(error) {
+    return self.outcome_json(
+      context,
+      "tools/call",
+      Complete(
+        CallToolResult::error_text(
+          "Invalid tool arguments: inputSchema validation failed: \{error}",
+        ),
+      ),
+    )
+  }
+  let outcome = (registered.handler)(context, arguments)
+  match outcome {
+    Complete(result) =>
+      if registered.output_validator is Some(validator) && !result.is_error {
+        guard result.structured_content is Some(value) else {
+          raise InternalError(
+            "tool declares outputSchema but returned no structuredContent",
+          )
+        }
+        if schema_validation_error(validator, value) is Some(error) {
+          raise InternalError(
+            "tool structuredContent does not match outputSchema: \{error}",
+          )
+        }
+      }
+    InputRequired(_) => ()
+    ExtensionResult(_, _) => ()
+  }
+  self.outcome_json(context, "tools/call", outcome)
 }
 
 ///|
@@ -799,31 +798,28 @@ async fn Server::read_resource(
     raise MethodNotFound("resources/read")
   }
   let uri = params.uri
-  match self.resources.get(uri) {
-    Some(registered) =>
-      match (registered.handler)(context, uri) {
+  if self.resources.get(uri) is Some(registered) {
+    return match (registered.handler)(context, uri) {
+      Complete(value) => self.cacheable_complete(value.to_json())
+      InputRequired(value) => self.input_required_json(context, value)
+      ExtensionResult(result_type, value) =>
+        self.extension_result_json(result_type, value)
+    }
+  }
+  for registered in self.resource_templates.values() {
+    if registered.captures(uri) is Some(captures) {
+      return match (registered.handler)(context, uri, captures) {
         Complete(value) => self.cacheable_complete(value.to_json())
         InputRequired(value) => self.input_required_json(context, value)
         ExtensionResult(result_type, value) =>
           self.extension_result_json(result_type, value)
       }
-    None => {
-      for registered in self.resource_templates.values() {
-        if registered.captures(uri) is Some(captures) {
-          return match (registered.handler)(context, uri, captures) {
-            Complete(value) => self.cacheable_complete(value.to_json())
-            InputRequired(value) => self.input_required_json(context, value)
-            ExtensionResult(result_type, value) =>
-              self.extension_result_json(result_type, value)
-          }
-        }
-      }
-      raise InvalidParamsWithData(
-        "resource not found: \{uri}",
-        Json::object({ "uri": Json::string(uri) }),
-      )
     }
   }
+  raise InvalidParamsWithData(
+    "resource not found: \{uri}",
+    Json::object({ "uri": Json::string(uri) }),
+  )
 }
 
 ///|
@@ -855,24 +851,22 @@ async fn Server::get_prompt(
     raise MethodNotFound("prompts/get")
   }
   let name = params.name
-  match self.prompts.get(name) {
-    Some(registered) => {
-      let arguments = params.arguments
-      for argument in registered.prompt.arguments {
-        if argument.required && !arguments.contains(argument.name) {
-          raise InvalidParams(
-            "prompts/get required argument is missing: \{argument.name}",
-          )
-        }
-      }
-      self.outcome_json(
-        context,
-        "prompts/get",
-        (registered.handler)(context, arguments),
+  guard self.prompts.get(name) is Some(registered) else {
+    raise InvalidParams("unknown prompt: \{name}")
+  }
+  let arguments = params.arguments
+  for argument in registered.prompt.arguments {
+    if argument.required && !arguments.contains(argument.name) {
+      raise InvalidParams(
+        "prompts/get required argument is missing: \{argument.name}",
       )
     }
-    None => raise InvalidParams("unknown prompt: \{name}")
   }
+  self.outcome_json(
+    context,
+    "prompts/get",
+    (registered.handler)(context, arguments),
+  )
 }
 
 ///|
@@ -893,14 +887,10 @@ async fn Server::complete(
     raise MethodNotFound("completion/complete")
   }
   let key = completion_key(request.reference)
-  match self.completions.get(key) {
-    Some(handler) =>
-      complete_result(
-        handler(context, request).to_json(),
-        server_info=self.info,
-      )
-    None => raise InvalidParams("no completion handler registered for \{key}")
+  guard self.completions.get(key) is Some(handler) else {
+    raise InvalidParams("no completion handler registered for \{key}")
   }
+  complete_result(handler(context, request).to_json(), server_info=self.info)
 }
 
 ///|
@@ -932,16 +922,12 @@ async fn Server::dispatch_request(
       raise InvalidRequest(
         "subscriptions/listen must be handled as a transport stream",
       )
-    method_name =>
-      match self.raw_handlers.get(method_name) {
-        Some(handler) =>
-          self.outcome_json(
-            context,
-            method_name,
-            handler(context, request.params),
-          )
-        None => raise MethodNotFound(method_name)
+    method_name => {
+      guard self.raw_handlers.get(method_name) is Some(handler) else {
+        raise MethodNotFound(method_name)
       }
+      self.outcome_json(context, method_name, handler(context, request.params))
+    }
   }
 }
 

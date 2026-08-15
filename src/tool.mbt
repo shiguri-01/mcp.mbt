@@ -332,22 +332,26 @@ pub impl @json.FromJson for CallToolResult with fn from_json(
   guard value is Object(fields) else {
     raise JsonDecodeError((path, "expected object"))
   }
-  let content_val = match fields.get("content") {
-    Some(Array(arr)) => arr
-    Some(_) =>
+  let content_val = match fields {
+    { "content": Array(arr), .. } => arr
+    { "content": _, .. } =>
       raise JsonDecodeError((path.add_key("content"), "expected array"))
-    None => []
+    _ => []
   }
   let content : Array[Content] = []
   for i, it in content_val {
     content.push(@json.from_json(it, path=path.add_key("content").add_index(i)))
   }
-  let structured_content = fields.get("structuredContent")
-  let is_error = match fields.get("isError") {
-    Some(True) => true
-    Some(False) | Some(Null) | None => false
-    Some(_) =>
+  let structured_content = match fields {
+    { "structuredContent": sc, .. } => Some(sc)
+    _ => None
+  }
+  let is_error = match fields {
+    { "isError": True, .. } => true
+    { "isError": False | Null, .. } => false
+    { "isError": _, .. } =>
       raise JsonDecodeError((path.add_key("isError"), "expected boolean"))
+    _ => false
   }
   let meta : ResultMeta? = match fields {
     { "_meta": v, .. } => Some(@json.from_json(v, path=path.add_key("_meta")))
@@ -427,20 +431,22 @@ pub impl @json.FromJson for ListToolsResult with fn from_json(
   guard value is Object(fields) else {
     raise JsonDecodeError((path, "expected object"))
   }
-  let tools_val = match fields.get("tools") {
-    Some(Array(arr)) => arr
-    Some(_) => raise JsonDecodeError((path.add_key("tools"), "expected array"))
-    None => raise JsonDecodeError((path.add_key("tools"), "tools is required"))
+  let tools_val = match fields {
+    { "tools": Array(arr), .. } => arr
+    { "tools": _, .. } =>
+      raise JsonDecodeError((path.add_key("tools"), "expected array"))
+    _ => raise JsonDecodeError((path.add_key("tools"), "tools is required"))
   }
   let tools : Array[Tool] = []
   for i, it in tools_val {
     tools.push(@json.from_json(it, path=path.add_key("tools").add_index(i)))
   }
-  let next_cursor = match fields.get("nextCursor") {
-    Some(String(s)) => Some(s)
-    Some(Null) | None => None
-    Some(_) =>
+  let next_cursor = match fields {
+    { "nextCursor": String(s), .. } => Some(s)
+    { "nextCursor": Null, .. } => None
+    { "nextCursor": _, .. } =>
       raise JsonDecodeError((path.add_key("nextCursor"), "expected string"))
+    _ => None
   }
   let cache_policy : CachePolicy = @json.from_json(value) catch {
     JsonDecodeError((_, msg)) => raise JsonDecodeError((path, msg))

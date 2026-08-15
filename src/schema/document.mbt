@@ -405,16 +405,16 @@ pub fn Document::Document(value : Json) -> Document raise SchemaError {
   guard value is Object(fields) else {
     raise InvalidDocument("a JSON Schema document must be an object or boolean")
   }
-  let dialect = match fields.get("$schema") {
-    None => draft_2020_12
-    Some(String(value)) if value == draft_2020_12 => value
-    Some(String(value)) => raise UnsupportedDialect(value)
-    Some(_) => raise InvalidDocument("$schema must be a string")
+  let dialect = match fields {
+    { "$schema": String(value), .. } if value == draft_2020_12 => value
+    { "$schema": String(value), .. } => raise UnsupportedDialect(value)
+    { "$schema": _, .. } => raise InvalidDocument("$schema must be a string")
+    _ => draft_2020_12
   }
-  if fields.get("$id") is Some(id) && !(id is String(_)) {
+  if fields is { "$id": id, .. } && !(id is String(_)) {
     raise InvalidDocument("$id must be a string")
   }
-  if fields.get("$ref") is Some(reference) && !(reference is String(_)) {
+  if fields is { "$ref": reference, .. } && !(reference is String(_)) {
     raise InvalidDocument("$ref must be a string")
   }
   validate_references(value, 0, 128)

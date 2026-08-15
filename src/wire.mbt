@@ -69,15 +69,14 @@ fn rpc_response_result(message : Json) -> Json raise McpError {
 
 ///|
 fn require_result_type(result : Json) -> String raise McpError {
-  guard result is Object(fields) else {
-    raise InvalidRequest("MCP result must be an object")
-  }
-  match fields.get("resultType") {
-    Some(String("complete")) => "complete"
-    Some(String("input_required")) => "input_required"
-    Some(String(value)) => value
-    Some(_) => raise InvalidRequest("resultType must be a string")
-    None => "complete"
+  match result {
+    Object({ "resultType": String("complete"), .. }) => "complete"
+    Object({ "resultType": String("input_required"), .. }) => "input_required"
+    Object({ "resultType": String(value), .. }) => value
+    Object({ "resultType": _, .. }) =>
+      raise InvalidRequest("resultType must be a string")
+    Object(_) => "complete"
+    _ => raise InvalidRequest("MCP result must be an object")
   }
 }
 
