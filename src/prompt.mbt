@@ -167,12 +167,7 @@ pub impl @json.FromJson for Prompt with fn from_json(
       let result : Array[PromptArgument] = []
       for i, it in arr {
         result.push(
-          @json.from_json(it) catch {
-            JsonDecodeError((_, msg)) =>
-              raise JsonDecodeError(
-                (path.add_key("arguments").add_index(i), msg),
-              )
-          },
+          @json.from_json(it, path=path.add_key("arguments").add_index(i)),
         )
       }
       result
@@ -189,10 +184,7 @@ pub impl @json.FromJson for Prompt with fn from_json(
       let result : Array[Icon] = []
       for i, it in arr {
         result.push(
-          @json.from_json(it) catch {
-            JsonDecodeError((_, msg)) =>
-              raise JsonDecodeError((path.add_key("icons").add_index(i), msg))
-          },
+          @json.from_json(it, path=path.add_key("icons").add_index(i)),
         )
       }
       result
@@ -252,23 +244,17 @@ pub impl @json.FromJson for PromptMessage with fn from_json(
   guard value is Object(fields) else {
     raise JsonDecodeError((path, "expected object"))
   }
-  let role_val = match fields.get("role") {
-    Some(v) => v
-    None => raise JsonDecodeError((path.add_key("role"), "role is required"))
+  guard fields is { "role": role_val, .. } else {
+    raise JsonDecodeError((path.add_key("role"), "role is required"))
   }
-  let role : Role = @json.from_json(role_val) catch {
-    JsonDecodeError((_, msg)) =>
-      raise JsonDecodeError((path.add_key("role"), msg))
+  let role : Role = @json.from_json(role_val, path=path.add_key("role"))
+  guard fields is { "content": content_val, .. } else {
+    raise JsonDecodeError((path.add_key("content"), "content is required"))
   }
-  let content_val = match fields.get("content") {
-    Some(v) => v
-    None =>
-      raise JsonDecodeError((path.add_key("content"), "content is required"))
-  }
-  let content : Content = @json.from_json(content_val) catch {
-    JsonDecodeError((_, msg)) =>
-      raise JsonDecodeError((path.add_key("content"), msg))
-  }
+  let content : Content = @json.from_json(
+    content_val,
+    path=path.add_key("content"),
+  )
   PromptMessage(role~, content~)
 }
 
@@ -337,21 +323,12 @@ pub impl @json.FromJson for GetPromptResult with fn from_json(
   let messages : Array[PromptMessage] = []
   for i, it in messages_val {
     messages.push(
-      @json.from_json(it) catch {
-        JsonDecodeError((_, msg)) =>
-          raise JsonDecodeError((path.add_key("messages").add_index(i), msg))
-      },
+      @json.from_json(it, path=path.add_key("messages").add_index(i)),
     )
   }
-  let meta : ResultMeta? = match fields.get("_meta") {
-    Some(v) =>
-      Some(
-        @json.from_json(v) catch {
-          JsonDecodeError((_, msg)) =>
-            raise JsonDecodeError((path.add_key("_meta"), msg))
-        },
-      )
-    None => None
+  let meta : ResultMeta? = match fields {
+    { "_meta": v, .. } => Some(@json.from_json(v, path=path.add_key("_meta")))
+    _ => None
   }
   { description, messages, meta }
 }
@@ -412,12 +389,7 @@ pub impl @json.FromJson for ListPromptsResult with fn from_json(
   }
   let prompts : Array[Prompt] = []
   for i, it in p_val {
-    prompts.push(
-      @json.from_json(it) catch {
-        JsonDecodeError((_, msg)) =>
-          raise JsonDecodeError((path.add_key("prompts").add_index(i), msg))
-      },
-    )
+    prompts.push(@json.from_json(it, path=path.add_key("prompts").add_index(i)))
   }
   let next_cursor = match fields.get("nextCursor") {
     Some(String(s)) => Some(s)
@@ -428,15 +400,9 @@ pub impl @json.FromJson for ListPromptsResult with fn from_json(
   let cache_policy : CachePolicy = @json.from_json(value) catch {
     JsonDecodeError((_, msg)) => raise JsonDecodeError((path, msg))
   }
-  let meta : ResultMeta? = match fields.get("_meta") {
-    Some(v) =>
-      Some(
-        @json.from_json(v) catch {
-          JsonDecodeError((_, msg)) =>
-            raise JsonDecodeError((path.add_key("_meta"), msg))
-        },
-      )
-    None => None
+  let meta : ResultMeta? = match fields {
+    { "_meta": v, .. } => Some(@json.from_json(v, path=path.add_key("_meta")))
+    _ => None
   }
   { prompts, next_cursor, cache_policy, meta }
 }

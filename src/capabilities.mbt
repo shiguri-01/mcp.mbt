@@ -354,35 +354,19 @@ pub impl @json.FromJson for ClientCapabilities with fn from_json(
       _ => extra[key] = val
     }
   }
-  let roots : RootsCapability? = match fields.get("roots") {
-    Some(v) =>
-      Some(
-        @json.from_json(v) catch {
-          JsonDecodeError((_, msg)) =>
-            raise JsonDecodeError((path.add_key("roots"), msg))
-        },
-      )
-    None => None
+  let roots : RootsCapability? = match fields {
+    { "roots": v, .. } => Some(@json.from_json(v, path=path.add_key("roots")))
+    _ => None
   }
-  let sampling : SamplingCapability? = match fields.get("sampling") {
-    Some(v) =>
-      Some(
-        @json.from_json(v) catch {
-          JsonDecodeError((_, msg)) =>
-            raise JsonDecodeError((path.add_key("sampling"), msg))
-        },
-      )
-    None => None
+  let sampling : SamplingCapability? = match fields {
+    { "sampling": v, .. } =>
+      Some(@json.from_json(v, path=path.add_key("sampling")))
+    _ => None
   }
-  let elicitation : ElicitationCapability? = match fields.get("elicitation") {
-    Some(v) =>
-      Some(
-        @json.from_json(v) catch {
-          JsonDecodeError((_, msg)) =>
-            raise JsonDecodeError((path.add_key("elicitation"), msg))
-        },
-      )
-    None => None
+  let elicitation : ElicitationCapability? = match fields {
+    { "elicitation": v, .. } =>
+      Some(@json.from_json(v, path=path.add_key("elicitation")))
+    _ => None
   }
   let extensions = parse_capability_map(
     fields, "extensions", "client capabilities",
@@ -705,45 +689,24 @@ pub impl @json.FromJson for ServerCapabilities with fn from_json(
       _ => extra[key] = item
     }
   }
-  let tools : ToolsCapability? = match fields.get("tools") {
-    Some(v) =>
-      Some(
-        @json.from_json(v) catch {
-          JsonDecodeError((_, msg)) =>
-            raise JsonDecodeError((path.add_key("tools"), msg))
-        },
-      )
-    None => None
+  let tools : ToolsCapability? = match fields {
+    { "tools": v, .. } => Some(@json.from_json(v, path=path.add_key("tools")))
+    _ => None
   }
-  let resources : ResourcesCapability? = match fields.get("resources") {
-    Some(v) =>
-      Some(
-        @json.from_json(v) catch {
-          JsonDecodeError((_, msg)) =>
-            raise JsonDecodeError((path.add_key("resources"), msg))
-        },
-      )
-    None => None
+  let resources : ResourcesCapability? = match fields {
+    { "resources": v, .. } =>
+      Some(@json.from_json(v, path=path.add_key("resources")))
+    _ => None
   }
-  let prompts : PromptsCapability? = match fields.get("prompts") {
-    Some(v) =>
-      Some(
-        @json.from_json(v) catch {
-          JsonDecodeError((_, msg)) =>
-            raise JsonDecodeError((path.add_key("prompts"), msg))
-        },
-      )
-    None => None
+  let prompts : PromptsCapability? = match fields {
+    { "prompts": v, .. } =>
+      Some(@json.from_json(v, path=path.add_key("prompts")))
+    _ => None
   }
-  let logging : LoggingCapability? = match fields.get("logging") {
-    Some(v) =>
-      Some(
-        @json.from_json(v) catch {
-          JsonDecodeError((_, msg)) =>
-            raise JsonDecodeError((path.add_key("logging"), msg))
-        },
-      )
-    None => None
+  let logging : LoggingCapability? = match fields {
+    { "logging": v, .. } =>
+      Some(@json.from_json(v, path=path.add_key("logging")))
+    _ => None
   }
   let completions = match fields.get("completions") {
     Some(Object(_)) => true

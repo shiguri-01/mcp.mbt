@@ -86,16 +86,13 @@ pub impl @json.FromJson for DiscoverResult with fn from_json(
         )
     }
   }
-  let cap_val = match fields.get("capabilities") {
-    Some(v) => v
-    None =>
+  let capabilities : ServerCapabilities = match fields {
+    { "capabilities": v, .. } =>
+      @json.from_json(v, path=path.add_key("capabilities"))
+    _ =>
       raise JsonDecodeError(
         (path.add_key("capabilities"), "capabilities is required"),
       )
-  }
-  let capabilities : ServerCapabilities = @json.from_json(cap_val) catch {
-    JsonDecodeError((_, msg)) =>
-      raise JsonDecodeError((path.add_key("capabilities"), msg))
   }
   let instructions = match fields.get("instructions") {
     Some(String(s)) => Some(s)
@@ -106,15 +103,9 @@ pub impl @json.FromJson for DiscoverResult with fn from_json(
   let cache_policy : CachePolicy = @json.from_json(value) catch {
     JsonDecodeError((_, msg)) => raise JsonDecodeError((path, msg))
   }
-  let meta : ResultMeta? = match fields.get("_meta") {
-    Some(v) =>
-      Some(
-        @json.from_json(v) catch {
-          JsonDecodeError((_, msg)) =>
-            raise JsonDecodeError((path.add_key("_meta"), msg))
-        },
-      )
-    None => None
+  let meta : ResultMeta? = match fields {
+    { "_meta": v, .. } => Some(@json.from_json(v, path=path.add_key("_meta")))
+    _ => None
   }
   DiscoverResult(
     supported_versions~,

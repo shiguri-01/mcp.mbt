@@ -353,20 +353,12 @@ pub impl @json.FromJson for Content with fn from_json(
   guard value is Object(fields) else {
     raise JsonDecodeError((path, "expected object"))
   }
-  let annotations : Annotations? = match fields.get("annotations") {
-    Some(v) =>
-      Some(
-        @json.from_json(v) catch {
-          JsonDecodeError((_, msg)) =>
-            raise JsonDecodeError((path.add_key("annotations"), msg))
-        },
-      )
-    None => None
+  let annotations : Annotations? = match fields {
+    { "annotations": v, .. } =>
+      Some(@json.from_json(v, path=path.add_key("annotations")))
+    _ => None
   }
-  let meta = match fields.get("_meta") {
-    Some(v) => Some(v)
-    None => None
-  }
+  let meta = fields.get("_meta")
   match fields.get("type") {
     Some(String("text")) =>
       match fields.get("text") {
@@ -415,17 +407,15 @@ pub impl @json.FromJson for Content with fn from_json(
       Content::audio(data~, mime_type~, annotations?, meta?)
     }
     Some(String("resource")) => {
-      let res_val = match fields.get("resource") {
-        Some(r) => r
-        None =>
-          raise JsonDecodeError(
-            (path.add_key("resource"), "resource is required"),
-          )
+      guard fields is { "resource": res_val, .. } else {
+        raise JsonDecodeError(
+          (path.add_key("resource"), "resource is required"),
+        )
       }
-      let resource : ResourceContent = @json.from_json(res_val) catch {
-        JsonDecodeError((_, msg)) =>
-          raise JsonDecodeError((path.add_key("resource"), msg))
-      }
+      let resource : ResourceContent = @json.from_json(
+        res_val,
+        path=path.add_key("resource"),
+      )
       Content::embedded_resource(resource~, annotations?, meta?)
     }
     Some(String("resource_link")) => {
@@ -467,12 +457,7 @@ pub impl @json.FromJson for Content with fn from_json(
           let result : Array[Icon] = []
           for i, it in arr {
             result.push(
-              @json.from_json(it) catch {
-                JsonDecodeError((_, msg)) =>
-                  raise JsonDecodeError(
-                    (path.add_key("icons").add_index(i), msg),
-                  )
-              },
+              @json.from_json(it, path=path.add_key("icons").add_index(i)),
             )
           }
           result

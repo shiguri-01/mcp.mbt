@@ -240,15 +240,9 @@ pub impl @json.FromJson for CompleteResult with fn from_json(
         (path.add_key("completion").add_key("hasMore"), "expected boolean"),
       )
   }
-  let meta : ResultMeta? = match fields.get("_meta") {
-    Some(v) =>
-      Some(
-        @json.from_json(v) catch {
-          JsonDecodeError((_, msg)) =>
-            raise JsonDecodeError((path.add_key("_meta"), msg))
-        },
-      )
-    None => None
+  let meta : ResultMeta? = match fields {
+    { "_meta": v, .. } => Some(@json.from_json(v, path=path.add_key("_meta")))
+    _ => None
   }
   CompleteResult(values~, total?, has_more~, meta?) catch {
     error => raise JsonDecodeError((path, error.message()))

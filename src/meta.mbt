@@ -138,23 +138,18 @@ pub impl @json.FromJson for RequestMeta with fn from_json(
         ),
       )
   }
-  let caps_val = match
-    fields.get("io.modelcontextprotocol/clientCapabilities") {
-    Some(v) => v
-    None =>
-      raise JsonDecodeError(
-        (
-          path.add_key("io.modelcontextprotocol/clientCapabilities"),
-          "clientCapabilities is required",
-        ),
-      )
+  guard fields is { "io.modelcontextprotocol/clientCapabilities": caps_val, .. } else {
+    raise JsonDecodeError(
+      (
+        path.add_key("io.modelcontextprotocol/clientCapabilities"),
+        "clientCapabilities is required",
+      ),
+    )
   }
-  let client_capabilities : ClientCapabilities = @json.from_json(caps_val) catch {
-    JsonDecodeError((_, msg)) =>
-      raise JsonDecodeError(
-        (path.add_key("io.modelcontextprotocol/clientCapabilities"), msg),
-      )
-  }
+  let client_capabilities : ClientCapabilities = @json.from_json(
+    caps_val,
+    path=path.add_key("io.modelcontextprotocol/clientCapabilities"),
+  )
   let extra : Map[String, Json] = Map([])
   for key, item in fields {
     match key {
@@ -166,18 +161,15 @@ pub impl @json.FromJson for RequestMeta with fn from_json(
       _ => extra[key] = item
     }
   }
-  let client_info : Implementation? = match
-    fields.get("io.modelcontextprotocol/clientInfo") {
-    Some(v) =>
+  let client_info : Implementation? = match fields {
+    { "io.modelcontextprotocol/clientInfo": v, .. } =>
       Some(
-        @json.from_json(v) catch {
-          JsonDecodeError((_, msg)) =>
-            raise JsonDecodeError(
-              (path.add_key("io.modelcontextprotocol/clientInfo"), msg),
-            )
-        },
+        @json.from_json(
+          v,
+          path=path.add_key("io.modelcontextprotocol/clientInfo"),
+        ),
       )
-    None => None
+    _ => None
   }
   let progress_token = match fields.get("progressToken") {
     Some(String(_) as s) => Some(s)
@@ -188,18 +180,15 @@ pub impl @json.FromJson for RequestMeta with fn from_json(
         (path.add_key("progressToken"), "expected string or number"),
       )
   }
-  let log_level : LoggingLevel? = match
-    fields.get("io.modelcontextprotocol/logLevel") {
-    Some(v) =>
+  let log_level : LoggingLevel? = match fields {
+    { "io.modelcontextprotocol/logLevel": v, .. } =>
       Some(
-        @json.from_json(v) catch {
-          JsonDecodeError((_, msg)) =>
-            raise JsonDecodeError(
-              (path.add_key("io.modelcontextprotocol/logLevel"), msg),
-            )
-        },
+        @json.from_json(
+          v,
+          path=path.add_key("io.modelcontextprotocol/logLevel"),
+        ),
       )
-    None => None
+    _ => None
   }
   RequestMeta(
     protocol_version~,

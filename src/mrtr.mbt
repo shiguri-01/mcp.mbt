@@ -440,12 +440,10 @@ pub impl @json.FromJson for InputRequiredResult with fn from_json(
     Some(Object(map)) => {
       let requests : Map[String, InputRequest] = Map([])
       for k, v in map {
-        requests[k] = @json.from_json(v) catch {
-          JsonDecodeError((_, msg)) =>
-            raise JsonDecodeError(
-              (path.add_key("inputRequests").add_key(k), msg),
-            )
-        }
+        requests[k] = @json.from_json(
+          v,
+          path=path.add_key("inputRequests").add_key(k),
+        )
       }
       Some(requests)
     }
@@ -459,15 +457,9 @@ pub impl @json.FromJson for InputRequiredResult with fn from_json(
     Some(_) =>
       raise JsonDecodeError((path.add_key("requestState"), "expected string"))
   }
-  let meta : ResultMeta? = match fields.get("_meta") {
-    Some(v) =>
-      Some(
-        @json.from_json(v) catch {
-          JsonDecodeError((_, msg)) =>
-            raise JsonDecodeError((path.add_key("_meta"), msg))
-        },
-      )
-    None => None
+  let meta : ResultMeta? = match fields {
+    { "_meta": v, .. } => Some(@json.from_json(v, path=path.add_key("_meta")))
+    _ => None
   }
   InputRequiredResult(input_requests?, request_state?, meta?) catch {
     error => raise JsonDecodeError((path, error.message()))

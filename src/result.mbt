@@ -88,18 +88,15 @@ pub impl @json.FromJson for ResultMeta with fn from_json(
   }
   let extra = fields.copy()
   extra.remove("io.modelcontextprotocol/serverInfo")
-  let server_info : Implementation? = match
-    fields.get("io.modelcontextprotocol/serverInfo") {
-    Some(v) =>
+  let server_info : Implementation? = match fields {
+    { "io.modelcontextprotocol/serverInfo": v, .. } =>
       Some(
-        @json.from_json(v) catch {
-          JsonDecodeError((_, msg)) =>
-            raise JsonDecodeError(
-              (path.add_key("io.modelcontextprotocol/serverInfo"), msg),
-            )
-        },
+        @json.from_json(
+          v,
+          path=path.add_key("io.modelcontextprotocol/serverInfo"),
+        ),
       )
-    None => None
+    _ => None
   }
   ResultMeta(server_info?, extra~) catch {
     error => raise JsonDecodeError((path, error.message()))

@@ -215,25 +215,17 @@ pub impl @json.FromJson for Tool with fn from_json(
       )
   }
   let output_schema = fields.get("outputSchema")
-  let annotations : ToolAnnotations? = match fields.get("annotations") {
-    Some(v) =>
-      Some(
-        @json.from_json(v) catch {
-          JsonDecodeError((_, msg)) =>
-            raise JsonDecodeError((path.add_key("annotations"), msg))
-        },
-      )
-    None => None
+  let annotations : ToolAnnotations? = match fields {
+    { "annotations": v, .. } =>
+      Some(@json.from_json(v, path=path.add_key("annotations")))
+    _ => None
   }
   let icons : Array[Icon] = match fields.get("icons") {
     Some(Array(arr)) => {
       let result : Array[Icon] = []
       for i, it in arr {
         result.push(
-          @json.from_json(it) catch {
-            JsonDecodeError((_, msg)) =>
-              raise JsonDecodeError((path.add_key("icons").add_index(i), msg))
-          },
+          @json.from_json(it, path=path.add_key("icons").add_index(i)),
         )
       }
       result
@@ -331,12 +323,7 @@ pub impl @json.FromJson for CallToolResult with fn from_json(
   }
   let content : Array[Content] = []
   for i, it in content_val {
-    content.push(
-      @json.from_json(it) catch {
-        JsonDecodeError((_, msg)) =>
-          raise JsonDecodeError((path.add_key("content").add_index(i), msg))
-      },
-    )
+    content.push(@json.from_json(it, path=path.add_key("content").add_index(i)))
   }
   let structured_content = fields.get("structuredContent")
   let is_error = match fields.get("isError") {
@@ -345,15 +332,9 @@ pub impl @json.FromJson for CallToolResult with fn from_json(
     Some(_) =>
       raise JsonDecodeError((path.add_key("isError"), "expected boolean"))
   }
-  let meta : ResultMeta? = match fields.get("_meta") {
-    Some(v) =>
-      Some(
-        @json.from_json(v) catch {
-          JsonDecodeError((_, msg)) =>
-            raise JsonDecodeError((path.add_key("_meta"), msg))
-        },
-      )
-    None => None
+  let meta : ResultMeta? = match fields {
+    { "_meta": v, .. } => Some(@json.from_json(v, path=path.add_key("_meta")))
+    _ => None
   }
   { content, structured_content, is_error, meta }
 }
@@ -443,12 +424,7 @@ pub impl @json.FromJson for ListToolsResult with fn from_json(
   }
   let tools : Array[Tool] = []
   for i, it in tools_val {
-    tools.push(
-      @json.from_json(it) catch {
-        JsonDecodeError((_, msg)) =>
-          raise JsonDecodeError((path.add_key("tools").add_index(i), msg))
-      },
-    )
+    tools.push(@json.from_json(it, path=path.add_key("tools").add_index(i)))
   }
   let next_cursor = match fields.get("nextCursor") {
     Some(String(s)) => Some(s)
@@ -459,15 +435,9 @@ pub impl @json.FromJson for ListToolsResult with fn from_json(
   let cache_policy : CachePolicy = @json.from_json(value) catch {
     JsonDecodeError((_, msg)) => raise JsonDecodeError((path, msg))
   }
-  let meta : ResultMeta? = match fields.get("_meta") {
-    Some(v) =>
-      Some(
-        @json.from_json(v) catch {
-          JsonDecodeError((_, msg)) =>
-            raise JsonDecodeError((path.add_key("_meta"), msg))
-        },
-      )
-    None => None
+  let meta : ResultMeta? = match fields {
+    { "_meta": v, .. } => Some(@json.from_json(v, path=path.add_key("_meta")))
+    _ => None
   }
   { tools, next_cursor, cache_policy, meta }
 }
