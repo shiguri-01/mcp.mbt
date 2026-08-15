@@ -89,42 +89,75 @@ pub impl ToJson for McpError with fn to_json(self : McpError) -> Json {
 }
 
 ///|
-fn parse_required_capabilities(
-  data : Json?,
-) -> ClientCapabilities raise McpError {
-  guard data is Some(Object(fields)) else {
-    raise InvalidRequest("-32021 error data must be an object")
-  }
-  guard fields.get("requiredCapabilities") is Some(value) else {
-    raise InvalidRequest("-32021 error data.requiredCapabilities is required")
-  }
-  ClientCapabilities::from_json(value)
+priv struct RequiredCapabilitiesPayload {
+  required_capabilities : ClientCapabilities
 }
 
 ///|
-fn parse_unsupported_version_data(
-  data : Json?,
-) -> (String, Array[String]) raise McpError {
-  guard data is Some(Object(fields)) else {
-    raise InvalidRequest("-32022 error data must be an object")
+impl @json.FromJson for RequiredCapabilitiesPayload with fn from_json(
+  value : Json,
+  path : @json.JsonPath,
+) -> RequiredCapabilitiesPayload raise {
+  guard value is Object(fields) else {
+    raise JsonDecodeError((path, "expected object"))
+  }
+  guard fields.get("requiredCapabilities") is Some(caps_json) else {
+    raise JsonDecodeError(
+      (path.add_key("requiredCapabilities"), "requiredCapabilities is required"),
+    )
+  }
+  let required_capabilities = @json.from_json(
+    caps_json,
+    path=path.add_key("requiredCapabilities"),
+  )
+  { required_capabilities, }
+}
+
+///|
+priv struct UnsupportedVersionPayload {
+  requested : String
+  supported : Array[String]
+}
+
+///|
+impl @json.FromJson for UnsupportedVersionPayload with fn from_json(
+  value : Json,
+  path : @json.JsonPath,
+) -> UnsupportedVersionPayload raise {
+  guard value is Object(fields) else {
+    raise JsonDecodeError((path, "expected object"))
   }
   let requested = match fields.get("requested") {
     Some(String(s)) => s
-    Some(_) => raise InvalidRequest("error data.requested must be a string")
-    None => raise InvalidRequest("error data.requested is required")
+    Some(_) =>
+      raise JsonDecodeError((path.add_key("requested"), "expected string"))
+    None =>
+      raise JsonDecodeError(
+        (path.add_key("requested"), "requested is required"),
+      )
   }
-  let supported = match fields.get("supported") {
-    Some(Array(values)) =>
-      values.map(value => {
-        match value {
-          String(version) => version
-          _ => raise InvalidRequest("error data.supported must contain strings")
+  let supported : Array[String] = match fields.get("supported") {
+    Some(Array(arr)) => {
+      let res : Array[String] = []
+      for i, item in arr {
+        match item {
+          String(s) => res.push(s)
+          _ =>
+            raise JsonDecodeError(
+              (path.add_key("supported").add_index(i), "expected string"),
+            )
         }
-      })
-    Some(_) => raise InvalidRequest("error data.supported must be an array")
-    None => raise InvalidRequest("error data.supported is required")
+      }
+      res
+    }
+    Some(_) =>
+      raise JsonDecodeError((path.add_key("supported"), "expected array"))
+    None =>
+      raise JsonDecodeError(
+        (path.add_key("supported"), "supported is required"),
+      )
   }
-  (requested, supported)
+  { requested, supported }
 }
 
 ///|
@@ -154,14 +187,26 @@ pub fn McpError::from_rpc_parts(
       }
     @jsonrpc.INTERNAL_ERROR => InternalError(message)
     -32020 => HeaderMismatch(message)
-    -32021 =>
-      MissingRequiredClientCapability(
-        message,
-        parse_required_capabilities(data),
-      )
+    -32021 => {
+      guard data is Some(data_val) else {
+        raise InvalidRequest("-32021 error data must be an object")
+      }
+      let payload : RequiredCapabilitiesPayload = @json.from_json(data_val) catch {
+        _ => raise InvalidRequest("-32021 error data invalid")
+      }
+      MissingRequiredClientCapability(message, payload.required_capabilities)
+    }
     -32022 => {
-      let (requested, supported) = parse_unsupported_version_data(data)
-      UnsupportedProtocolVersion(requested~, supported~)
+      guard data is Some(data_val) else {
+        raise InvalidRequest("-32022 error data must be an object")
+      }
+      let payload : UnsupportedVersionPayload = @json.from_json(data_val) catch {
+        _ => raise InvalidRequest("-32022 error data invalid")
+      }
+      UnsupportedProtocolVersion(
+        requested=payload.requested,
+        supported=payload.supported,
+      )
     }
     _ => RemoteError(code~, message~, data~)
   }

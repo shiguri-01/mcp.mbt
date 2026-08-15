@@ -17,7 +17,7 @@ pub fn progress_notification(
   total? : Double,
   message? : String,
 ) -> Json raise McpError {
-  ignore(parse_progress_token(progress_token, "progress notification"))
+  validate_progress_token(progress_token, "progress notification")
   let params : Map[String, Json] = {
     "progressToken": progress_token,
     "progress": Json::number(progress),

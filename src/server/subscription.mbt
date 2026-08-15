@@ -86,7 +86,7 @@ pub fn Server::accept_subscription(
   if request.method_name != "subscriptions/listen" {
     raise @mcp.InvalidRequest("expected subscriptions/listen request")
   }
-  let context = parse_context(request)
+  let context = decode_request_context(request)
   self.ensure_supported_version(context)
   guard request.params is Object(fields) else {
     raise @mcp.InvalidParams("subscriptions/listen params must be an object")

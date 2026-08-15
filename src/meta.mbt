@@ -101,9 +101,12 @@ pub impl ToJson for RequestMeta with fn to_json(self : RequestMeta) -> Json {
 }
 
 ///|
-fn parse_progress_token(value : Json, context : String) -> Json raise McpError {
+fn validate_progress_token(
+  value : Json,
+  context : String,
+) -> Unit raise McpError {
   match value {
-    String(_) | Number(_) => value
+    String(_) | Number(_) => ()
     _ =>
       raise InvalidParams("\{context}.progressToken must be a string or number")
   }

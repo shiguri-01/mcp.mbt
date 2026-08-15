@@ -306,7 +306,7 @@ pub impl ToJson for ClientCapabilities with fn to_json(
 }
 
 ///|
-fn parse_capability_map(
+fn decode_capability_map(
   fields : Map[String, Json],
   key : String,
   path : @json.JsonPath,
@@ -359,8 +359,8 @@ pub impl @json.FromJson for ClientCapabilities with fn from_json(
       Some(@json.from_json(v, path=path.add_key("elicitation")))
     _ => None
   }
-  let extensions = parse_capability_map(fields, "extensions", path)
-  let experimental = parse_capability_map(fields, "experimental", path)
+  let extensions = decode_capability_map(fields, "extensions", path)
+  let experimental = decode_capability_map(fields, "experimental", path)
   ClientCapabilities(
     roots?,
     sampling?,
@@ -695,8 +695,8 @@ pub impl @json.FromJson for ServerCapabilities with fn from_json(
       raise JsonDecodeError((path.add_key("completions"), "expected object"))
     None => false
   }
-  let extensions = parse_capability_map(fields, "extensions", path)
-  let experimental = parse_capability_map(fields, "experimental", path)
+  let extensions = decode_capability_map(fields, "extensions", path)
+  let experimental = decode_capability_map(fields, "experimental", path)
   ServerCapabilities(
     tools?,
     resources?,

@@ -1,5 +1,5 @@
 ///|
-fn parse_context(
+fn decode_request_context(
   request : @jsonrpc.Request[Json],
   hooks? : @mcp.RequestHooks = @mcp.RequestHooks(),
 ) -> @mcp.RequestContext raise @mcp.McpError {
@@ -454,7 +454,7 @@ async fn Server::dispatch_request(
   hooks? : @mcp.RequestHooks = @mcp.RequestHooks(),
 ) -> Json raise @mcp.McpError {
   self.registry_frozen = true
-  let context = parse_context(request, hooks~)
+  let context = decode_request_context(request, hooks~)
   self.ensure_supported_version(context)
   match request.method_name {
     "server/discover" => self.discover()
