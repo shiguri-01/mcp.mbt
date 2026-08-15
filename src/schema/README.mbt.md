@@ -16,24 +16,21 @@ struct HelloInput {
 
 ///|
 impl @schema.JsonSchema for HelloInput with fn json_schema() -> @schema.Schema {
-  @schema.object([
-    @schema.string(name="name", description="Name to greet", required=true),
-  ])
+  @schema.ObjectSchema(
+    properties={
+      "name": @schema.StringSchema(description="Name to greet").into_schema(),
+    },
+    required=["name"],
+  ).into_schema()
 }
 ```
 
-`Schema` is the typed AST. `Schema::document()` validates the document shape,
-and `Document::compile()` produces an instance validator. Use `Schema::raw`
-only for keywords not yet modeled by the typed AST. `schema_of((None : T?))`
-obtains a schema from a `JsonSchema` implementation without constructing `T`.
+Every JSON Schema 2020-12 type (`StringSchema`, `ObjectSchema`, `ArraySchema`,
+`IntegerSchema`, `NumberSchema`, `BooleanSchema`, `EnumSchema`, `ConstSchema`,
+`AllOfSchema`, `AnyOfSchema`, `OneOfSchema`, `NotSchema`, `RefSchema`, `RawSchema`)
+implements the `SchemaNode` trait and can be converted into `Schema` via
+`.into_schema()`.
 
-Common constraints are also typed constructors, for example
-`Schema::string_constraints(min_length=1)`,
-`Schema::array_constraints(items=Schema::integer(), min_items=1)`, and
-`Schema::object_constraints(properties={ "items": item_schema },
-min_properties=1)`. These constructors reject invalid bounds before a
-document is compiled.
-
-Value assertions are typed as well: `Schema::const_value(42)` and
-`Schema::enum_values(["draft", "published"])` use `ToJson`, so callers do not
-need to pre-encode ordinary MoonBit values as `Json`.
+`Schema::document()` validates the document shape, and `Document::compile()`
+produces an instance validator. `schema_of((None : T?))` obtains a schema from
+a `JsonSchema` implementation without constructing `T`.

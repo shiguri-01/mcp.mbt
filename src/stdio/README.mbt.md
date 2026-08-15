@@ -30,7 +30,10 @@ struct GreetInput {
 
 ///|
 impl @schema.JsonSchema for GreetInput with fn json_schema() -> @schema.Schema {
-  @schema.object([@schema.string(name="name", required=true)])
+  @schema.ObjectSchema(
+    properties={ "name": @schema.StringSchema().into_schema() },
+    required=["name"],
+  ).into_schema()
 }
 
 ///|

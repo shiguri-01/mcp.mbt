@@ -52,8 +52,3 @@ fn Map::copy_json(self : Map[String, Json]) -> Map[String, Json] {
   }
   copied
 }
-
-///|
-fn empty_object_schema() -> Json {
-  try! @schema.object([]).to_json()
-}

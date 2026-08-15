@@ -101,9 +101,9 @@ pub fn Tool::copy(self : Tool) -> Tool {
 /// Construct a tool descriptor.
 pub fn Tool::Tool(
   name~ : String,
+  input_schema~ : Json,
   title? : String,
   description? : String,
-  input_schema? : Json = empty_object_schema(),
   output_schema? : Json,
   annotations? : ToolAnnotations,
   icons? : Array[Icon] = [],
