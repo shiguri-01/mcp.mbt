@@ -39,10 +39,25 @@ fn skip_ows(value : String, index0 : Int) -> Int {
 
 ///|
 fn is_tchar(char : Char) -> Bool {
-  let code = char.to_int()
-  char is ('a'..='z' | 'A'..='Z' | '0'..='9') ||
-  "!#$%&'*+-.^_|~".contains(char.to_string()[:]) ||
-  code == 0x60
+  char
+  is ('a'..='z'
+  | 'A'..='Z'
+  | '0'..='9'
+  | '!'
+  | '#'
+  | '$'
+  | '%'
+  | '&'
+  | '\''
+  | '*'
+  | '+'
+  | '-'
+  | '.'
+  | '^'
+  | '_'
+  | '`'
+  | '|'
+  | '~')
 }
 
 ///|

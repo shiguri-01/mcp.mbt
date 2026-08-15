@@ -279,29 +279,18 @@ fn form_encode_component(value : String) -> String {
 }
 
 ///|
-fn hex_value(char : Char) -> Int? {
-  match char {
-    '0'..='9' => Some(char.to_int() - 0x30)
-    'a'..='f' => Some(char.to_int() - 0x61 + 10)
-    'A'..='F' => Some(char.to_int() - 0x41 + 10)
-    _ => None
-  }
-}
-
-///|
 pub fn percent_decode(value : String) -> String raise AuthError {
   let bytes : Array[Byte] = []
   let mut index = 0
   while index < value.length() {
     if value[index] == '%' {
-      guard index + 2 < value.length() &&
-        value.get_char(index + 1) is Some(high_char) &&
-        value.get_char(index + 2) is Some(low_char) &&
-        hex_value(high_char) is Some(high) &&
-        hex_value(low_char) is Some(low) else {
+      if index + 2 >= value.length() {
         raise InvalidUri("malformed percent escape")
       }
-      bytes.push((high * 16 + low).to_byte())
+      let byte_val = @string.parse_int(value[index + 1:index + 3], base=16) catch {
+        _ => raise InvalidUri("malformed percent escape")
+      }
+      bytes.push(byte_val.to_byte())
       index += 3
     } else {
       guard value.get_char(index) is Some(char) else {

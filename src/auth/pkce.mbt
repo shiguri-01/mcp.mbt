@@ -1,8 +1,6 @@
 ///|
 fn base64_url(input : Bytes) -> String {
-  @base64.encode(input, padding=false)
-  .replace_all(old="+", new="-")
-  .replace_all(old="/", new="_")
+  @base64_x.encode(input[:], url_safe=true).replace_all(old="=", new="")
 }
 
 ///|
@@ -15,7 +13,9 @@ pub fn pkce_challenge(code_verifier : String) -> String raise AuthError {
       raise AuthorizationFailed("PKCE verifier contains an invalid character")
     }
   }
-  base64_url(sha256_digest(@utf8.encode(code_verifier)))
+  base64_url(
+    Bytes::from_iter(@crypto.sha256(@utf8.encode(code_verifier)).iter()),
+  )
 }
 
 ///|

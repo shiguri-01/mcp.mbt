@@ -14,6 +14,7 @@ description = "A library for building Model Context Protocol servers and clients
 
 import {
   "moonbitlang/async@0.19.1",
+  "moonbitlang/x@0.4.50",
 }
 
 source = "src"

@@ -47,7 +47,7 @@ fn resource_parameter(
 fn basic_credentials(credentials : ClientCredentials) -> String {
   let user = form_encode_component(credentials.client_id)
   let password = form_encode_component(credentials.client_secret.unwrap_or(""))
-  "Basic " + @base64.encode(@utf8.encode(user + ":" + password))
+  "Basic " + @base64_x.encode(@utf8.encode(user + ":" + password)[:])
 }
 
 ///|
