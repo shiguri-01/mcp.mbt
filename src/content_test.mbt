@@ -129,3 +129,31 @@ test "resource descriptors encode annotations icons and size" {
     Json::object({ "templated": Json::boolean(true) }),
   )
 }
+
+///|
+test "ResourceLink decodes independently and roundtrips" {
+  let json = Json::object({
+    "uri": Json::string("file:///data.csv"),
+    "name": Json::string("data"),
+    "title": Json::string("Data file"),
+    "size": Json::number(1024.0),
+  })
+  let link = try! @mcp.ResourceLink::from_json(json)
+  assert_true(link.uri == "file:///data.csv")
+  assert_true(link.name == "data")
+  assert_true(link.size == Some(1024L))
+}
+
+///|
+test "Server explicit seal prevents further registrations" {
+  let server = try! @mcp.Server(name="test-server", version="1.0.0")
+  server.seal()
+  let error_caught = Ref(false)
+  server.tool_raw(name="dummy", fn(_ctx, _input) {
+    @mcp.Complete(@mcp.CallToolResult::text("dummy"))
+  }) catch {
+    @mcp.InvalidRequest(_) => error_caught.val = true
+    _ => ()
+  }
+  assert_true(error_caught.val)
+}

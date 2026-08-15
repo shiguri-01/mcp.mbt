@@ -173,8 +173,9 @@ pub impl @json.FromJson for CompletionRequest with fn from_json(
 ///|
 pub fn CompletionRequest::from_json(
   value : Json,
+  path? : @json.JsonPath,
 ) -> CompletionRequest raise McpError {
-  decode_json(value, context="completion/complete params")
+  decode_json(value, path?)
 }
 
 ///|
@@ -289,11 +290,14 @@ pub impl @json.FromJson for CompleteResult with fn from_json(
     None => None
   }
   CompleteResult(values~, total?, has_more~, meta?) catch {
-    error => raise JsonDecodeError((path, error.message()))
+    error => raise JsonDecodeError((path, error.to_string()))
   }
 }
 
 ///|
-pub fn CompleteResult::from_json(value : Json) -> CompleteResult raise McpError {
-  decode_json(value, context="completion/complete result")
+pub fn CompleteResult::from_json(
+  value : Json,
+  path? : @json.JsonPath,
+) -> CompleteResult raise McpError {
+  decode_json(value, path?)
 }

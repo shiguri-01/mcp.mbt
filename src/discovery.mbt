@@ -44,20 +44,6 @@ pub impl ToJson for DiscoverResult with fn to_json(self : DiscoverResult) -> Jso
 }
 
 ///|
-fn parse_ttl_ms(
-  fields : Map[String, Json],
-  context : String,
-) -> Int64 raise McpError {
-  match fields.get("ttlMs") {
-    Some(Number(value, ..)) if value >= 0.0 &&
-      value == value.to_int64().to_double() => value.to_int64()
-    Some(_) =>
-      raise InvalidParams("\{context}.ttlMs must be a non-negative integer")
-    None => raise InvalidParams("\{context}.ttlMs is required")
-  }
-}
-
-///|
 pub impl @json.FromJson for DiscoverResult with fn from_json(
   value : Json,
   path : @json.JsonPath,
@@ -119,12 +105,15 @@ pub impl @json.FromJson for DiscoverResult with fn from_json(
     cache_policy~,
     meta?,
   ) catch {
-    error => raise JsonDecodeError((path, error.message()))
+    error => raise JsonDecodeError((path, error.to_string()))
   }
 }
 
 ///|
 /// Decode a `server/discover` result after the JSON-RPC envelope is removed.
-pub fn DiscoverResult::from_json(value : Json) -> DiscoverResult raise McpError {
-  decode_json(value, context="discover result")
+pub fn DiscoverResult::from_json(
+  value : Json,
+  path? : @json.JsonPath,
+) -> DiscoverResult raise McpError {
+  decode_json(value, path?)
 }

@@ -86,9 +86,9 @@ pub impl @json.FromJson for PromptArgument with fn from_json(
 ///|
 pub fn PromptArgument::from_json(
   value : Json,
-  context? : String = "prompt argument",
+  path? : @json.JsonPath,
 ) -> PromptArgument raise McpError {
-  decode_json(value, context~)
+  decode_json(value, path?)
 }
 
 ///|
@@ -198,9 +198,9 @@ pub impl @json.FromJson for Prompt with fn from_json(
 ///|
 pub fn Prompt::from_json(
   value : Json,
-  context? : String = "prompt",
+  path? : @json.JsonPath,
 ) -> Prompt raise McpError {
-  decode_json(value, context~)
+  decode_json(value, path?)
 }
 
 ///|
@@ -260,9 +260,9 @@ pub impl @json.FromJson for PromptMessage with fn from_json(
 ///|
 pub fn PromptMessage::from_json(
   value : Json,
-  context? : String = "prompt message",
+  path? : @json.JsonPath,
 ) -> PromptMessage raise McpError {
-  decode_json(value, context~)
+  decode_json(value, path?)
 }
 
 ///|
@@ -333,8 +333,9 @@ pub impl @json.FromJson for GetPromptResult with fn from_json(
 ///|
 pub fn GetPromptResult::from_json(
   value : Json,
+  path? : @json.JsonPath,
 ) -> GetPromptResult raise McpError {
-  decode_json(value, context="prompts/get result")
+  decode_json(value, path?)
 }
 
 ///|
@@ -411,6 +412,7 @@ pub impl @json.FromJson for ListPromptsResult with fn from_json(
 ///|
 pub fn ListPromptsResult::from_json(
   value : Json,
+  path? : @json.JsonPath,
 ) -> ListPromptsResult raise McpError {
-  decode_json(value, context="prompts/list result")
+  decode_json(value, path?)
 }

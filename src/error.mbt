@@ -47,6 +47,16 @@ pub fn McpError::message(self : McpError) -> String {
 }
 
 ///|
+pub fn McpError::to_string(self : McpError) -> String {
+  self.message()
+}
+
+///|
+pub impl Show for McpError with fn output(self : McpError, logger : &Logger) -> Unit {
+  logger.write_string(self.message())
+}
+
+///|
 pub fn McpError::data(self : McpError) -> Json? {
   match self {
     MissingRequiredClientCapability(_, required) =>
@@ -88,10 +98,7 @@ fn parse_required_capabilities(
   guard fields.get("requiredCapabilities") is Some(value) else {
     raise InvalidRequest("-32021 error data.requiredCapabilities is required")
   }
-  ClientCapabilities::from_json(
-    value,
-    context="error data.requiredCapabilities",
-  )
+  ClientCapabilities::from_json(value)
 }
 
 ///|

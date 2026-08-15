@@ -15,7 +15,7 @@ pub fn cancelled_notification(request_id~ : Json, reason? : String) -> Json rais
 
 pub fn complete_result(Json, server_info? : Implementation, meta? : Map[String, Json]) -> Json raise McpError
 
-pub fn[T : @json.FromJson] decode_json(Json, context? : String) -> T raise McpError
+pub fn[T : @json.FromJson] decode_json(Json, path? : @json.JsonPath) -> T raise McpError
 
 pub fn decode_message(Json) -> @jsonrpc.Message raise McpError
 
@@ -91,6 +91,8 @@ pub fn McpError::from_jsonrpc_decode_error(@jsonrpc.JsonRpcDecodeError) -> Self
 pub fn McpError::from_rpc_parts(Int, String, data? : Json) -> Self raise Self
 pub fn McpError::message(Self) -> String
 pub fn McpError::to_error_object(Self) -> @jsonrpc.ErrorObject
+pub fn McpError::to_string(Self) -> String
+pub impl Show for McpError
 pub impl ToJson for McpError
 
 // Types and methods
@@ -100,7 +102,7 @@ pub struct Annotations {
   last_modified : String?
 } derive(Eq, @debug.Debug)
 pub fn Annotations::Annotations(audience? : Array[Role], priority? : Double, last_modified? : String) -> Self raise McpError
-pub fn Annotations::from_json(Json, context? : String) -> Self raise McpError
+pub fn Annotations::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
 pub impl ToJson for Annotations
 pub impl @json.FromJson for Annotations
 
@@ -109,7 +111,7 @@ pub struct CachePolicy {
   scope : CacheScope
 } derive(Eq, @debug.Debug)
 pub fn CachePolicy::CachePolicy(ttl_ms~ : Int64, scope? : CacheScope) -> Self raise McpError
-pub fn CachePolicy::from_json(Map[String, Json], context? : String) -> Self raise McpError
+pub fn CachePolicy::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
 pub impl ToJson for CachePolicy
 pub impl @json.FromJson for CachePolicy
 
@@ -117,7 +119,7 @@ pub(all) enum CacheScope {
   Public
   Private
 } derive(Eq, @debug.Debug)
-pub fn CacheScope::from_json(Json) -> Self raise McpError
+pub fn CacheScope::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
 pub impl ToJson for CacheScope
 pub impl @json.FromJson for CacheScope
 
@@ -126,7 +128,7 @@ pub struct CallToolParams {
   arguments : Json
 } derive(Eq, @debug.Debug)
 pub fn CallToolParams::CallToolParams(name~ : String, arguments? : Json) -> Self raise McpError
-pub fn CallToolParams::from_json(Json) -> Self raise McpError
+pub fn CallToolParams::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
 pub impl ToJson for CallToolParams
 pub impl @json.FromJson for CallToolParams
 
@@ -139,7 +141,7 @@ pub struct CallToolResult {
 pub fn CallToolResult::CallToolResult(content~ : Array[Content], structured_content? : Json, is_error? : Bool, meta? : ResultMeta) -> Self
 pub fn[T : @json.FromJson] CallToolResult::decode_structured(Self) -> T raise McpError
 pub fn CallToolResult::error_text(String, annotations? : Annotations, meta? : Json) -> Self
-pub fn CallToolResult::from_json(Json) -> Self raise McpError
+pub fn CallToolResult::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
 pub fn CallToolResult::json(Json) -> Self
 pub fn[T : ToJson] CallToolResult::structured(T) -> Self
 pub fn CallToolResult::text(String, annotations? : Annotations, meta? : Json) -> Self
@@ -151,7 +153,7 @@ pub struct CancelledNotificationParams {
   reason : String?
 } derive(Eq, @debug.Debug)
 pub fn CancelledNotificationParams::CancelledNotificationParams(request_id~ : Json, reason? : String) -> Self raise McpError
-pub fn CancelledNotificationParams::from_json(Json) -> Self raise McpError
+pub fn CancelledNotificationParams::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
 pub impl ToJson for CancelledNotificationParams
 pub impl @json.FromJson for CancelledNotificationParams
 
@@ -214,7 +216,7 @@ pub struct ClientCapabilities {
 } derive(Eq, @debug.Debug)
 pub fn ClientCapabilities::ClientCapabilities(roots? : RootsCapability, sampling? : SamplingCapability, elicitation? : ElicitationCapability, extensions? : Map[String, Json], experimental? : Map[String, Json], extra? : Map[String, Json]) -> Self
 pub fn ClientCapabilities::empty() -> Self
-pub fn ClientCapabilities::from_json(Json, context? : String) -> Self raise McpError
+pub fn ClientCapabilities::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
 pub impl ToJson for ClientCapabilities
 pub impl @json.FromJson for ClientCapabilities
 
@@ -225,7 +227,7 @@ pub struct CompleteResult {
   meta : ResultMeta?
 } derive(Eq, @debug.Debug)
 pub fn CompleteResult::CompleteResult(values~ : Array[String], total? : Int, has_more? : Bool, meta? : ResultMeta) -> Self raise McpError
-pub fn CompleteResult::from_json(Json) -> Self raise McpError
+pub fn CompleteResult::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
 pub impl ToJson for CompleteResult
 pub impl @json.FromJson for CompleteResult
 
@@ -245,7 +247,7 @@ pub struct CompletionRequest {
   context_arguments : Map[String, String]
   meta : Json?
 } derive(Eq, @debug.Debug)
-pub fn CompletionRequest::from_json(Json) -> Self raise McpError
+pub fn CompletionRequest::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
 pub impl @json.FromJson for CompletionRequest
 
 pub(all) enum Content {
@@ -257,7 +259,7 @@ pub(all) enum Content {
 } derive(Eq, @debug.Debug)
 pub fn Content::audio(data~ : String, mime_type~ : String, annotations? : Annotations, meta? : Json) -> Self
 pub fn Content::embedded_resource(resource~ : ResourceContent, annotations? : Annotations, meta? : Json) -> Self
-pub fn Content::from_json(Json) -> Self raise McpError
+pub fn Content::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
 pub fn Content::image(data~ : String, mime_type~ : String, annotations? : Annotations, meta? : Json) -> Self
 pub fn Content::resource_link(ResourceLink) -> Self
 pub fn Content::text(String, annotations? : Annotations, meta? : Json) -> Self
@@ -286,7 +288,7 @@ pub struct DiscoverResult {
   meta : ResultMeta?
 } derive(@debug.Debug)
 pub fn DiscoverResult::DiscoverResult(supported_versions? : Array[String], capabilities~ : ServerCapabilities, instructions? : String, cache_policy~ : CachePolicy, meta? : ResultMeta) -> Self raise McpError
-pub fn DiscoverResult::from_json(Json) -> Self raise McpError
+pub fn DiscoverResult::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
 pub impl ToJson for DiscoverResult
 pub impl @json.FromJson for DiscoverResult
 
@@ -301,7 +303,7 @@ pub struct ElicitationCapability {
   url : Json?
 } derive(Eq, @debug.Debug)
 pub fn ElicitationCapability::ElicitationCapability(form? : Json, url? : Json) -> Self
-pub fn ElicitationCapability::from_json(Json, context? : String) -> Self raise McpError
+pub fn ElicitationCapability::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
 pub impl ToJson for ElicitationCapability
 pub impl @json.FromJson for ElicitationCapability
 
@@ -341,7 +343,7 @@ pub struct GetPromptParams {
   arguments : Map[String, String]
 } derive(Eq, @debug.Debug)
 pub fn GetPromptParams::GetPromptParams(name~ : String, arguments? : Map[String, String]) -> Self raise McpError
-pub fn GetPromptParams::from_json(Json) -> Self raise McpError
+pub fn GetPromptParams::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
 pub impl ToJson for GetPromptParams
 pub impl @json.FromJson for GetPromptParams
 
@@ -351,7 +353,7 @@ pub struct GetPromptResult {
   meta : ResultMeta?
 } derive(Eq, @debug.Debug)
 pub fn GetPromptResult::GetPromptResult(messages~ : Array[PromptMessage], description? : String, meta? : ResultMeta) -> Self
-pub fn GetPromptResult::from_json(Json) -> Self raise McpError
+pub fn GetPromptResult::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
 pub fn GetPromptResult::user(String, description? : String) -> Self
 pub impl ToJson for GetPromptResult
 pub impl @json.FromJson for GetPromptResult
@@ -396,7 +398,7 @@ pub struct InputRequest {
   params : Json
 } derive(Eq, @debug.Debug)
 pub fn InputRequest::InputRequest(method_name~ : String, params? : Json) -> Self raise McpError
-pub fn InputRequest::from_json(Json) -> Self raise McpError
+pub fn InputRequest::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
 pub impl ToJson for InputRequest
 pub impl @json.FromJson for InputRequest
 
@@ -406,7 +408,7 @@ pub struct InputRequiredResult {
   meta : ResultMeta?
 } derive(Eq, @debug.Debug)
 pub fn InputRequiredResult::InputRequiredResult(input_requests? : Map[String, InputRequest], request_state? : String, meta? : ResultMeta) -> Self raise McpError
-pub fn InputRequiredResult::from_json(Json) -> Self raise McpError
+pub fn InputRequiredResult::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
 pub fn InputRequiredResult::retry_options(Self, Map[String, InputResponse], base? : RequestOptions) -> RequestOptions raise McpError
 pub impl ToJson for InputRequiredResult
 pub impl @json.FromJson for InputRequiredResult
@@ -424,7 +426,7 @@ pub struct ListParams {
   cursor : String?
 } derive(Eq, @debug.Debug)
 pub fn ListParams::ListParams(cursor? : String) -> Self
-pub fn ListParams::from_json(Json) -> Self raise McpError
+pub fn ListParams::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
 pub impl ToJson for ListParams
 pub impl @json.FromJson for ListParams
 
@@ -434,7 +436,7 @@ pub struct ListPromptsResult {
   cache_policy : CachePolicy
   meta : ResultMeta?
 } derive(Eq, @debug.Debug)
-pub fn ListPromptsResult::from_json(Json) -> Self raise McpError
+pub fn ListPromptsResult::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
 pub impl ToJson for ListPromptsResult
 pub impl @json.FromJson for ListPromptsResult
 
@@ -444,7 +446,7 @@ pub struct ListResourceTemplatesResult {
   cache_policy : CachePolicy
   meta : ResultMeta?
 } derive(Eq, @debug.Debug)
-pub fn ListResourceTemplatesResult::from_json(Json) -> Self raise McpError
+pub fn ListResourceTemplatesResult::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
 pub impl ToJson for ListResourceTemplatesResult
 pub impl @json.FromJson for ListResourceTemplatesResult
 
@@ -454,7 +456,7 @@ pub struct ListResourcesResult {
   cache_policy : CachePolicy
   meta : ResultMeta?
 } derive(Eq, @debug.Debug)
-pub fn ListResourcesResult::from_json(Json) -> Self raise McpError
+pub fn ListResourcesResult::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
 pub impl ToJson for ListResourcesResult
 pub impl @json.FromJson for ListResourcesResult
 
@@ -464,14 +466,14 @@ pub struct ListToolsResult {
   cache_policy : CachePolicy
   meta : ResultMeta?
 } derive(Eq, @debug.Debug)
-pub fn ListToolsResult::from_json(Json) -> Self raise McpError
+pub fn ListToolsResult::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
 pub impl ToJson for ListToolsResult
 pub impl @json.FromJson for ListToolsResult
 
 pub struct LoggingCapability {
 } derive(Eq, @debug.Debug)
 pub fn LoggingCapability::LoggingCapability() -> Self
-pub fn LoggingCapability::from_json(Json, context? : String) -> Self raise McpError
+pub fn LoggingCapability::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
 pub impl ToJson for LoggingCapability
 pub impl @json.FromJson for LoggingCapability
 
@@ -485,7 +487,7 @@ pub(all) enum LoggingLevel {
   Alert
   Emergency
 } derive(Eq, @debug.Debug)
-pub fn LoggingLevel::from_json(Json) -> Self raise McpError
+pub fn LoggingLevel::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
 pub fn LoggingLevel::to_string(Self) -> String
 pub impl ToJson for LoggingLevel
 pub impl @json.FromJson for LoggingLevel
@@ -501,7 +503,7 @@ pub struct Prompt {
   meta : Json?
 } derive(Eq, @debug.Debug)
 pub fn Prompt::Prompt(name~ : String, title? : String, description? : String, arguments? : Array[PromptArgument], icons? : Array[Icon], meta? : Json) -> Self
-pub fn Prompt::from_json(Json, context? : String) -> Self raise McpError
+pub fn Prompt::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
 pub impl ToJson for Prompt
 pub impl @json.FromJson for Prompt
 
@@ -512,7 +514,7 @@ pub struct PromptArgument {
   required : Bool
 } derive(Eq, @debug.Debug)
 pub fn PromptArgument::PromptArgument(name~ : String, title? : String, description? : String, required? : Bool) -> Self
-pub fn PromptArgument::from_json(Json, context? : String) -> Self raise McpError
+pub fn PromptArgument::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
 pub impl ToJson for PromptArgument
 pub impl @json.FromJson for PromptArgument
 
@@ -522,7 +524,7 @@ pub struct PromptMessage {
 } derive(Eq, @debug.Debug)
 pub fn PromptMessage::PromptMessage(role~ : Role, content~ : Content) -> Self
 pub fn PromptMessage::assistant(String) -> Self
-pub fn PromptMessage::from_json(Json, context? : String) -> Self raise McpError
+pub fn PromptMessage::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
 pub fn PromptMessage::user(String) -> Self
 pub impl ToJson for PromptMessage
 pub impl @json.FromJson for PromptMessage
@@ -531,7 +533,7 @@ pub struct PromptsCapability {
   list_changed : Bool?
 } derive(Eq, @debug.Debug)
 pub fn PromptsCapability::PromptsCapability(list_changed? : Bool) -> Self
-pub fn PromptsCapability::from_json(Json, context? : String) -> Self raise McpError
+pub fn PromptsCapability::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
 pub impl ToJson for PromptsCapability
 pub impl @json.FromJson for PromptsCapability
 
@@ -539,7 +541,7 @@ pub struct ReadResourceParams {
   uri : String
 } derive(Eq, @debug.Debug)
 pub fn ReadResourceParams::ReadResourceParams(uri~ : String) -> Self raise McpError
-pub fn ReadResourceParams::from_json(Json) -> Self raise McpError
+pub fn ReadResourceParams::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
 pub impl ToJson for ReadResourceParams
 pub impl @json.FromJson for ReadResourceParams
 
@@ -549,7 +551,7 @@ pub struct ReadResourceResult {
   meta : ResultMeta?
 } derive(Eq, @debug.Debug)
 pub fn ReadResourceResult::ReadResourceResult(contents~ : Array[ResourceContent], cache_policy? : CachePolicy, meta? : ResultMeta) -> Self
-pub fn ReadResourceResult::from_json(Json) -> Self raise McpError
+pub fn ReadResourceResult::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
 pub fn ReadResourceResult::text(uri~ : String, text~ : String, mime_type? : String) -> Self
 pub impl ToJson for ReadResourceResult
 pub impl @json.FromJson for ReadResourceResult
@@ -589,7 +591,7 @@ pub struct RequestMeta {
   extra : Map[String, Json]
 } derive(Eq, @debug.Debug)
 pub fn RequestMeta::RequestMeta(protocol_version? : String, client_info? : Implementation, client_capabilities? : ClientCapabilities, progress_token? : Json, log_level? : LoggingLevel, extra? : Map[String, Json]) -> Self raise McpError
-pub fn RequestMeta::from_json(Json) -> Self raise McpError
+pub fn RequestMeta::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
 pub impl ToJson for RequestMeta
 pub impl @json.FromJson for RequestMeta
 
@@ -616,7 +618,7 @@ pub struct Resource {
   meta : Json?
 } derive(Eq, @debug.Debug)
 pub fn Resource::Resource(uri~ : String, name~ : String, title? : String, description? : String, mime_type? : String, icons? : Array[Icon], annotations? : Annotations, size? : Int64, meta? : Json) -> Self raise McpError
-pub fn Resource::from_json(Json, context? : String) -> Self raise McpError
+pub fn Resource::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
 pub fn Resource::text(uri~ : String, name~ : String, title? : String, description? : String, mime_type? : String, annotations? : Annotations, size? : Int64) -> Self raise McpError
 pub impl ToJson for Resource
 pub impl @json.FromJson for Resource
@@ -626,6 +628,7 @@ pub(all) enum ResourceContent {
   ResourceBlob(uri~ : String, blob~ : String, mime_type~ : String?, meta~ : Json?)
 } derive(Eq, @debug.Debug)
 pub fn ResourceContent::blob(uri~ : String, blob~ : String, mime_type? : String, meta? : Json) -> Self
+pub fn ResourceContent::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
 pub fn ResourceContent::text(uri~ : String, text~ : String, mime_type? : String, meta? : Json) -> Self
 pub impl ToJson for ResourceContent
 pub impl @json.FromJson for ResourceContent
@@ -642,7 +645,9 @@ pub struct ResourceLink {
   meta : Json?
 } derive(Eq, @debug.Debug)
 pub fn ResourceLink::ResourceLink(uri~ : String, name~ : String, title? : String, description? : String, mime_type? : String, icons? : Array[Icon], annotations? : Annotations, size? : Int64, meta? : Json) -> Self raise McpError
+pub fn ResourceLink::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
 pub impl ToJson for ResourceLink
+pub impl @json.FromJson for ResourceLink
 
 pub struct ResourceTemplate {
   uri_template : String
@@ -655,7 +660,7 @@ pub struct ResourceTemplate {
   meta : Json?
 } derive(Eq, @debug.Debug)
 pub fn ResourceTemplate::ResourceTemplate(uri_template~ : String, name~ : String, title? : String, description? : String, mime_type? : String, icons? : Array[Icon], annotations? : Annotations, meta? : Json) -> Self
-pub fn ResourceTemplate::from_json(Json, context? : String) -> Self raise McpError
+pub fn ResourceTemplate::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
 pub impl ToJson for ResourceTemplate
 pub impl @json.FromJson for ResourceTemplate
 
@@ -664,7 +669,7 @@ pub struct ResourcesCapability {
   list_changed : Bool?
 } derive(Eq, @debug.Debug)
 pub fn ResourcesCapability::ResourcesCapability(subscribe? : Bool, list_changed? : Bool) -> Self
-pub fn ResourcesCapability::from_json(Json, context? : String) -> Self raise McpError
+pub fn ResourcesCapability::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
 pub impl ToJson for ResourcesCapability
 pub impl @json.FromJson for ResourcesCapability
 
@@ -673,7 +678,7 @@ pub struct ResultMeta {
   extra : Map[String, Json]
 } derive(Eq, @debug.Debug)
 pub fn ResultMeta::ResultMeta(server_info? : Implementation, extra? : Map[String, Json]) -> Self raise McpError
-pub fn ResultMeta::from_json(Json, context? : String) -> Self raise McpError
+pub fn ResultMeta::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
 pub impl ToJson for ResultMeta
 pub impl @json.FromJson for ResultMeta
 
@@ -682,7 +687,7 @@ pub(all) enum ResultType {
   InputRequired
   Extension(String)
 } derive(Eq, @debug.Debug)
-pub fn ResultType::from_json(Json) -> Self raise McpError
+pub fn ResultType::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
 pub fn ResultType::to_string(Self) -> String
 pub impl ToJson for ResultType
 pub impl @json.FromJson for ResultType
@@ -706,7 +711,7 @@ pub struct RootsCapability {
   list_changed : Bool?
 } derive(Eq, @debug.Debug)
 pub fn RootsCapability::RootsCapability(list_changed? : Bool) -> Self
-pub fn RootsCapability::from_json(Json, context? : String) -> Self raise McpError
+pub fn RootsCapability::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
 pub impl ToJson for RootsCapability
 pub impl @json.FromJson for RootsCapability
 
@@ -719,7 +724,7 @@ pub impl ToJson for RootsListResult
 pub struct SamplingCapability {
 } derive(Eq, @debug.Debug)
 pub fn SamplingCapability::SamplingCapability() -> Self
-pub fn SamplingCapability::from_json(Json, context? : String) -> Self raise McpError
+pub fn SamplingCapability::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
 pub impl ToJson for SamplingCapability
 pub impl @json.FromJson for SamplingCapability
 
@@ -727,18 +732,20 @@ pub(all) enum SamplingContent {
   Single(SamplingContentBlock)
   Multiple(Array[SamplingContentBlock])
 } derive(Eq, @debug.Debug)
-pub fn SamplingContent::from_json(Json) -> Self raise McpError
+pub fn SamplingContent::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
 pub impl ToJson for SamplingContent
+pub impl @json.FromJson for SamplingContent
 
 pub(all) enum SamplingContentBlock {
   Text(text~ : String)
   Image(data~ : String, mime_type~ : String)
   Audio(data~ : String, mime_type~ : String)
   ToolUse(id~ : String, name~ : String, input~ : Map[String, Json])
-  ToolResult(tool_use_id~ : String, content~ : Array[SamplingToolResultBlock])
+  ToolResult(tool_use_id~ : String, content~ : Array[Content])
 } derive(Eq, @debug.Debug)
-pub fn SamplingContentBlock::from_json(Json) -> Self raise McpError
+pub fn SamplingContentBlock::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
 pub impl ToJson for SamplingContentBlock
+pub impl @json.FromJson for SamplingContentBlock
 
 pub struct SamplingCreateMessageParams {
   messages : Array[SamplingMessage]
@@ -757,18 +764,9 @@ pub struct SamplingMessage {
   role : Role
   content : SamplingContent
 } derive(Eq, @debug.Debug)
-pub fn SamplingMessage::from_json(Json) -> Self raise McpError
+pub fn SamplingMessage::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
 pub impl ToJson for SamplingMessage
-
-pub(all) enum SamplingToolResultBlock {
-  Text(text~ : String)
-  Image(data~ : String, mime_type~ : String)
-  Audio(data~ : String, mime_type~ : String)
-  ResourceLink(uri~ : String, name~ : String)
-  EmbeddedResource(uri~ : String, text~ : String?, blob~ : String?)
-} derive(Eq, @debug.Debug)
-pub fn SamplingToolResultBlock::from_json(Json) -> Self raise McpError
-pub impl ToJson for SamplingToolResultBlock
+pub impl @json.FromJson for SamplingMessage
 
 pub struct Server {
   // private fields
@@ -784,6 +782,7 @@ pub fn Server::on(Self, method_name~ : String, async (RequestContext, Json) -> H
 pub fn Server::prompt(Self, name~ : String, title? : String, description? : String, arguments? : Array[PromptArgument], icons? : Array[Icon], meta? : Json, async (RequestContext, Map[String, String]) -> HandlerOutcome[GetPromptResult] raise McpError) -> Unit raise McpError
 pub fn Server::resource(Self, uri~ : String, name? : String, title? : String, description? : String, mime_type? : String, icons? : Array[Icon], annotations? : Annotations, size? : Int64, meta? : Json, async (RequestContext, String) -> HandlerOutcome[ReadResourceResult] raise McpError) -> Unit raise McpError
 pub fn Server::resource_template(Self, uri_template~ : String, name? : String, title? : String, description? : String, mime_type? : String, icons? : Array[Icon], annotations? : Annotations, meta? : Json, async (RequestContext, String, Map[String, String]) -> HandlerOutcome[ReadResourceResult] raise McpError) -> Unit raise McpError
+pub fn Server::seal(Self) -> Unit
 pub async fn Server::serve_framed(Self, read_message~ : async () -> Json?, send_message~ : async (Json) -> Unit, on_subscription? : async (Subscription, async (Json) -> Unit) -> Unit) -> Unit
 pub fn Server::supports_protocol_version(Self, String) -> Bool
 pub fn[A : @json.FromJson + @schema.JsonSchema] Server::tool(Self, name~ : String, title? : String, description? : String, input_schema? : Json, output_schema? : Json, annotations? : ToolAnnotations, icons? : Array[Icon], meta? : Json, async (RequestContext, A) -> HandlerOutcome[CallToolResult] raise McpError) -> Unit raise McpError
@@ -802,7 +801,7 @@ pub struct ServerCapabilities {
 } derive(Eq, @debug.Debug)
 pub fn ServerCapabilities::ServerCapabilities(tools? : ToolsCapability, resources? : ResourcesCapability, prompts? : PromptsCapability, logging? : LoggingCapability, completions? : Bool, extensions? : Map[String, Json], experimental? : Map[String, Json], extra? : Map[String, Json]) -> Self
 pub fn ServerCapabilities::empty() -> Self
-pub fn ServerCapabilities::from_json(Json, context? : String) -> Self raise McpError
+pub fn ServerCapabilities::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
 pub impl ToJson for ServerCapabilities
 pub impl @json.FromJson for ServerCapabilities
 
@@ -859,7 +858,7 @@ pub struct Tool {
   meta : Json?
 } derive(Eq, @debug.Debug)
 pub fn Tool::Tool(name~ : String, title? : String, description? : String, input_schema? : Json, output_schema? : Json, annotations? : ToolAnnotations, icons? : Array[Icon], meta? : Json) -> Self raise McpError
-pub fn Tool::from_json(Json, context? : String) -> Self raise McpError
+pub fn Tool::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
 pub impl ToJson for Tool
 pub impl @json.FromJson for Tool
 
@@ -871,7 +870,7 @@ pub struct ToolAnnotations {
   open_world_hint : Bool?
 } derive(Eq, @debug.Debug)
 pub fn ToolAnnotations::ToolAnnotations(title? : String, read_only_hint? : Bool, destructive_hint? : Bool, idempotent_hint? : Bool, open_world_hint? : Bool) -> Self
-pub fn ToolAnnotations::from_json(Json, context? : String) -> Self raise McpError
+pub fn ToolAnnotations::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
 pub impl ToJson for ToolAnnotations
 pub impl @json.FromJson for ToolAnnotations
 
@@ -879,7 +878,7 @@ pub struct ToolsCapability {
   list_changed : Bool?
 } derive(Eq, @debug.Debug)
 pub fn ToolsCapability::ToolsCapability(list_changed? : Bool) -> Self
-pub fn ToolsCapability::from_json(Json, context? : String) -> Self raise McpError
+pub fn ToolsCapability::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
 pub impl ToJson for ToolsCapability
 pub impl @json.FromJson for ToolsCapability
 

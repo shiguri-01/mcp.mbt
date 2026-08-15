@@ -67,29 +67,43 @@ struct RegisteredResourceTemplate {
 }
 
 ///|
+
+///|
+
+///|
+let template_var_segment_regex : Regex = re"[^/?#]+"
+
+///|
+let template_placeholder_regex : Regex = re"[{]([a-zA-Z0-9_]+)[}]"
+
+///|
 fn compile_resource_template(
   template : String,
 ) -> (Regex, Array[String]) raise McpError {
-  let sections = template.split("{").to_array()
-  let mut matcher = Regex::string(sections[0])
+  let remaining = template_placeholder_regex.replace_by(template, _ => "")
+  if remaining.contains("{") || remaining.contains("}") {
+    raise InvalidParams(
+      "invalid syntax or unclosed brace in template: \{template}",
+    )
+  }
+  let literals = template_placeholder_regex.split(template).to_array()
+  let matches = template_placeholder_regex.find(template).to_array()
   let variables : Array[String] = []
-  for index = 1; index < sections.length(); index = index + 1 {
-    let pieces = sections[index].split("}").to_array()
-    if pieces.length() != 2 {
+  let mut matcher = Regex::string(literals[0].to_owned())
+  for i, m in matches {
+    guard m.group(1) is Some(var_view) else { continue }
+    let var_name = var_view.to_owned()
+    if variables.contains(var_name) {
       raise InvalidParams(
-        "resource template must use simple {variable} expressions",
+        "resource template variable '\{var_name}' must be unique",
       )
     }
-    let variable = pieces[0].to_owned()
-    if variable.is_empty() || variables.contains(variable) {
-      raise InvalidParams(
-        "resource template variable must be non-empty and unique",
-      )
+    variables.push(var_name)
+    matcher = matcher + template_var_segment_regex.capture(var_name)
+    let next_literal = literals[i + 1].to_owned()
+    if !next_literal.is_empty() {
+      matcher = matcher + Regex::string(next_literal)
     }
-    variables.push(variable)
-    matcher = matcher +
-      Regex::unsafe_from_string("[^/?#]+").capture(variable) +
-      Regex::string(pieces[1])
   }
   (matcher, variables)
 }
@@ -178,7 +192,7 @@ pub fn Server::Server(
     supported_versions.any(fn(value) { value.is_empty() }) {
     raise InvalidParams("supported_versions must not be empty")
   }
-  validate_extension_map(extensions, "server capabilities.extensions")
+  validate_extension_map(extensions)
   validate_extension_result_types(extension_result_types, extensions)
   {
     info: Implementation(
@@ -208,6 +222,13 @@ pub fn Server::Server(
     extension_result_types: extension_result_types.copy(),
     experimental: experimental.copy_json(),
   }
+}
+
+///|
+/// Explicitly seal the server registry, preventing any further tool, resource,
+/// prompt, or completion registrations.
+pub fn Server::seal(self : Server) -> Unit {
+  self.registry_frozen = true
 }
 
 ///|

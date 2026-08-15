@@ -67,9 +67,9 @@ pub impl @json.FromJson for ToolAnnotations with fn from_json(
 ///|
 pub fn ToolAnnotations::from_json(
   value : Json,
-  context? : String = "tool annotations",
+  path? : @json.JsonPath,
 ) -> ToolAnnotations raise McpError {
-  decode_json(value, context~)
+  decode_json(value, path?)
 }
 
 ///|
@@ -226,9 +226,9 @@ pub impl @json.FromJson for Tool with fn from_json(
 ///|
 pub fn Tool::from_json(
   value : Json,
-  context? : String = "tool",
+  path? : @json.JsonPath,
 ) -> Tool raise McpError {
-  decode_json(value, context~)
+  decode_json(value, path?)
 }
 
 ///|
@@ -322,8 +322,11 @@ pub impl @json.FromJson for CallToolResult with fn from_json(
 }
 
 ///|
-pub fn CallToolResult::from_json(value : Json) -> CallToolResult raise McpError {
-  decode_json(value, context="tools/call result")
+pub fn CallToolResult::from_json(
+  value : Json,
+  path? : @json.JsonPath,
+) -> CallToolResult raise McpError {
+  decode_json(value, path?)
 }
 
 ///|
@@ -424,6 +427,7 @@ pub impl @json.FromJson for ListToolsResult with fn from_json(
 ///|
 pub fn ListToolsResult::from_json(
   value : Json,
+  path? : @json.JsonPath,
 ) -> ListToolsResult raise McpError {
-  decode_json(value, context="tools/list result")
+  decode_json(value, path?)
 }

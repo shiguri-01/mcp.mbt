@@ -19,210 +19,136 @@ pub fn InputRequest::InputRequest(
 }
 
 ///|
-pub(all) enum SamplingToolResultBlock {
-  Text(text~ : String)
-  Image(data~ : String, mime_type~ : String)
-  Audio(data~ : String, mime_type~ : String)
-  ResourceLink(uri~ : String, name~ : String)
-  EmbeddedResource(uri~ : String, text~ : String?, blob~ : String?)
-} derive(Debug, Eq)
-
-///|
-pub fn SamplingToolResultBlock::from_json(
-  value : Json,
-) -> SamplingToolResultBlock raise McpError {
-  match value {
-    Object({ "type": String("text"), "text": String(text), .. }) => Text(text~)
-    Object({ "type": String("text"), .. }) =>
-      raise InvalidParams("sampling tool result text.text is required")
-    Object(
-      {
-        "type": String("image"),
-        "data": String(data),
-        "mimeType": String(mime_type),
-        ..
-      }
-    ) => Image(data~, mime_type~)
-    Object({ "type": String("image"), "data": String(_), .. }) =>
-      raise InvalidParams("sampling tool result media.mimeType is required")
-    Object({ "type": String("image"), .. }) =>
-      raise InvalidParams("sampling tool result media.data is required")
-    Object(
-      {
-        "type": String("audio"),
-        "data": String(data),
-        "mimeType": String(mime_type),
-        ..
-      }
-    ) => Audio(data~, mime_type~)
-    Object({ "type": String("audio"), "data": String(_), .. }) =>
-      raise InvalidParams("sampling tool result media.mimeType is required")
-    Object({ "type": String("audio"), .. }) =>
-      raise InvalidParams("sampling tool result media.data is required")
-    Object(
-      {
-        "type": String("resource_link"),
-        "uri": String(uri),
-        "name": String(name),
-        ..
-      }
-    ) => ResourceLink(uri~, name~)
-    Object({ "type": String("resource_link"), "uri": String(_), .. }) =>
-      raise InvalidParams("sampling resource link.name is required")
-    Object({ "type": String("resource_link"), .. }) =>
-      raise InvalidParams("sampling resource link.uri is required")
-    Object(
-      {
-        "type": String("resource"),
-        "resource": Object({ "uri": String(uri), .. } as res),
-        ..
-      }
-    ) => {
-      let text = match res {
-        { "text": String(t), .. } => Some(t)
-        _ => None
-      }
-      let blob = match res {
-        { "blob": String(b), .. } => Some(b)
-        _ => None
-      }
-      if text is None && blob is None {
-        raise InvalidParams("sampling embedded resource requires text or blob")
-      }
-      EmbeddedResource(uri~, text~, blob~)
-    }
-    Object({ "type": String("resource"), "resource": Object(_), .. }) =>
-      raise InvalidParams("sampling embedded resource.uri is required")
-    Object({ "type": String("resource"), .. }) =>
-      raise InvalidParams("sampling embedded resource is required")
-    Object({ "type": String(_), .. }) =>
-      raise InvalidParams("sampling tool result content type is invalid")
-    Object(_) =>
-      raise InvalidParams("sampling tool result content type is invalid")
-    _ =>
-      raise InvalidParams(
-        "sampling tool result content block must be an object",
-      )
-  }
-}
-
-///|
-pub impl ToJson for SamplingToolResultBlock with fn to_json(
-  self : SamplingToolResultBlock,
-) -> Json {
-  match self {
-    Text(text~) =>
-      Json::object({ "type": Json::string("text"), "text": Json::string(text) })
-    Image(data~, mime_type~) =>
-      Json::object({
-        "type": Json::string("image"),
-        "data": Json::string(data),
-        "mimeType": Json::string(mime_type),
-      })
-    Audio(data~, mime_type~) =>
-      Json::object({
-        "type": Json::string("audio"),
-        "data": Json::string(data),
-        "mimeType": Json::string(mime_type),
-      })
-    ResourceLink(uri~, name~) =>
-      Json::object({
-        "type": Json::string("resource_link"),
-        "uri": Json::string(uri),
-        "name": Json::string(name),
-      })
-    EmbeddedResource(uri~, text~, blob~) => {
-      let res_fields : Map[String, Json] = { "uri": Json::string(uri) }
-      res_fields.set_opt("text", text.map(Json::string))
-      res_fields.set_opt("blob", blob.map(Json::string))
-      Json::object({
-        "type": Json::string("resource"),
-        "resource": Json::object(res_fields),
-      })
-    }
-  }
-}
-
-///|
 pub(all) enum SamplingContentBlock {
   Text(text~ : String)
   Image(data~ : String, mime_type~ : String)
   Audio(data~ : String, mime_type~ : String)
   ToolUse(id~ : String, name~ : String, input~ : Map[String, Json])
-  ToolResult(tool_use_id~ : String, content~ : Array[SamplingToolResultBlock])
+  ToolResult(tool_use_id~ : String, content~ : Array[Content])
 } derive(Debug, Eq)
+
+///|
+pub impl @json.FromJson for SamplingContentBlock with fn from_json(
+  value : Json,
+  path : @json.JsonPath,
+) -> SamplingContentBlock raise {
+  guard value is Object(fields) else {
+    raise JsonDecodeError((path, "expected object"))
+  }
+  match fields.get("type") {
+    Some(String("text")) =>
+      match fields.get("text") {
+        Some(String(text)) => Text(text~)
+        Some(_) =>
+          raise JsonDecodeError((path.add_key("text"), "expected string"))
+        None =>
+          raise JsonDecodeError((path.add_key("text"), "text is required"))
+      }
+    Some(String("image")) => {
+      let data = match fields.get("data") {
+        Some(String(d)) => d
+        Some(_) =>
+          raise JsonDecodeError((path.add_key("data"), "expected string"))
+        None =>
+          raise JsonDecodeError((path.add_key("data"), "data is required"))
+      }
+      let mime_type = match fields.get("mimeType") {
+        Some(String(m)) => m
+        Some(_) =>
+          raise JsonDecodeError((path.add_key("mimeType"), "expected string"))
+        None =>
+          raise JsonDecodeError(
+            (path.add_key("mimeType"), "mimeType is required"),
+          )
+      }
+      Image(data~, mime_type~)
+    }
+    Some(String("audio")) => {
+      let data = match fields.get("data") {
+        Some(String(d)) => d
+        Some(_) =>
+          raise JsonDecodeError((path.add_key("data"), "expected string"))
+        None =>
+          raise JsonDecodeError((path.add_key("data"), "data is required"))
+      }
+      let mime_type = match fields.get("mimeType") {
+        Some(String(m)) => m
+        Some(_) =>
+          raise JsonDecodeError((path.add_key("mimeType"), "expected string"))
+        None =>
+          raise JsonDecodeError(
+            (path.add_key("mimeType"), "mimeType is required"),
+          )
+      }
+      Audio(data~, mime_type~)
+    }
+    Some(String("tool_use")) => {
+      let id = match fields.get("id") {
+        Some(String(i)) => i
+        Some(_) =>
+          raise JsonDecodeError((path.add_key("id"), "expected string"))
+        None => raise JsonDecodeError((path.add_key("id"), "id is required"))
+      }
+      let name = match fields.get("name") {
+        Some(String(n)) => n
+        Some(_) =>
+          raise JsonDecodeError((path.add_key("name"), "expected string"))
+        None =>
+          raise JsonDecodeError((path.add_key("name"), "name is required"))
+      }
+      let input = match fields.get("input") {
+        Some(Object(inp)) => inp
+        Some(_) =>
+          raise JsonDecodeError((path.add_key("input"), "expected object"))
+        None =>
+          raise JsonDecodeError((path.add_key("input"), "input is required"))
+      }
+      ToolUse(id~, name~, input~)
+    }
+    Some(String("tool_result")) => {
+      let tool_use_id = match fields.get("toolUseId") {
+        Some(String(id)) => id
+        Some(_) =>
+          raise JsonDecodeError((path.add_key("toolUseId"), "expected string"))
+        None =>
+          raise JsonDecodeError(
+            (path.add_key("toolUseId"), "toolUseId is required"),
+          )
+      }
+      let contents : Array[Content] = match fields.get("content") {
+        Some(Array(arr)) => {
+          let result : Array[Content] = []
+          for i, it in arr {
+            result.push(
+              @json.from_json(it, path=path.add_key("content").add_index(i)),
+            )
+          }
+          result
+        }
+        Some(_) =>
+          raise JsonDecodeError((path.add_key("content"), "expected array"))
+        None =>
+          raise JsonDecodeError(
+            (path.add_key("content"), "content is required"),
+          )
+      }
+      ToolResult(tool_use_id~, content=contents)
+    }
+    Some(String(other)) =>
+      raise JsonDecodeError(
+        (path.add_key("type"), "unknown sampling content type: \{other}"),
+      )
+    Some(_) => raise JsonDecodeError((path.add_key("type"), "expected string"))
+    None => raise JsonDecodeError((path.add_key("type"), "type is required"))
+  }
+}
 
 ///|
 pub fn SamplingContentBlock::from_json(
   value : Json,
+  path? : @json.JsonPath,
 ) -> SamplingContentBlock raise McpError {
-  match value {
-    Object({ "type": String("text"), "text": String(text), .. }) => Text(text~)
-    Object({ "type": String("text"), .. }) =>
-      raise InvalidParams("sampling text content.text is required")
-    Object(
-      {
-        "type": String("image"),
-        "data": String(data),
-        "mimeType": String(mime_type),
-        ..
-      }
-    ) => Image(data~, mime_type~)
-    Object({ "type": String("image"), "data": String(_), .. }) =>
-      raise InvalidParams("sampling media content.mimeType is required")
-    Object({ "type": String("image"), .. }) =>
-      raise InvalidParams("sampling media content.data is required")
-    Object(
-      {
-        "type": String("audio"),
-        "data": String(data),
-        "mimeType": String(mime_type),
-        ..
-      }
-    ) => Audio(data~, mime_type~)
-    Object({ "type": String("audio"), "data": String(_), .. }) =>
-      raise InvalidParams("sampling media content.mimeType is required")
-    Object({ "type": String("audio"), .. }) =>
-      raise InvalidParams("sampling media content.data is required")
-    Object(
-      {
-        "type": String("tool_use"),
-        "id": String(id),
-        "name": String(name),
-        "input": Object(input),
-        ..
-      }
-    ) => ToolUse(id~, name~, input~)
-    Object(
-      { "type": String("tool_use"), "id": String(_), "name": String(_), .. }
-    ) => raise InvalidParams("sampling tool use input must be an object")
-    Object({ "type": String("tool_use"), "id": String(_), .. }) =>
-      raise InvalidParams("sampling tool use content.name is required")
-    Object({ "type": String("tool_use"), .. }) =>
-      raise InvalidParams("sampling tool use content.id is required")
-    Object(
-      {
-        "type": String("tool_result"),
-        "toolUseId": String(tool_use_id),
-        "content": Array(contents),
-        ..
-      }
-    ) => {
-      let parsed_contents : Array[SamplingToolResultBlock] = []
-      for content in contents {
-        parsed_contents.push(SamplingToolResultBlock::from_json(content))
-      }
-      ToolResult(tool_use_id~, content=parsed_contents)
-    }
-    Object({ "type": String("tool_result"), "toolUseId": String(_), .. }) =>
-      raise InvalidParams("sampling tool result content must be an array")
-    Object({ "type": String("tool_result"), .. }) =>
-      raise InvalidParams("sampling tool result content.toolUseId is required")
-    Object({ "type": String(_), .. }) =>
-      raise InvalidParams("sampling content.type is invalid")
-    Object(_) => raise InvalidParams("sampling content.type is required")
-    _ => raise InvalidParams("sampling content must be an object")
-  }
+  decode_json(value, path?)
 }
 
 ///|
@@ -267,20 +193,29 @@ pub(all) enum SamplingContent {
 } derive(Debug, Eq)
 
 ///|
-pub fn SamplingContent::from_json(
+pub impl @json.FromJson for SamplingContent with fn from_json(
   value : Json,
-) -> SamplingContent raise McpError {
+  path : @json.JsonPath,
+) -> SamplingContent raise {
   match value {
     Array(values) if !values.is_empty() => {
       let blocks : Array[SamplingContentBlock] = []
-      for item in values {
-        blocks.push(SamplingContentBlock::from_json(item))
+      for i, item in values {
+        blocks.push(@json.from_json(item, path=path.add_index(i)))
       }
       Multiple(blocks)
     }
-    Object(_) => Single(SamplingContentBlock::from_json(value))
-    _ => raise InvalidParams("sampling content must be an object or array")
+    Object(_) => Single(@json.from_json(value, path~))
+    _ => raise JsonDecodeError((path, "expected object or array"))
   }
+}
+
+///|
+pub fn SamplingContent::from_json(
+  value : Json,
+  path? : @json.JsonPath,
+) -> SamplingContent raise McpError {
+  decode_json(value, path?)
 }
 
 ///|
@@ -298,25 +233,33 @@ pub struct SamplingMessage {
 } derive(Debug, Eq)
 
 ///|
+pub impl @json.FromJson for SamplingMessage with fn from_json(
+  value : Json,
+  path : @json.JsonPath,
+) -> SamplingMessage raise {
+  guard value is Object(fields) else {
+    raise JsonDecodeError((path, "expected object"))
+  }
+  guard fields.get("role") is Some(role_val) else {
+    raise JsonDecodeError((path.add_key("role"), "role is required"))
+  }
+  let role : Role = @json.from_json(role_val, path=path.add_key("role"))
+  guard fields.get("content") is Some(content_val) else {
+    raise JsonDecodeError((path.add_key("content"), "content is required"))
+  }
+  let content : SamplingContent = @json.from_json(
+    content_val,
+    path=path.add_key("content"),
+  )
+  { role, content }
+}
+
+///|
 pub fn SamplingMessage::from_json(
   value : Json,
+  path? : @json.JsonPath,
 ) -> SamplingMessage raise McpError {
-  match value {
-    Object({ "role": String("user"), "content": content_val, .. }) => {
-      let content = SamplingContent::from_json(content_val)
-      { role: Role::User, content }
-    }
-    Object({ "role": String("assistant"), "content": content_val, .. }) => {
-      let content = SamplingContent::from_json(content_val)
-      { role: Role::Assistant, content }
-    }
-    Object({ "role": String("user" | "assistant"), .. }) =>
-      raise InvalidParams("sampling message.content is required")
-    Object({ "role": _, .. }) =>
-      raise InvalidParams("sampling message.role is invalid")
-    Object(_) => raise InvalidParams("sampling message.role is invalid")
-    _ => raise InvalidParams("sampling message must be an object")
-  }
+  decode_json(value, path?)
 }
 
 ///|
@@ -729,8 +672,11 @@ pub impl @json.FromJson for InputRequest with fn from_json(
 }
 
 ///|
-pub fn InputRequest::from_json(value : Json) -> InputRequest raise McpError {
-  decode_json(value, context="input request")
+pub fn InputRequest::from_json(
+  value : Json,
+  path? : @json.JsonPath,
+) -> InputRequest raise McpError {
+  decode_json(value, path?)
 }
 
 ///|
@@ -927,15 +873,16 @@ pub impl @json.FromJson for InputRequiredResult with fn from_json(
     None => None
   }
   InputRequiredResult(input_requests?, request_state?, meta?) catch {
-    error => raise JsonDecodeError((path, error.message()))
+    error => raise JsonDecodeError((path, error.to_string()))
   }
 }
 
 ///|
 pub fn InputRequiredResult::from_json(
   value : Json,
+  path? : @json.JsonPath,
 ) -> InputRequiredResult raise McpError {
-  decode_json(value, context="input_required result")
+  decode_json(value, path?)
 }
 
 ///|

@@ -52,8 +52,11 @@ pub impl @json.FromJson for LoggingLevel with fn from_json(
 }
 
 ///|
-pub fn LoggingLevel::from_json(value : Json) -> LoggingLevel raise McpError {
-  decode_json(value, context="logLevel")
+pub fn LoggingLevel::from_json(
+  value : Json,
+  path? : @json.JsonPath,
+) -> LoggingLevel raise McpError {
+  decode_json(value, path?)
 }
 
 ///|

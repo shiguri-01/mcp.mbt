@@ -125,9 +125,9 @@ pub impl @json.FromJson for Annotations with fn from_json(
 ///|
 pub fn Annotations::from_json(
   value : Json,
-  context? : String = "annotations",
+  path? : @json.JsonPath,
 ) -> Annotations raise McpError {
-  decode_json(value, context~)
+  decode_json(value, path?)
 }
 
 ///|
@@ -197,6 +197,95 @@ pub impl ToJson for ResourceLink with fn to_json(self : ResourceLink) -> Json {
   )
   fields.set_opt("_meta", self.meta.map(fn(m) { m.copy() }))
   Json::object(fields)
+}
+
+///|
+pub impl @json.FromJson for ResourceLink with fn from_json(
+  value : Json,
+  path : @json.JsonPath,
+) -> ResourceLink raise {
+  guard value is Object(fields) else {
+    raise JsonDecodeError((path, "expected object"))
+  }
+  let uri = match fields.get("uri") {
+    Some(String(u)) => u
+    Some(_) => raise JsonDecodeError((path.add_key("uri"), "expected string"))
+    None => raise JsonDecodeError((path.add_key("uri"), "uri is required"))
+  }
+  let name = match fields.get("name") {
+    Some(String(n)) => n
+    Some(_) => raise JsonDecodeError((path.add_key("name"), "expected string"))
+    None => raise JsonDecodeError((path.add_key("name"), "name is required"))
+  }
+  let title = match fields.get("title") {
+    Some(String(t)) => Some(t)
+    Some(Null) | None => None
+    Some(_) => raise JsonDecodeError((path.add_key("title"), "expected string"))
+  }
+  let description = match fields.get("description") {
+    Some(String(d)) => Some(d)
+    Some(Null) | None => None
+    Some(_) =>
+      raise JsonDecodeError((path.add_key("description"), "expected string"))
+  }
+  let mime_type = match fields.get("mimeType") {
+    Some(String(m)) => Some(m)
+    Some(Null) | None => None
+    Some(_) =>
+      raise JsonDecodeError((path.add_key("mimeType"), "expected string"))
+  }
+  let icons : Array[Icon] = match fields.get("icons") {
+    Some(Array(arr)) => {
+      let result : Array[Icon] = []
+      for i, it in arr {
+        result.push(
+          @json.from_json(it, path=path.add_key("icons").add_index(i)),
+        )
+      }
+      result
+    }
+    Some(Null) | None => []
+    Some(_) => raise JsonDecodeError((path.add_key("icons"), "expected array"))
+  }
+  let annotations : Annotations? = match fields {
+    { "annotations": v, .. } =>
+      Some(@json.from_json(v, path=path.add_key("annotations")))
+    _ => None
+  }
+  let size : Int64? = match fields.get("size") {
+    Some(Number(s, ..)) => {
+      if s < 0.0 || s != s.to_int64().to_double() {
+        raise JsonDecodeError(
+          (path.add_key("size"), "expected non-negative integer"),
+        )
+      }
+      Some(s.to_int64())
+    }
+    Some(Null) | None => None
+    Some(_) => raise JsonDecodeError((path.add_key("size"), "expected number"))
+  }
+  let meta = fields.get("_meta")
+  ResourceLink(
+    uri~,
+    name~,
+    title?,
+    description?,
+    mime_type?,
+    icons~,
+    annotations?,
+    size?,
+    meta?,
+  ) catch {
+    error => raise JsonDecodeError((path, error.to_string()))
+  }
+}
+
+///|
+pub fn ResourceLink::from_json(
+  value : Json,
+  path? : @json.JsonPath,
+) -> ResourceLink raise McpError {
+  decode_json(value, path?)
 }
 
 ///|
@@ -419,81 +508,8 @@ pub impl @json.FromJson for Content with fn from_json(
       Content::embedded_resource(resource~, annotations?, meta?)
     }
     Some(String("resource_link")) => {
-      let uri = match fields.get("uri") {
-        Some(String(u)) => u
-        Some(_) =>
-          raise JsonDecodeError((path.add_key("uri"), "expected string"))
-        None => raise JsonDecodeError((path.add_key("uri"), "uri is required"))
-      }
-      let name = match fields.get("name") {
-        Some(String(n)) => n
-        Some(_) =>
-          raise JsonDecodeError((path.add_key("name"), "expected string"))
-        None =>
-          raise JsonDecodeError((path.add_key("name"), "name is required"))
-      }
-      let title = match fields.get("title") {
-        Some(String(t)) => Some(t)
-        Some(Null) | None => None
-        Some(_) =>
-          raise JsonDecodeError((path.add_key("title"), "expected string"))
-      }
-      let description = match fields.get("description") {
-        Some(String(d)) => Some(d)
-        Some(Null) | None => None
-        Some(_) =>
-          raise JsonDecodeError(
-            (path.add_key("description"), "expected string"),
-          )
-      }
-      let mime_type = match fields.get("mimeType") {
-        Some(String(m)) => Some(m)
-        Some(Null) | None => None
-        Some(_) =>
-          raise JsonDecodeError((path.add_key("mimeType"), "expected string"))
-      }
-      let icons : Array[Icon] = match fields.get("icons") {
-        Some(Array(arr)) => {
-          let result : Array[Icon] = []
-          for i, it in arr {
-            result.push(
-              @json.from_json(it, path=path.add_key("icons").add_index(i)),
-            )
-          }
-          result
-        }
-        Some(Null) | None => []
-        Some(_) =>
-          raise JsonDecodeError((path.add_key("icons"), "expected array"))
-      }
-      let size : Int64? = match fields.get("size") {
-        Some(Number(s, ..)) => {
-          if s < 0.0 || s != s.to_int64().to_double() {
-            raise JsonDecodeError(
-              (path.add_key("size"), "expected non-negative integer"),
-            )
-          }
-          Some(s.to_int64())
-        }
-        Some(Null) | None => None
-        Some(_) =>
-          raise JsonDecodeError((path.add_key("size"), "expected number"))
-      }
-      Content::resource_link(
-        ResourceLink(
-          uri~,
-          name~,
-          title?,
-          description?,
-          mime_type?,
-          icons~,
-          annotations?,
-          size?,
-          meta?,
-        ) catch {
-          error => raise JsonDecodeError((path, error.message()))
-        },
-      )
+      let link : ResourceLink = @json.from_json(value, path~)
+      Content::resource_link(link)
     }
     Some(String(other)) =>
       raise JsonDecodeError(
@@ -506,6 +522,9 @@ pub impl @json.FromJson for Content with fn from_json(
 
 ///|
 /// Decode one official MCP content union value.
-pub fn Content::from_json(value : Json) -> Content raise McpError {
-  decode_json(value, context="content")
+pub fn Content::from_json(
+  value : Json,
+  path? : @json.JsonPath,
+) -> Content raise McpError {
+  decode_json(value, path?)
 }

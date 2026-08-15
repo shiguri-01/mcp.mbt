@@ -178,9 +178,9 @@ pub impl @json.FromJson for Resource with fn from_json(
 ///|
 pub fn Resource::from_json(
   value : Json,
-  context? : String = "resource",
+  path? : @json.JsonPath,
 ) -> Resource raise McpError {
-  decode_json(value, context~)
+  decode_json(value, path?)
 }
 
 ///|
@@ -311,9 +311,9 @@ pub impl @json.FromJson for ResourceTemplate with fn from_json(
 ///|
 pub fn ResourceTemplate::from_json(
   value : Json,
-  context? : String = "resource template",
+  path? : @json.JsonPath,
 ) -> ResourceTemplate raise McpError {
-  decode_json(value, context~)
+  decode_json(value, path?)
 }
 
 ///|
@@ -382,8 +382,17 @@ pub impl @json.FromJson for ResourceContent with fn from_json(
       ResourceContent::blob(uri~, blob~, mime_type?, meta?)
     (Some(_), None) | (None, Some(_)) =>
       raise JsonDecodeError((path, "text/blob must be a string"))
-    _ => raise JsonDecodeError((path, "requires text or blob content"))
+    (None, None) =>
+      raise JsonDecodeError((path, "requires text or blob content"))
   }
+}
+
+///|
+pub fn ResourceContent::from_json(
+  value : Json,
+  path? : @json.JsonPath,
+) -> ResourceContent raise McpError {
+  decode_json(value, path?)
 }
 
 ///|
@@ -492,8 +501,9 @@ pub impl @json.FromJson for ReadResourceResult with fn from_json(
 ///|
 pub fn ReadResourceResult::from_json(
   value : Json,
+  path? : @json.JsonPath,
 ) -> ReadResourceResult raise McpError {
-  decode_json(value, context="resources/read result")
+  decode_json(value, path?)
 }
 
 ///|
@@ -575,8 +585,9 @@ pub impl @json.FromJson for ListResourcesResult with fn from_json(
 ///|
 pub fn ListResourcesResult::from_json(
   value : Json,
+  path? : @json.JsonPath,
 ) -> ListResourcesResult raise McpError {
-  decode_json(value, context="resources/list result")
+  decode_json(value, path?)
 }
 
 ///|
@@ -656,6 +667,7 @@ pub impl @json.FromJson for ListResourceTemplatesResult with fn from_json(
 ///|
 pub fn ListResourceTemplatesResult::from_json(
   value : Json,
+  path? : @json.JsonPath,
 ) -> ListResourceTemplatesResult raise McpError {
-  decode_json(value, context="resources/templates/list result")
+  decode_json(value, path?)
 }

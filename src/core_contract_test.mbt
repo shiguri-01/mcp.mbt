@@ -358,3 +358,46 @@ async test "transport descriptor snapshots do not expose the server registry" {
     fail("adapter snapshot mutation changed the server registry")
   }
 }
+
+///|
+test "resource template validation rejects invalid syntax and supports literals" {
+  let server = try! @mcp.Server(name="server", version="1")
+  // Invalid unclosed {
+  assert_invalid_params(fn() -> Unit raise @mcp.McpError {
+    server.resource_template(uri_template="file:///items/{id", name="test", fn(
+      _ctx,
+      _uri,
+      _vars,
+    ) {
+      @mcp.Complete(@mcp.ReadResourceResult::text(uri="a", text="b"))
+    })
+  })
+  // Invalid nested {
+  assert_invalid_params(fn() -> Unit raise @mcp.McpError {
+    server.resource_template(uri_template="file:///items/{{id}}", name="test", fn(
+      _ctx,
+      _uri,
+      _vars,
+    ) {
+      @mcp.ReadResourceResult::text(uri="a", text="b") |> @mcp.Complete
+    })
+  })
+  // Unexpected }
+  assert_invalid_params(fn() -> Unit raise @mcp.McpError {
+    server.resource_template(uri_template="file:///items/id}", name="test", fn(
+      _ctx,
+      _uri,
+      _vars,
+    ) {
+      @mcp.ReadResourceResult::text(uri="a", text="b") |> @mcp.Complete
+    })
+  })
+  // Valid with special characters in literals like . and +
+  try! server.resource_template(
+    uri_template="file:///api/v1.0/items/{item_id}.json",
+    name="item_template",
+    fn(_ctx, _uri, _vars) {
+      @mcp.ReadResourceResult::text(uri="a", text="b") |> @mcp.Complete
+    },
+  )
+}

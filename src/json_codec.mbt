@@ -3,17 +3,16 @@
 /// any `JsonDecodeError` into an `InvalidParams` protocol error.
 pub fn[T : @json.FromJson] decode_json(
   value : Json,
-  context? : String = "json",
+  path? : @json.JsonPath,
 ) -> T raise McpError {
-  @json.from_json(value) catch {
-    JsonDecodeError((path, msg)) => {
-      let path_str = path.to_string()
-      let prefix = if path_str.is_empty() {
-        context
+  @json.from_json(value, path?) catch {
+    JsonDecodeError((p, msg)) => {
+      let path_str = p.to_string()
+      if path_str.is_empty() {
+        raise InvalidParams(msg)
       } else {
-        "\{context}.\{path_str}"
+        raise InvalidParams("\{path_str}: \{msg}")
       }
-      raise InvalidParams("\{prefix}: \{msg}")
     }
   }
 }

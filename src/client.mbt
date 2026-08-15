@@ -28,10 +28,7 @@ pub fn Client::Client(
       "client name, version, and protocol version must not be empty",
     )
   }
-  validate_extension_map(
-    capabilities.extensions,
-    "client capabilities.extensions",
-  )
+  validate_extension_map(capabilities.extensions)
   validate_extension_result_types(
     extension_result_types,
     capabilities.extensions,

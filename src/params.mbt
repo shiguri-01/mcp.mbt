@@ -36,8 +36,11 @@ pub impl ToJson for ListParams with fn to_json(self : ListParams) -> Json {
 }
 
 ///|
-pub fn ListParams::from_json(value : Json) -> ListParams raise McpError {
-  decode_json(value, context="list params")
+pub fn ListParams::from_json(
+  value : Json,
+  path? : @json.JsonPath,
+) -> ListParams raise McpError {
+  decode_json(value, path?)
 }
 
 ///|
@@ -97,8 +100,11 @@ pub impl ToJson for CallToolParams with fn to_json(self : CallToolParams) -> Jso
 }
 
 ///|
-pub fn CallToolParams::from_json(value : Json) -> CallToolParams raise McpError {
-  decode_json(value, context="tools/call params")
+pub fn CallToolParams::from_json(
+  value : Json,
+  path? : @json.JsonPath,
+) -> CallToolParams raise McpError {
+  decode_json(value, path?)
 }
 
 ///|
@@ -149,8 +155,9 @@ pub impl ToJson for ReadResourceParams with fn to_json(
 ///|
 pub fn ReadResourceParams::from_json(
   value : Json,
+  path? : @json.JsonPath,
 ) -> ReadResourceParams raise McpError {
-  decode_json(value, context="resources/read params")
+  decode_json(value, path?)
 }
 
 ///|
@@ -227,8 +234,9 @@ pub impl ToJson for GetPromptParams with fn to_json(self : GetPromptParams) -> J
 ///|
 pub fn GetPromptParams::from_json(
   value : Json,
+  path? : @json.JsonPath,
 ) -> GetPromptParams raise McpError {
-  decode_json(value, context="prompts/get params")
+  decode_json(value, path?)
 }
 
 ///|
@@ -295,6 +303,7 @@ pub impl ToJson for CancelledNotificationParams with fn to_json(
 ///|
 pub fn CancelledNotificationParams::from_json(
   value : Json,
+  path? : @json.JsonPath,
 ) -> CancelledNotificationParams raise McpError {
-  decode_json(value, context="cancelled notification params")
+  decode_json(value, path?)
 }

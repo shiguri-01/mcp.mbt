@@ -206,8 +206,11 @@ pub impl @json.FromJson for RequestMeta with fn from_json(
 
 ///|
 /// Decode the request `_meta` object at the MCP protocol boundary.
-pub fn RequestMeta::from_json(value : Json) -> RequestMeta raise McpError {
-  decode_json(value, context="request params._meta")
+pub fn RequestMeta::from_json(
+  value : Json,
+  path? : @json.JsonPath,
+) -> RequestMeta raise McpError {
+  decode_json(value, path?)
 }
 
 ///|

@@ -33,8 +33,11 @@ pub impl @json.FromJson for ResultType with fn from_json(
 }
 
 ///|
-pub fn ResultType::from_json(value : Json) -> ResultType raise McpError {
-  decode_json(value, context="result.resultType")
+pub fn ResultType::from_json(
+  value : Json,
+  path? : @json.JsonPath,
+) -> ResultType raise McpError {
+  decode_json(value, path?)
 }
 
 ///|
@@ -101,9 +104,9 @@ pub impl @json.FromJson for ResultMeta with fn from_json(
 ///|
 pub fn ResultMeta::from_json(
   value : Json,
-  context? : String = "result._meta",
+  path? : @json.JsonPath,
 ) -> ResultMeta raise McpError {
-  decode_json(value, context~)
+  decode_json(value, path?)
 }
 
 ///|
@@ -177,8 +180,11 @@ pub impl @json.FromJson for CacheScope with fn from_json(
 }
 
 ///|
-pub fn CacheScope::from_json(value : Json) -> CacheScope raise McpError {
-  decode_json(value, context="cacheScope")
+pub fn CacheScope::from_json(
+  value : Json,
+  path? : @json.JsonPath,
+) -> CacheScope raise McpError {
+  decode_json(value, path?)
 }
 
 ///|
@@ -240,14 +246,10 @@ pub impl @json.FromJson for CachePolicy with fn from_json(
 
 ///|
 pub fn CachePolicy::from_json(
-  fields : Map[String, Json],
-  context? : String = "result",
+  value : Json,
+  path? : @json.JsonPath,
 ) -> CachePolicy raise McpError {
-  let scope = match fields {
-    { "cacheScope": value, .. } => CacheScope::from_json(value)
-    _ => raise InvalidParams("\{context}.cacheScope is required")
-  }
-  CachePolicy(ttl_ms=parse_ttl_ms(fields, context), scope~)
+  decode_json(value, path?)
 }
 
 ///|

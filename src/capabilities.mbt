@@ -39,9 +39,9 @@ pub impl @json.FromJson for RootsCapability with fn from_json(
 ///|
 pub fn RootsCapability::from_json(
   value : Json,
-  context? : String = "roots capability",
+  path? : @json.JsonPath,
 ) -> RootsCapability raise McpError {
-  decode_json(value, context~)
+  decode_json(value, path?)
 }
 
 ///|
@@ -75,9 +75,9 @@ pub impl @json.FromJson for SamplingCapability with fn from_json(
 ///|
 pub fn SamplingCapability::from_json(
   value : Json,
-  context? : String = "sampling capability",
+  path? : @json.JsonPath,
 ) -> SamplingCapability raise McpError {
-  decode_json(value, context~)
+  decode_json(value, path?)
 }
 
 ///|
@@ -136,9 +136,9 @@ pub impl @json.FromJson for ElicitationCapability with fn from_json(
 ///|
 pub fn ElicitationCapability::from_json(
   value : Json,
-  context? : String = "elicitation capability",
+  path? : @json.JsonPath,
 ) -> ElicitationCapability raise McpError {
-  decode_json(value, context~)
+  decode_json(value, path?)
 }
 
 ///|
@@ -234,13 +234,15 @@ fn valid_identifier_segment(segment : String) -> Bool {
 ///|
 fn validate_extension_keys(
   values : Map[String, Json],
-  context : String,
+  path? : @json.JsonPath,
 ) -> Unit raise McpError {
   for key, _ in values {
     if !valid_extension_identifier(key) {
-      raise InvalidParams(
-        "\{context}.\{key} is not a valid extension identifier",
-      )
+      let p = match path {
+        Some(path) => path.add_key(key).to_string()
+        None => "extension '\{key}'"
+      }
+      raise InvalidParams("\{p}: not a valid extension identifier")
     }
   }
 }
@@ -248,9 +250,9 @@ fn validate_extension_keys(
 ///|
 fn validate_extension_map(
   values : Map[String, Json],
-  context : String,
+  path? : @json.JsonPath,
 ) -> Unit raise McpError {
-  validate_extension_keys(values, context)
+  validate_extension_keys(values, path?)
 }
 
 ///|
@@ -270,18 +272,22 @@ fn validate_extension_result_types(
 ///|
 fn validate_experimental_keys(
   values : Map[String, Json],
-  context : String,
+  path? : @json.JsonPath,
 ) -> Unit raise McpError {
   for key, _ in values {
     if valid_extension_identifier(key) {
-      raise InvalidParams(
-        "\{context}.\{key} must not use namespaced extension syntax",
-      )
+      let p = match path {
+        Some(path) => path.add_key(key).to_string()
+        None => "experimental '\{key}'"
+      }
+      raise InvalidParams("\{p}: must not use namespaced extension syntax")
     }
     if !valid_identifier_segment(key) {
-      raise InvalidParams(
-        "\{context}.\{key} is not a valid experimental feature name",
-      )
+      let p = match path {
+        Some(path) => path.add_key(key).to_string()
+        None => "experimental '\{key}'"
+      }
+      raise InvalidParams("\{p}: not a valid experimental feature name")
     }
   }
 }
@@ -323,19 +329,24 @@ pub impl ToJson for ClientCapabilities with fn to_json(
 fn parse_capability_map(
   fields : Map[String, Json],
   key : String,
-  context : String,
-) -> Map[String, Json] raise McpError {
+  path : @json.JsonPath,
+) -> Map[String, Json] raise @json.JsonDecodeError {
+  let subpath = path.add_key(key)
   match fields.get(key) {
     Some(Object(values)) => {
       if key == "extensions" {
-        validate_extension_keys(values, "\{context}.\{key}")
+        validate_extension_keys(values, path=subpath) catch {
+          error => raise @json.JsonDecodeError((subpath, error.message()))
+        }
       } else if key == "experimental" {
-        validate_experimental_keys(values, "\{context}.\{key}")
+        validate_experimental_keys(values, path=subpath) catch {
+          error => raise @json.JsonDecodeError((subpath, error.message()))
+        }
       }
       values.copy_json()
     }
     Some(Null) | None => Map([])
-    Some(_) => raise InvalidParams("\{context}.\{key} must be an object")
+    Some(_) => raise @json.JsonDecodeError((subpath, "expected object"))
   }
 }
 
@@ -368,18 +379,8 @@ pub impl @json.FromJson for ClientCapabilities with fn from_json(
       Some(@json.from_json(v, path=path.add_key("elicitation")))
     _ => None
   }
-  let extensions = parse_capability_map(
-    fields, "extensions", "client capabilities",
-  ) catch {
-    error =>
-      raise JsonDecodeError((path.add_key("extensions"), error.message()))
-  }
-  let experimental = parse_capability_map(
-    fields, "experimental", "client capabilities",
-  ) catch {
-    error =>
-      raise JsonDecodeError((path.add_key("experimental"), error.message()))
-  }
+  let extensions = parse_capability_map(fields, "extensions", path)
+  let experimental = parse_capability_map(fields, "experimental", path)
   ClientCapabilities(
     roots?,
     sampling?,
@@ -393,9 +394,9 @@ pub impl @json.FromJson for ClientCapabilities with fn from_json(
 ///|
 pub fn ClientCapabilities::from_json(
   value : Json,
-  context? : String = "client capabilities",
+  path? : @json.JsonPath,
 ) -> ClientCapabilities raise McpError {
-  decode_json(value, context~)
+  decode_json(value, path?)
 }
 
 ///|
@@ -439,9 +440,9 @@ pub impl @json.FromJson for ToolsCapability with fn from_json(
 ///|
 pub fn ToolsCapability::from_json(
   value : Json,
-  context? : String = "tools capability",
+  path? : @json.JsonPath,
 ) -> ToolsCapability raise McpError {
-  decode_json(value, context~)
+  decode_json(value, path?)
 }
 
 ///|
@@ -485,9 +486,9 @@ pub impl @json.FromJson for PromptsCapability with fn from_json(
 ///|
 pub fn PromptsCapability::from_json(
   value : Json,
-  context? : String = "prompts capability",
+  path? : @json.JsonPath,
 ) -> PromptsCapability raise McpError {
-  decode_json(value, context~)
+  decode_json(value, path?)
 }
 
 ///|
@@ -543,9 +544,9 @@ pub impl @json.FromJson for ResourcesCapability with fn from_json(
 ///|
 pub fn ResourcesCapability::from_json(
   value : Json,
-  context? : String = "resources capability",
+  path? : @json.JsonPath,
 ) -> ResourcesCapability raise McpError {
-  decode_json(value, context~)
+  decode_json(value, path?)
 }
 
 ///|
@@ -577,9 +578,9 @@ pub impl @json.FromJson for LoggingCapability with fn from_json(
 ///|
 pub fn LoggingCapability::from_json(
   value : Json,
-  context? : String = "logging capability",
+  path? : @json.JsonPath,
 ) -> LoggingCapability raise McpError {
-  decode_json(value, context~)
+  decode_json(value, path?)
 }
 
 ///|
@@ -714,18 +715,8 @@ pub impl @json.FromJson for ServerCapabilities with fn from_json(
       raise JsonDecodeError((path.add_key("completions"), "expected object"))
     None => false
   }
-  let extensions = parse_capability_map(
-    fields, "extensions", "server capabilities",
-  ) catch {
-    error =>
-      raise JsonDecodeError((path.add_key("extensions"), error.message()))
-  }
-  let experimental = parse_capability_map(
-    fields, "experimental", "server capabilities",
-  ) catch {
-    error =>
-      raise JsonDecodeError((path.add_key("experimental"), error.message()))
-  }
+  let extensions = parse_capability_map(fields, "extensions", path)
+  let experimental = parse_capability_map(fields, "experimental", path)
   ServerCapabilities(
     tools?,
     resources?,
@@ -741,7 +732,7 @@ pub impl @json.FromJson for ServerCapabilities with fn from_json(
 ///|
 pub fn ServerCapabilities::from_json(
   value : Json,
-  context? : String = "server capabilities",
+  path? : @json.JsonPath,
 ) -> ServerCapabilities raise McpError {
-  decode_json(value, context~)
+  decode_json(value, path?)
 }
