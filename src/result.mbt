@@ -112,10 +112,10 @@ fn merge_result_meta(
   server_info? : Implementation,
   extra? : Map[String, Json] = {},
 ) -> Unit raise McpError {
-  let merged = match fields.get("_meta") {
-    Some(Object(value)) => value.copy()
-    Some(_) => raise InvalidParams("result._meta must be an object")
-    None => Map([])
+  let merged = match fields {
+    { "_meta": Object(value), .. } => value.copy()
+    { "_meta": _, .. } => raise InvalidParams("result._meta must be an object")
+    _ => Map([])
   }
   validate_meta_map(merged)
   validate_meta_map(extra)
@@ -147,22 +147,18 @@ pub fn complete_result(
 }
 
 ///|
+/// Cache policy scope: shared across all callers or private to this session/connection.
 pub(all) enum CacheScope {
   Public
   Private
 } derive(Debug, Eq)
 
 ///|
-pub fn CacheScope::to_string(self : CacheScope) -> String {
-  match self {
-    Public => "public"
-    Private => "private"
-  }
-}
-
-///|
 pub impl ToJson for CacheScope with fn to_json(self : CacheScope) -> Json {
-  Json::string(self.to_string())
+  match self {
+    Public => Json::string("public")
+    Private => Json::string("private")
+  }
 }
 
 ///|
@@ -173,7 +169,10 @@ pub impl @json.FromJson for CacheScope with fn from_json(
   match value {
     String("public") => Public
     String("private") => Private
-    _ => raise JsonDecodeError((path, "expected 'public' or 'private'"))
+    _ =>
+      raise JsonDecodeError(
+        (path, "expected cacheScope to be \"public\" or \"private\""),
+      )
   }
 }
 
@@ -216,25 +215,23 @@ pub impl @json.FromJson for CachePolicy with fn from_json(
   guard value is Object(fields) else {
     raise JsonDecodeError((path, "expected object"))
   }
-  let scope_val = match fields.get("cacheScope") {
-    Some(v) => v
-    None =>
-      raise JsonDecodeError(
-        (path.add_key("cacheScope"), "cacheScope is required"),
-      )
+  guard fields is { "cacheScope": scope_val, .. } else {
+    raise JsonDecodeError(
+      (path.add_key("cacheScope"), "cacheScope is required"),
+    )
   }
   let scope : CacheScope = @json.from_json(scope_val) catch {
     JsonDecodeError((_, msg)) =>
       raise JsonDecodeError((path.add_key("cacheScope"), msg))
   }
-  let ttl_ms = match fields.get("ttlMs") {
-    Some(Number(value, ..)) if value >= 0.0 &&
+  let ttl_ms = match fields {
+    { "ttlMs": Number(value, ..), .. } if value >= 0.0 &&
       value == value.to_int64().to_double() => value.to_int64()
-    Some(_) =>
+    { "ttlMs": _, .. } =>
       raise JsonDecodeError(
         (path.add_key("ttlMs"), "expected non-negative integer"),
       )
-    None => raise JsonDecodeError((path.add_key("ttlMs"), "ttlMs is required"))
+    _ => raise JsonDecodeError((path.add_key("ttlMs"), "ttlMs is required"))
   }
   CachePolicy(ttl_ms~, scope~) catch {
     error => raise JsonDecodeError((path, error.message()))
@@ -246,9 +243,9 @@ pub fn CachePolicy::from_json(
   fields : Map[String, Json],
   context? : String = "result",
 ) -> CachePolicy raise McpError {
-  let scope = match fields.get("cacheScope") {
-    Some(value) => CacheScope::from_json(value)
-    None => raise InvalidParams("\{context}.cacheScope is required")
+  let scope = match fields {
+    { "cacheScope": value, .. } => CacheScope::from_json(value)
+    _ => raise InvalidParams("\{context}.cacheScope is required")
   }
   CachePolicy(ttl_ms=parse_ttl_ms(fields, context), scope~)
 }

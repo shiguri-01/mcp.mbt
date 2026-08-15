@@ -17,11 +17,12 @@ pub impl @json.FromJson for ListParams with fn from_json(
   guard value is Object(fields) else {
     raise JsonDecodeError((path, "expected object"))
   }
-  let cursor = match fields.get("cursor") {
-    Some(String(cursor)) => Some(cursor)
-    Some(Null) | None => None
-    Some(_) =>
+  let cursor = match fields {
+    { "cursor": String(cursor), .. } => Some(cursor)
+    { "cursor": Null, .. } => None
+    { "cursor": _, .. } =>
       raise JsonDecodeError((path.add_key("cursor"), "expected string"))
+    _ => None
   }
   ListParams(cursor?)
 }
@@ -71,19 +72,22 @@ pub impl @json.FromJson for CallToolParams with fn from_json(
   guard value is Object(fields) else {
     raise JsonDecodeError((path, "expected object"))
   }
-  let name = match fields.get("name") {
-    Some(String(name)) => name
-    Some(_) => raise JsonDecodeError((path.add_key("name"), "expected string"))
-    None => raise JsonDecodeError((path.add_key("name"), "name is required"))
+  let name = match fields {
+    { "name": String(name), .. } if !name.is_empty() => name
+    { "name": String(_), .. } =>
+      raise JsonDecodeError(
+        (path.add_key("name"), "tool name must not be empty"),
+      )
+    { "name": _, .. } =>
+      raise JsonDecodeError((path.add_key("name"), "expected string"))
+    _ => raise JsonDecodeError((path.add_key("name"), "name is required"))
   }
-  if name.is_empty() {
-    raise JsonDecodeError((path.add_key("name"), "tool name must not be empty"))
-  }
-  let arguments = match fields.get("arguments") {
-    Some(Object(_) as args) => args
-    Some(Null) | None => Json::object({})
-    Some(_) =>
+  let arguments = match fields {
+    { "arguments": Object(_) as args, .. } => args
+    { "arguments": Null, .. } => Json::object({})
+    { "arguments": _, .. } =>
       raise JsonDecodeError((path.add_key("arguments"), "expected object"))
+    _ => Json::object({})
   }
   CallToolParams(name~, arguments~) catch {
     error => raise JsonDecodeError((path, error.message()))
@@ -124,15 +128,15 @@ pub impl @json.FromJson for ReadResourceParams with fn from_json(
   guard value is Object(fields) else {
     raise JsonDecodeError((path, "expected object"))
   }
-  let uri = match fields.get("uri") {
-    Some(String(uri)) => uri
-    Some(_) => raise JsonDecodeError((path.add_key("uri"), "expected string"))
-    None => raise JsonDecodeError((path.add_key("uri"), "uri is required"))
-  }
-  if uri.is_empty() {
-    raise JsonDecodeError(
-      (path.add_key("uri"), "resource uri must not be empty"),
-    )
+  let uri = match fields {
+    { "uri": String(uri), .. } if !uri.is_empty() => uri
+    { "uri": String(_), .. } =>
+      raise JsonDecodeError(
+        (path.add_key("uri"), "resource uri must not be empty"),
+      )
+    { "uri": _, .. } =>
+      raise JsonDecodeError((path.add_key("uri"), "expected string"))
+    _ => raise JsonDecodeError((path.add_key("uri"), "uri is required"))
   }
   ReadResourceParams(uri~) catch {
     error => raise JsonDecodeError((path, error.message()))
@@ -179,18 +183,18 @@ pub impl @json.FromJson for GetPromptParams with fn from_json(
   guard value is Object(fields) else {
     raise JsonDecodeError((path, "expected object"))
   }
-  let name = match fields.get("name") {
-    Some(String(name)) => name
-    Some(_) => raise JsonDecodeError((path.add_key("name"), "expected string"))
-    None => raise JsonDecodeError((path.add_key("name"), "name is required"))
+  let name = match fields {
+    { "name": String(name), .. } if !name.is_empty() => name
+    { "name": String(_), .. } =>
+      raise JsonDecodeError(
+        (path.add_key("name"), "prompt name must not be empty"),
+      )
+    { "name": _, .. } =>
+      raise JsonDecodeError((path.add_key("name"), "expected string"))
+    _ => raise JsonDecodeError((path.add_key("name"), "name is required"))
   }
-  if name.is_empty() {
-    raise JsonDecodeError(
-      (path.add_key("name"), "prompt name must not be empty"),
-    )
-  }
-  let arguments : Map[String, String] = match fields.get("arguments") {
-    Some(Object(map)) => {
+  let arguments : Map[String, String] = match fields {
+    { "arguments": Object(map), .. } => {
       let result : Map[String, String] = Map([])
       for k, v in map {
         match v {
@@ -203,9 +207,10 @@ pub impl @json.FromJson for GetPromptParams with fn from_json(
       }
       result
     }
-    Some(Null) | None => Map([])
-    Some(_) =>
+    { "arguments": Null, .. } => Map([])
+    { "arguments": _, .. } =>
       raise JsonDecodeError((path.add_key("arguments"), "expected object"))
+    _ => Map([])
   }
   GetPromptParams(name~, arguments~) catch {
     error => raise JsonDecodeError((path, error.message()))
@@ -260,22 +265,23 @@ pub impl @json.FromJson for CancelledNotificationParams with fn from_json(
   guard value is Object(fields) else {
     raise JsonDecodeError((path, "expected object"))
   }
-  let request_id = match fields.get("requestId") {
-    Some(String(_) | Number(_) as id) => id
-    Some(_) =>
+  let request_id = match fields {
+    { "requestId": String(_) | Number(_) as id, .. } => id
+    { "requestId": _, .. } =>
       raise JsonDecodeError(
         (path.add_key("requestId"), "expected string or number"),
       )
-    None =>
+    _ =>
       raise JsonDecodeError(
         (path.add_key("requestId"), "requestId is required"),
       )
   }
-  let reason = match fields.get("reason") {
-    Some(String(reason)) => Some(reason)
-    Some(Null) | None => None
-    Some(_) =>
+  let reason = match fields {
+    { "reason": String(reason), .. } => Some(reason)
+    { "reason": Null, .. } => None
+    { "reason": _, .. } =>
       raise JsonDecodeError((path.add_key("reason"), "expected string"))
+    _ => None
   }
   CancelledNotificationParams(request_id~, reason?) catch {
     error => raise JsonDecodeError((path, error.message()))

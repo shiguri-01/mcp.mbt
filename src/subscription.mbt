@@ -359,12 +359,12 @@ pub fn subscription_notification_allowed(
     Object(params) => params
     _ => return false
   }
-  let meta = match params.get("_meta") {
-    Some(Object(meta)) => meta
+  let meta = match params {
+    { "_meta": Object(meta), .. } => meta
     _ => return false
   }
-  guard meta.get("io.modelcontextprotocol/subscriptionId") ==
-    Some(subscription_id) else {
+  guard meta is { "io.modelcontextprotocol/subscriptionId": sub_id, .. } &&
+    sub_id == subscription_id else {
     return false
   }
   match notification.method_name {
@@ -372,8 +372,9 @@ pub fn subscription_notification_allowed(
     "notifications/prompts/list_changed" => filter.prompts_list_changed
     "notifications/resources/list_changed" => filter.resources_list_changed
     "notifications/resources/updated" =>
-      match params.get("uri") {
-        Some(String(uri)) => filter.resource_subscriptions.contains(uri)
+      match params {
+        { "uri": String(uri), .. } =>
+          filter.resource_subscriptions.contains(uri)
         _ => false
       }
     _ => false
@@ -402,21 +403,23 @@ pub fn SubscriptionStreamState::consume(
         )
     }
     let (subscription_id, notifications) = match notification.params {
-      Object(params) =>
-        match (params.get("_meta"), params.get("notifications")) {
-          (Some(Object(meta)), Some(notifications)) =>
-            match meta.get("io.modelcontextprotocol/subscriptionId") {
-              Some(sub_id) => (sub_id, notifications)
-              _ =>
-                raise InvalidRequest(
-                  "subscription acknowledgement is missing subscriptionId",
-                )
-            }
-          _ =>
-            raise InvalidRequest(
-              "subscription acknowledgement is missing _meta or notifications",
-            )
+      Object(
+        {
+          "_meta": Object(
+            { "io.modelcontextprotocol/subscriptionId": sub_id, .. }
+          ),
+          "notifications": notifications,
+          ..
         }
+      ) => (sub_id, notifications)
+      Object({ "_meta": Object(_), "notifications": _, .. }) =>
+        raise InvalidRequest(
+          "subscription acknowledgement is missing subscriptionId",
+        )
+      Object(_) =>
+        raise InvalidRequest(
+          "subscription acknowledgement is missing _meta or notifications",
+        )
       _ =>
         raise InvalidRequest(
           "subscription acknowledgement params must be an object",
@@ -468,12 +471,14 @@ pub fn SubscriptionStreamState::consume(
         )
       }
       let sub_id = match result {
-        Object(fields) =>
-          match fields.get("_meta") {
-            Some(Object(meta)) =>
-              meta.get("io.modelcontextprotocol/subscriptionId")
-            _ => None
+        Object(
+          {
+            "_meta": Object(
+              { "io.modelcontextprotocol/subscriptionId": sub_id, .. }
+            ),
+            ..
           }
+        ) => Some(sub_id)
         _ => None
       }
       if sub_id != Some(self.subscription_id) {

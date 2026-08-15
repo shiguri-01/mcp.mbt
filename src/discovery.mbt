@@ -48,12 +48,12 @@ fn parse_ttl_ms(
   fields : Map[String, Json],
   context : String,
 ) -> Int64 raise McpError {
-  match fields.get("ttlMs") {
-    Some(Number(value, ..)) if value >= 0.0 &&
+  match fields {
+    { "ttlMs": Number(value, ..), .. } if value >= 0.0 &&
       value == value.to_int64().to_double() => value.to_int64()
-    Some(_) =>
+    { "ttlMs": _, .. } =>
       raise InvalidParams("\{context}.ttlMs must be a non-negative integer")
-    None => raise InvalidParams("\{context}.ttlMs is required")
+    _ => raise InvalidParams("\{context}.ttlMs is required")
   }
 }
 
@@ -65,13 +65,13 @@ pub impl @json.FromJson for DiscoverResult with fn from_json(
   guard value is Object(fields) else {
     raise JsonDecodeError((path, "expected object"))
   }
-  let supported_versions_val = match fields.get("supportedVersions") {
-    Some(Array(arr)) => arr
-    Some(_) =>
+  let supported_versions_val = match fields {
+    { "supportedVersions": Array(arr), .. } => arr
+    { "supportedVersions": _, .. } =>
       raise JsonDecodeError(
         (path.add_key("supportedVersions"), "expected array"),
       )
-    None =>
+    _ =>
       raise JsonDecodeError(
         (path.add_key("supportedVersions"), "supportedVersions is required"),
       )
@@ -94,11 +94,12 @@ pub impl @json.FromJson for DiscoverResult with fn from_json(
         (path.add_key("capabilities"), "capabilities is required"),
       )
   }
-  let instructions = match fields.get("instructions") {
-    Some(String(s)) => Some(s)
-    Some(Null) | None => None
-    Some(_) =>
+  let instructions = match fields {
+    { "instructions": String(s), .. } => Some(s)
+    { "instructions": Null, .. } => None
+    { "instructions": _, .. } =>
       raise JsonDecodeError((path.add_key("instructions"), "expected string"))
+    _ => None
   }
   let cache_policy : CachePolicy = @json.from_json(value) catch {
     JsonDecodeError((_, msg)) => raise JsonDecodeError((path, msg))

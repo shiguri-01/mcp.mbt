@@ -58,28 +58,33 @@ pub impl @json.FromJson for PromptArgument with fn from_json(
   guard value is Object(fields) else {
     raise JsonDecodeError((path, "expected object"))
   }
-  let name = match fields.get("name") {
-    Some(String(s)) => s
-    Some(_) => raise JsonDecodeError((path.add_key("name"), "expected string"))
-    None => raise JsonDecodeError((path.add_key("name"), "name is required"))
+  let name = match fields {
+    { "name": String(s), .. } => s
+    { "name": _, .. } =>
+      raise JsonDecodeError((path.add_key("name"), "expected string"))
+    _ => raise JsonDecodeError((path.add_key("name"), "name is required"))
   }
-  let title = match fields.get("title") {
-    Some(String(s)) => Some(s)
-    Some(Null) | None => None
-    Some(_) => raise JsonDecodeError((path.add_key("title"), "expected string"))
+  let title = match fields {
+    { "title": String(s), .. } => Some(s)
+    { "title": Null, .. } => None
+    { "title": _, .. } =>
+      raise JsonDecodeError((path.add_key("title"), "expected string"))
+    _ => None
   }
-  let description = match fields.get("description") {
-    Some(String(s)) => Some(s)
-    Some(Null) | None => None
-    Some(_) =>
+  let description = match fields {
+    { "description": String(s), .. } => Some(s)
+    { "description": Null, .. } => None
+    { "description": _, .. } =>
       raise JsonDecodeError((path.add_key("description"), "expected string"))
+    _ => None
   }
-  let required = match fields.get("required") {
-    Some(True) => true
-    Some(False) => false
-    Some(Null) | None => false
-    Some(_) =>
+  let required = match fields {
+    { "required": True, .. } => true
+    { "required": False, .. } => false
+    { "required": Null, .. } => false
+    { "required": _, .. } =>
       raise JsonDecodeError((path.add_key("required"), "expected boolean"))
+    _ => false
   }
   PromptArgument(name~, title?, description?, required~)
 }
@@ -146,24 +151,28 @@ pub impl @json.FromJson for Prompt with fn from_json(
   guard value is Object(fields) else {
     raise JsonDecodeError((path, "expected object"))
   }
-  let name = match fields.get("name") {
-    Some(String(s)) => s
-    Some(_) => raise JsonDecodeError((path.add_key("name"), "expected string"))
-    None => raise JsonDecodeError((path.add_key("name"), "name is required"))
+  let name = match fields {
+    { "name": String(s), .. } => s
+    { "name": _, .. } =>
+      raise JsonDecodeError((path.add_key("name"), "expected string"))
+    _ => raise JsonDecodeError((path.add_key("name"), "name is required"))
   }
-  let title = match fields.get("title") {
-    Some(String(s)) => Some(s)
-    Some(Null) | None => None
-    Some(_) => raise JsonDecodeError((path.add_key("title"), "expected string"))
+  let title = match fields {
+    { "title": String(s), .. } => Some(s)
+    { "title": Null, .. } => None
+    { "title": _, .. } =>
+      raise JsonDecodeError((path.add_key("title"), "expected string"))
+    _ => None
   }
-  let description = match fields.get("description") {
-    Some(String(s)) => Some(s)
-    Some(Null) | None => None
-    Some(_) =>
+  let description = match fields {
+    { "description": String(s), .. } => Some(s)
+    { "description": Null, .. } => None
+    { "description": _, .. } =>
       raise JsonDecodeError((path.add_key("description"), "expected string"))
+    _ => None
   }
-  let arguments : Array[PromptArgument] = match fields.get("arguments") {
-    Some(Array(arr)) => {
+  let arguments : Array[PromptArgument] = match fields {
+    { "arguments": Array(arr), .. } => {
       let result : Array[PromptArgument] = []
       for i, it in arr {
         result.push(
@@ -172,15 +181,16 @@ pub impl @json.FromJson for Prompt with fn from_json(
       }
       result
     }
-    Some(Null) | None => []
-    Some(_) =>
+    { "arguments": Null, .. } => []
+    { "arguments": _, .. } =>
       raise JsonDecodeError((path.add_key("arguments"), "expected array"))
+    _ => []
   }
   validate_prompt_argument_names(arguments, "prompt.arguments") catch {
     error => raise JsonDecodeError((path.add_key("arguments"), error.message()))
   }
-  let icons : Array[Icon] = match fields.get("icons") {
-    Some(Array(arr)) => {
+  let icons : Array[Icon] = match fields {
+    { "icons": Array(arr), .. } => {
       let result : Array[Icon] = []
       for i, it in arr {
         result.push(
@@ -189,10 +199,15 @@ pub impl @json.FromJson for Prompt with fn from_json(
       }
       result
     }
-    Some(Null) | None => []
-    Some(_) => raise JsonDecodeError((path.add_key("icons"), "expected array"))
+    { "icons": Null, .. } => []
+    { "icons": _, .. } =>
+      raise JsonDecodeError((path.add_key("icons"), "expected array"))
+    _ => []
   }
-  let meta = fields.get("_meta")
+  let meta = match fields {
+    { "_meta": m, .. } => Some(m)
+    _ => None
+  }
   Prompt(name~, title?, description?, arguments~, icons~, meta?)
 }
 

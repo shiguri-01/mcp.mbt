@@ -120,17 +120,16 @@ pub impl @json.FromJson for RequestMeta with fn from_json(
   validate_meta_map(fields) catch {
     error => raise JsonDecodeError((path, error.message()))
   }
-  let protocol_version = match
-    fields.get("io.modelcontextprotocol/protocolVersion") {
-    Some(String(s)) => s
-    Some(_) =>
+  let protocol_version = match fields {
+    { "io.modelcontextprotocol/protocolVersion": String(s), .. } => s
+    { "io.modelcontextprotocol/protocolVersion": _, .. } =>
       raise JsonDecodeError(
         (
           path.add_key("io.modelcontextprotocol/protocolVersion"),
           "expected string",
         ),
       )
-    None =>
+    _ =>
       raise JsonDecodeError(
         (
           path.add_key("io.modelcontextprotocol/protocolVersion"),
@@ -171,14 +170,14 @@ pub impl @json.FromJson for RequestMeta with fn from_json(
       )
     _ => None
   }
-  let progress_token = match fields.get("progressToken") {
-    Some(String(_) as s) => Some(s)
-    Some(Number(_) as n) => Some(n)
-    Some(Null) | None => None
-    Some(_) =>
+  let progress_token = match fields {
+    { "progressToken": String(_) | Number(_) as t, .. } => Some(t)
+    { "progressToken": Null, .. } => None
+    { "progressToken": _, .. } =>
       raise JsonDecodeError(
         (path.add_key("progressToken"), "expected string or number"),
       )
+    _ => None
   }
   let log_level : LoggingLevel? = match fields {
     { "io.modelcontextprotocol/logLevel": v, .. } =>

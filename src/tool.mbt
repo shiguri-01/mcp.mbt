@@ -38,42 +38,48 @@ pub impl @json.FromJson for ToolAnnotations with fn from_json(
   guard value is Object(fields) else {
     raise JsonDecodeError((path, "expected object"))
   }
-  let title = match fields.get("title") {
-    Some(String(s)) => Some(s)
-    Some(Null) | None => None
-    Some(_) => raise JsonDecodeError((path.add_key("title"), "expected string"))
+  let title = match fields {
+    { "title": String(s), .. } => Some(s)
+    { "title": Null, .. } => None
+    { "title": _, .. } =>
+      raise JsonDecodeError((path.add_key("title"), "expected string"))
+    _ => None
   }
-  let read_only_hint = match fields.get("readOnlyHint") {
-    Some(True) => Some(true)
-    Some(False) => Some(false)
-    Some(Null) | None => None
-    Some(_) =>
+  let read_only_hint = match fields {
+    { "readOnlyHint": True, .. } => Some(true)
+    { "readOnlyHint": False, .. } => Some(false)
+    { "readOnlyHint": Null, .. } => None
+    { "readOnlyHint": _, .. } =>
       raise JsonDecodeError((path.add_key("readOnlyHint"), "expected boolean"))
+    _ => None
   }
-  let destructive_hint = match fields.get("destructiveHint") {
-    Some(True) => Some(true)
-    Some(False) => Some(false)
-    Some(Null) | None => None
-    Some(_) =>
+  let destructive_hint = match fields {
+    { "destructiveHint": True, .. } => Some(true)
+    { "destructiveHint": False, .. } => Some(false)
+    { "destructiveHint": Null, .. } => None
+    { "destructiveHint": _, .. } =>
       raise JsonDecodeError(
         (path.add_key("destructiveHint"), "expected boolean"),
       )
+    _ => None
   }
-  let idempotent_hint = match fields.get("idempotentHint") {
-    Some(True) => Some(true)
-    Some(False) => Some(false)
-    Some(Null) | None => None
-    Some(_) =>
+  let idempotent_hint = match fields {
+    { "idempotentHint": True, .. } => Some(true)
+    { "idempotentHint": False, .. } => Some(false)
+    { "idempotentHint": Null, .. } => None
+    { "idempotentHint": _, .. } =>
       raise JsonDecodeError(
         (path.add_key("idempotentHint"), "expected boolean"),
       )
+    _ => None
   }
-  let open_world_hint = match fields.get("openWorldHint") {
-    Some(True) => Some(true)
-    Some(False) => Some(false)
-    Some(Null) | None => None
-    Some(_) =>
+  let open_world_hint = match fields {
+    { "openWorldHint": True, .. } => Some(true)
+    { "openWorldHint": False, .. } => Some(false)
+    { "openWorldHint": Null, .. } => None
+    { "openWorldHint": _, .. } =>
       raise JsonDecodeError((path.add_key("openWorldHint"), "expected boolean"))
+    _ => None
   }
   ToolAnnotations(
     title?,
@@ -189,37 +195,42 @@ pub impl @json.FromJson for Tool with fn from_json(
   guard value is Object(fields) else {
     raise JsonDecodeError((path, "expected object"))
   }
-  let name = match fields.get("name") {
-    Some(String(s)) => s
-    Some(_) => raise JsonDecodeError((path.add_key("name"), "expected string"))
-    None => raise JsonDecodeError((path.add_key("name"), "name is required"))
+  let name = match fields {
+    { "name": String(s), .. } => s
+    { "name": _, .. } =>
+      raise JsonDecodeError((path.add_key("name"), "expected string"))
+    _ => raise JsonDecodeError((path.add_key("name"), "name is required"))
   }
-  let title = match fields.get("title") {
-    Some(String(s)) => Some(s)
-    Some(Null) | None => None
-    Some(_) => raise JsonDecodeError((path.add_key("title"), "expected string"))
+  let title = match fields {
+    { "title": String(s), .. } => Some(s)
+    { "title": Null, .. } => None
+    { "title": _, .. } =>
+      raise JsonDecodeError((path.add_key("title"), "expected string"))
+    _ => None
   }
-  let description = match fields.get("description") {
-    Some(String(s)) => Some(s)
-    Some(Null) | None => None
-    Some(_) =>
+  let description = match fields {
+    { "description": String(s), .. } => Some(s)
+    { "description": Null, .. } => None
+    { "description": _, .. } =>
       raise JsonDecodeError((path.add_key("description"), "expected string"))
+    _ => None
   }
-  let input_schema = match fields.get("inputSchema") {
-    Some(v) => v
-    None =>
-      raise JsonDecodeError(
-        (path.add_key("inputSchema"), "inputSchema is required"),
-      )
+  guard fields is { "inputSchema": input_schema, .. } else {
+    raise JsonDecodeError(
+      (path.add_key("inputSchema"), "inputSchema is required"),
+    )
   }
-  let output_schema = fields.get("outputSchema")
+  let output_schema = match fields {
+    { "outputSchema": s, .. } => Some(s)
+    _ => None
+  }
   let annotations : ToolAnnotations? = match fields {
     { "annotations": v, .. } =>
       Some(@json.from_json(v, path=path.add_key("annotations")))
     _ => None
   }
-  let icons : Array[Icon] = match fields.get("icons") {
-    Some(Array(arr)) => {
+  let icons : Array[Icon] = match fields {
+    { "icons": Array(arr), .. } => {
       let result : Array[Icon] = []
       for i, it in arr {
         result.push(
@@ -228,10 +239,15 @@ pub impl @json.FromJson for Tool with fn from_json(
       }
       result
     }
-    Some(Null) | None => []
-    Some(_) => raise JsonDecodeError((path.add_key("icons"), "expected array"))
+    { "icons": Null, .. } => []
+    { "icons": _, .. } =>
+      raise JsonDecodeError((path.add_key("icons"), "expected array"))
+    _ => []
   }
-  let meta = fields.get("_meta")
+  let meta = match fields {
+    { "_meta": m, .. } => Some(m)
+    _ => None
+  }
   Tool(
     name~,
     title?,

@@ -169,22 +169,26 @@ pub impl ToJson for ErrorObject with fn to_json(self) -> Json {
 pub impl FromJson for ErrorObject with fn from_json(value, path) -> ErrorObject {
   match value {
     Json::Object(fields) => {
-      let code = match fields.get("code") {
-        Some(Json::Number(value, ..)) if value.to_int().to_double() == value =>
-          value.to_int()
+      let code = match fields {
+        { "code": Json::Number(value, ..), .. } if value.to_int().to_double() ==
+          value => value.to_int()
         _ =>
           raise @json.JsonDecodeError(
             (path.add_key("code"), "error code must be an integer"),
           )
       }
-      let message = match fields.get("message") {
-        Some(Json::String(value)) => value
+      let message = match fields {
+        { "message": Json::String(value), .. } => value
         _ =>
           raise @json.JsonDecodeError(
             (path.add_key("message"), "error message must be a string"),
           )
       }
-      ErrorObject(code~, message~, data?=fields.get("data"))
+      let data = match fields {
+        { "data": data, .. } => Some(data)
+        _ => None
+      }
+      ErrorObject(code~, message~, data?)
     }
     _ => raise @json.JsonDecodeError((path, "JSON-RPC error must be an object"))
   }
@@ -265,35 +269,42 @@ pub fn decode(value : Json) -> Message raise JsonRpcDecodeError {
       "JSON-RPC message must be an object",
     )
   }
-  guard fields.get("jsonrpc") == Some(Json::string(JSON_RPC_VERSION)) else {
+  guard fields is { "jsonrpc": Json::String(v), .. } && v == JSON_RPC_VERSION else {
     raise JsonRpcDecodeError::InvalidMessage("jsonrpc must be \"2.0\"")
   }
-  match fields.get("method") {
-    Some(Json::String(method_name)) => {
-      let params : Json = match fields.get("params") {
-        Some(Json::Object(params)) => Json::object(params)
-        Some(Json::Array(params)) => Json::array(params)
-        None => Json::object({})
-        _ =>
+  match fields {
+    { "method": Json::String(method_name), .. } => {
+      let params : Json = match fields {
+        { "params": Json::Object(params), .. } => Json::object(params)
+        { "params": Json::Array(params), .. } => Json::array(params)
+        { "params": _, .. } =>
           raise JsonRpcDecodeError::InvalidMessage(
             "params must be structured JSON",
           )
+        _ => Json::object({})
       }
-      match fields.get("id") {
-        Some(id) =>
+      match fields {
+        { "id": id, .. } =>
           Message::Request(
             make_request(id=decode_id(id), method_name~, params~),
           )
-        None => Message::Notification(make_notification(method_name~, params~))
+        _ => Message::Notification(make_notification(method_name~, params~))
       }
     }
-    None => {
-      let id : RequestId? = match fields.get("id") {
-        Some(Null) | None => None
-        Some(id) => Some(decode_id(id))
+    { "method": _, .. } =>
+      raise JsonRpcDecodeError::InvalidMessage("method must be a string")
+    _ => {
+      let id : RequestId? = match fields {
+        { "id": Null, .. } => None
+        { "id": id, .. } => Some(decode_id(id))
+        _ => None
       }
-      match (fields.get("result"), fields.get("error")) {
-        (Some(result), None) =>
+      match fields {
+        { "result": _, "error": _, .. } =>
+          raise JsonRpcDecodeError::InvalidMessage(
+            "response must contain result or error",
+          )
+        { "result": result, .. } =>
           match id {
             Some(id) => Message::Response(Success(id~, result~))
             None =>
@@ -301,7 +312,7 @@ pub fn decode(value : Json) -> Message raise JsonRpcDecodeError {
                 "success response id is required",
               )
           }
-        (None, Some(error)) =>
+        { "error": error, .. } =>
           Message::Response(Failure(id~, error=decode_error(error)))
         _ =>
           raise JsonRpcDecodeError::InvalidMessage(
@@ -309,7 +320,6 @@ pub fn decode(value : Json) -> Message raise JsonRpcDecodeError {
           )
       }
     }
-    _ => raise JsonRpcDecodeError::InvalidMessage("method must be a string")
   }
 }
 

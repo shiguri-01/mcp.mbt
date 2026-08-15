@@ -118,7 +118,6 @@ pub(all) enum CacheScope {
   Private
 } derive(Eq, @debug.Debug)
 pub fn CacheScope::from_json(Json) -> Self raise McpError
-pub fn CacheScope::to_string(Self) -> String
 pub impl ToJson for CacheScope
 pub impl @json.FromJson for CacheScope
 
