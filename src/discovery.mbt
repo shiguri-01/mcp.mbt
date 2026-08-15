@@ -48,12 +48,12 @@ fn parse_ttl_ms(
   fields : Map[String, Json],
   context : String,
 ) -> Int64 raise McpError {
-  match fields {
-    { "ttlMs": Number(value, ..), .. } if value >= 0.0 &&
+  match fields.get("ttlMs") {
+    Some(Number(value, ..)) if value >= 0.0 &&
       value == value.to_int64().to_double() => value.to_int64()
-    { "ttlMs": _, .. } =>
+    Some(_) =>
       raise InvalidParams("\{context}.ttlMs must be a non-negative integer")
-    _ => raise InvalidParams("\{context}.ttlMs is required")
+    None => raise InvalidParams("\{context}.ttlMs is required")
   }
 }
 
@@ -65,48 +65,52 @@ pub impl @json.FromJson for DiscoverResult with fn from_json(
   guard value is Object(fields) else {
     raise JsonDecodeError((path, "expected object"))
   }
-  let supported_versions_val = match fields {
-    { "supportedVersions": Array(arr), .. } => arr
-    { "supportedVersions": _, .. } =>
+  let supported_versions : Array[String] = match
+    fields.get("supportedVersions") {
+    Some(Array(arr)) => {
+      let result : Array[String] = []
+      for i, it in arr {
+        match it {
+          String(s) => result.push(s)
+          _ =>
+            raise JsonDecodeError(
+              (
+                path.add_key("supportedVersions").add_index(i),
+                "expected string",
+              ),
+            )
+        }
+      }
+      result
+    }
+    Some(_) =>
       raise JsonDecodeError(
         (path.add_key("supportedVersions"), "expected array"),
       )
-    _ =>
+    None =>
       raise JsonDecodeError(
         (path.add_key("supportedVersions"), "supportedVersions is required"),
       )
   }
-  let supported_versions : Array[String] = []
-  for i, it in supported_versions_val {
-    match it {
-      String(s) => supported_versions.push(s)
-      _ =>
-        raise JsonDecodeError(
-          (path.add_key("supportedVersions").add_index(i), "expected string"),
-        )
-    }
-  }
-  let capabilities : ServerCapabilities = match fields {
-    { "capabilities": v, .. } =>
-      @json.from_json(v, path=path.add_key("capabilities"))
-    _ =>
+  let capabilities : ServerCapabilities = match fields.get("capabilities") {
+    Some(v) => @json.from_json(v, path=path.add_key("capabilities"))
+    None =>
       raise JsonDecodeError(
         (path.add_key("capabilities"), "capabilities is required"),
       )
   }
-  let instructions = match fields {
-    { "instructions": String(s), .. } => Some(s)
-    { "instructions": Null, .. } => None
-    { "instructions": _, .. } =>
+  let instructions = match fields.get("instructions") {
+    Some(String(s)) => Some(s)
+    Some(Null) | None => None
+    Some(_) =>
       raise JsonDecodeError((path.add_key("instructions"), "expected string"))
-    _ => None
   }
   let cache_policy : CachePolicy = @json.from_json(value) catch {
     JsonDecodeError((_, msg)) => raise JsonDecodeError((path, msg))
   }
-  let meta : ResultMeta? = match fields {
-    { "_meta": v, .. } => Some(@json.from_json(v, path=path.add_key("_meta")))
-    _ => None
+  let meta : ResultMeta? = match fields.get("_meta") {
+    Some(v) => Some(@json.from_json(v, path=path.add_key("_meta")))
+    None => None
   }
   DiscoverResult(
     supported_versions~,

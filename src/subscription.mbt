@@ -52,44 +52,19 @@ pub impl @json.FromJson for SubscriptionFilter with fn from_json(value, path) ->
   guard value is Object(fields) else {
     raise @json.JsonDecodeError((path, "subscription filter must be an object"))
   }
-  let tools_list_changed = match fields {
-    { "toolsListChanged": True, .. } => true
-    { "toolsListChanged": False | Null, .. } => false
-    { "toolsListChanged": _, .. } =>
-      raise @json.JsonDecodeError(
-        (
-          path.add_key("toolsListChanged"),
-          "subscription filter flag must be boolean",
-        ),
-      )
-    _ => false
+  let read_bool = fn(key : String) -> Bool raise @json.JsonDecodeError {
+    match fields.get(key) {
+      Some(True) => true
+      Some(False | Null) | None => false
+      Some(_) =>
+        raise @json.JsonDecodeError(
+          (path.add_key(key), "subscription filter flag must be boolean"),
+        )
+    }
   }
-  let prompts_list_changed = match fields {
-    { "promptsListChanged": True, .. } => true
-    { "promptsListChanged": False | Null, .. } => false
-    { "promptsListChanged": _, .. } =>
-      raise @json.JsonDecodeError(
-        (
-          path.add_key("promptsListChanged"),
-          "subscription filter flag must be boolean",
-        ),
-      )
-    _ => false
-  }
-  let resources_list_changed = match fields {
-    { "resourcesListChanged": True, .. } => true
-    { "resourcesListChanged": False | Null, .. } => false
-    { "resourcesListChanged": _, .. } =>
-      raise @json.JsonDecodeError(
-        (
-          path.add_key("resourcesListChanged"),
-          "subscription filter flag must be boolean",
-        ),
-      )
-    _ => false
-  }
-  let resource_subscriptions : Array[String] = match fields {
-    { "resourceSubscriptions": Array(values), .. } =>
+  let resource_subscriptions : Array[String] = match
+    fields.get("resourceSubscriptions") {
+    Some(Array(values)) =>
       values.map(fn(value) -> String raise @json.JsonDecodeError {
         match value {
           String(uri) => uri
@@ -102,20 +77,19 @@ pub impl @json.FromJson for SubscriptionFilter with fn from_json(value, path) ->
             )
         }
       })
-    { "resourceSubscriptions": Null, .. } => []
-    { "resourceSubscriptions": _, .. } =>
+    Some(Null) | None => []
+    Some(_) =>
       raise @json.JsonDecodeError(
         (
           path.add_key("resourceSubscriptions"),
           "resourceSubscriptions must be an array",
         ),
       )
-    _ => []
   }
   SubscriptionFilter(
-    tools_list_changed~,
-    prompts_list_changed~,
-    resources_list_changed~,
+    tools_list_changed=read_bool("toolsListChanged"),
+    prompts_list_changed=read_bool("promptsListChanged"),
+    resources_list_changed=read_bool("resourcesListChanged"),
     resource_subscriptions~,
   )
 }

@@ -167,31 +167,26 @@ pub impl ToJson for ErrorObject with fn to_json(self) -> Json {
 
 ///|
 pub impl FromJson for ErrorObject with fn from_json(value, path) -> ErrorObject {
-  match value {
-    Json::Object(fields) => {
-      let code = match fields {
-        { "code": Json::Number(value, ..), .. } if value.to_int().to_double() ==
-          value => value.to_int()
-        _ =>
-          raise @json.JsonDecodeError(
-            (path.add_key("code"), "error code must be an integer"),
-          )
-      }
-      let message = match fields {
-        { "message": Json::String(value), .. } => value
-        _ =>
-          raise @json.JsonDecodeError(
-            (path.add_key("message"), "error message must be a string"),
-          )
-      }
-      let data = match fields {
-        { "data": data, .. } => Some(data)
-        _ => None
-      }
-      ErrorObject(code~, message~, data?)
-    }
-    _ => raise @json.JsonDecodeError((path, "JSON-RPC error must be an object"))
+  guard value is Json::Object(fields) else {
+    raise @json.JsonDecodeError((path, "JSON-RPC error must be an object"))
   }
+  let code = match fields.get("code") {
+    Some(Json::Number(value, ..)) if value.to_int().to_double() == value =>
+      value.to_int()
+    _ =>
+      raise @json.JsonDecodeError(
+        (path.add_key("code"), "error code must be an integer"),
+      )
+  }
+  let message = match fields.get("message") {
+    Some(Json::String(value)) => value
+    _ =>
+      raise @json.JsonDecodeError(
+        (path.add_key("message"), "error message must be a string"),
+      )
+  }
+  let data = fields.get("data")
+  ErrorObject(code~, message~, data?)
 }
 
 ///|

@@ -120,16 +120,17 @@ pub impl @json.FromJson for RequestMeta with fn from_json(
   validate_meta_map(fields) catch {
     error => raise JsonDecodeError((path, error.message()))
   }
-  let protocol_version = match fields {
-    { "io.modelcontextprotocol/protocolVersion": String(s), .. } => s
-    { "io.modelcontextprotocol/protocolVersion": _, .. } =>
+  let protocol_version = match
+    fields.get("io.modelcontextprotocol/protocolVersion") {
+    Some(String(s)) => s
+    Some(_) =>
       raise JsonDecodeError(
         (
           path.add_key("io.modelcontextprotocol/protocolVersion"),
           "expected string",
         ),
       )
-    _ =>
+    None =>
       raise JsonDecodeError(
         (
           path.add_key("io.modelcontextprotocol/protocolVersion"),
@@ -137,7 +138,8 @@ pub impl @json.FromJson for RequestMeta with fn from_json(
         ),
       )
   }
-  guard fields is { "io.modelcontextprotocol/clientCapabilities": caps_val, .. } else {
+  guard fields.get("io.modelcontextprotocol/clientCapabilities")
+    is Some(caps_val) else {
     raise JsonDecodeError(
       (
         path.add_key("io.modelcontextprotocol/clientCapabilities"),
@@ -160,34 +162,35 @@ pub impl @json.FromJson for RequestMeta with fn from_json(
       _ => extra[key] = item
     }
   }
-  let client_info : Implementation? = match fields {
-    { "io.modelcontextprotocol/clientInfo": v, .. } =>
+  let client_info : Implementation? = match
+    fields.get("io.modelcontextprotocol/clientInfo") {
+    Some(v) =>
       Some(
         @json.from_json(
           v,
           path=path.add_key("io.modelcontextprotocol/clientInfo"),
         ),
       )
-    _ => None
+    None => None
   }
-  let progress_token = match fields {
-    { "progressToken": String(_) | Number(_) as t, .. } => Some(t)
-    { "progressToken": Null, .. } => None
-    { "progressToken": _, .. } =>
+  let progress_token = match fields.get("progressToken") {
+    Some(String(_) | Number(_) as t) => Some(t)
+    Some(Null) | None => None
+    Some(_) =>
       raise JsonDecodeError(
         (path.add_key("progressToken"), "expected string or number"),
       )
-    _ => None
   }
-  let log_level : LoggingLevel? = match fields {
-    { "io.modelcontextprotocol/logLevel": v, .. } =>
+  let log_level : LoggingLevel? = match
+    fields.get("io.modelcontextprotocol/logLevel") {
+    Some(v) =>
       Some(
         @json.from_json(
           v,
           path=path.add_key("io.modelcontextprotocol/logLevel"),
         ),
       )
-    _ => None
+    None => None
   }
   RequestMeta(
     protocol_version~,

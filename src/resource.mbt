@@ -103,41 +103,35 @@ pub impl @json.FromJson for Resource with fn from_json(
   guard value is Object(fields) else {
     raise JsonDecodeError((path, "expected object"))
   }
-  let uri = match fields {
-    { "uri": String(s), .. } => s
-    { "uri": _, .. } =>
-      raise JsonDecodeError((path.add_key("uri"), "expected string"))
-    _ => raise JsonDecodeError((path.add_key("uri"), "uri is required"))
+  let uri = match fields.get("uri") {
+    Some(String(s)) => s
+    Some(_) => raise JsonDecodeError((path.add_key("uri"), "expected string"))
+    None => raise JsonDecodeError((path.add_key("uri"), "uri is required"))
   }
-  let name = match fields {
-    { "name": String(s), .. } => s
-    { "name": _, .. } =>
-      raise JsonDecodeError((path.add_key("name"), "expected string"))
-    _ => raise JsonDecodeError((path.add_key("name"), "name is required"))
+  let name = match fields.get("name") {
+    Some(String(s)) => s
+    Some(_) => raise JsonDecodeError((path.add_key("name"), "expected string"))
+    None => raise JsonDecodeError((path.add_key("name"), "name is required"))
   }
-  let title = match fields {
-    { "title": String(s), .. } => Some(s)
-    { "title": Null, .. } => None
-    { "title": _, .. } =>
-      raise JsonDecodeError((path.add_key("title"), "expected string"))
-    _ => None
+  let title = match fields.get("title") {
+    Some(String(s)) => Some(s)
+    Some(Null) | None => None
+    Some(_) => raise JsonDecodeError((path.add_key("title"), "expected string"))
   }
-  let description = match fields {
-    { "description": String(s), .. } => Some(s)
-    { "description": Null, .. } => None
-    { "description": _, .. } =>
+  let description = match fields.get("description") {
+    Some(String(s)) => Some(s)
+    Some(Null) | None => None
+    Some(_) =>
       raise JsonDecodeError((path.add_key("description"), "expected string"))
-    _ => None
   }
-  let mime_type = match fields {
-    { "mimeType": String(s), .. } => Some(s)
-    { "mimeType": Null, .. } => None
-    { "mimeType": _, .. } =>
+  let mime_type = match fields.get("mimeType") {
+    Some(String(s)) => Some(s)
+    Some(Null) | None => None
+    Some(_) =>
       raise JsonDecodeError((path.add_key("mimeType"), "expected string"))
-    _ => None
   }
-  let icons : Array[Icon] = match fields {
-    { "icons": Array(arr), .. } => {
+  let icons : Array[Icon] = match fields.get("icons") {
+    Some(Array(arr)) => {
       let result : Array[Icon] = []
       for i, it in arr {
         result.push(
@@ -146,18 +140,15 @@ pub impl @json.FromJson for Resource with fn from_json(
       }
       result
     }
-    { "icons": Null, .. } => []
-    { "icons": _, .. } =>
-      raise JsonDecodeError((path.add_key("icons"), "expected array"))
-    _ => []
+    Some(Null) | None => []
+    Some(_) => raise JsonDecodeError((path.add_key("icons"), "expected array"))
   }
-  let annotations : Annotations? = match fields {
-    { "annotations": v, .. } =>
-      Some(@json.from_json(v, path=path.add_key("annotations")))
-    _ => None
+  let annotations : Annotations? = match fields.get("annotations") {
+    Some(v) => Some(@json.from_json(v, path=path.add_key("annotations")))
+    None => None
   }
-  let size : Int64? = match fields {
-    { "size": Number(s, ..), .. } => {
+  let size : Int64? = match fields.get("size") {
+    Some(Number(s, ..)) => {
       if s < 0.0 || s != s.to_int64().to_double() {
         raise JsonDecodeError(
           (path.add_key("size"), "expected non-negative integer"),
@@ -165,15 +156,10 @@ pub impl @json.FromJson for Resource with fn from_json(
       }
       Some(s.to_int64())
     }
-    { "size": Null, .. } => None
-    { "size": _, .. } =>
-      raise JsonDecodeError((path.add_key("size"), "expected number"))
-    _ => None
+    Some(Null) | None => None
+    Some(_) => raise JsonDecodeError((path.add_key("size"), "expected number"))
   }
-  let meta = match fields {
-    { "_meta": m, .. } => Some(m)
-    _ => None
-  }
+  let meta = fields.get("_meta")
   Resource(
     uri~,
     name~,
@@ -261,44 +247,39 @@ pub impl @json.FromJson for ResourceTemplate with fn from_json(
   guard value is Object(fields) else {
     raise JsonDecodeError((path, "expected object"))
   }
-  let uri_template = match fields {
-    { "uriTemplate": String(s), .. } => s
-    { "uriTemplate": _, .. } =>
+  let uri_template = match fields.get("uriTemplate") {
+    Some(String(s)) => s
+    Some(_) =>
       raise JsonDecodeError((path.add_key("uriTemplate"), "expected string"))
-    _ =>
+    None =>
       raise JsonDecodeError(
         (path.add_key("uriTemplate"), "uriTemplate is required"),
       )
   }
-  let name = match fields {
-    { "name": String(s), .. } => s
-    { "name": _, .. } =>
-      raise JsonDecodeError((path.add_key("name"), "expected string"))
-    _ => raise JsonDecodeError((path.add_key("name"), "name is required"))
+  let name = match fields.get("name") {
+    Some(String(s)) => s
+    Some(_) => raise JsonDecodeError((path.add_key("name"), "expected string"))
+    None => raise JsonDecodeError((path.add_key("name"), "name is required"))
   }
-  let title = match fields {
-    { "title": String(s), .. } => Some(s)
-    { "title": Null, .. } => None
-    { "title": _, .. } =>
-      raise JsonDecodeError((path.add_key("title"), "expected string"))
-    _ => None
+  let title = match fields.get("title") {
+    Some(String(s)) => Some(s)
+    Some(Null) | None => None
+    Some(_) => raise JsonDecodeError((path.add_key("title"), "expected string"))
   }
-  let description = match fields {
-    { "description": String(s), .. } => Some(s)
-    { "description": Null, .. } => None
-    { "description": _, .. } =>
+  let description = match fields.get("description") {
+    Some(String(s)) => Some(s)
+    Some(Null) | None => None
+    Some(_) =>
       raise JsonDecodeError((path.add_key("description"), "expected string"))
-    _ => None
   }
-  let mime_type = match fields {
-    { "mimeType": String(s), .. } => Some(s)
-    { "mimeType": Null, .. } => None
-    { "mimeType": _, .. } =>
+  let mime_type = match fields.get("mimeType") {
+    Some(String(s)) => Some(s)
+    Some(Null) | None => None
+    Some(_) =>
       raise JsonDecodeError((path.add_key("mimeType"), "expected string"))
-    _ => None
   }
-  let icons : Array[Icon] = match fields {
-    { "icons": Array(arr), .. } => {
+  let icons : Array[Icon] = match fields.get("icons") {
+    Some(Array(arr)) => {
       let result : Array[Icon] = []
       for i, it in arr {
         result.push(
@@ -307,20 +288,14 @@ pub impl @json.FromJson for ResourceTemplate with fn from_json(
       }
       result
     }
-    { "icons": Null, .. } => []
-    { "icons": _, .. } =>
-      raise JsonDecodeError((path.add_key("icons"), "expected array"))
-    _ => []
+    Some(Null) | None => []
+    Some(_) => raise JsonDecodeError((path.add_key("icons"), "expected array"))
   }
-  let annotations : Annotations? = match fields {
-    { "annotations": v, .. } =>
-      Some(@json.from_json(v, path=path.add_key("annotations")))
-    _ => None
+  let annotations : Annotations? = match fields.get("annotations") {
+    Some(v) => Some(@json.from_json(v, path=path.add_key("annotations")))
+    None => None
   }
-  let meta = match fields {
-    { "_meta": m, .. } => Some(m)
-    _ => None
-  }
+  let meta = fields.get("_meta")
   ResourceTemplate(
     uri_template~,
     name~,
@@ -386,33 +361,26 @@ pub impl @json.FromJson for ResourceContent with fn from_json(
   guard value is Object(fields) else {
     raise JsonDecodeError((path, "expected object"))
   }
-  let uri = match fields {
-    { "uri": String(u), .. } => u
-    { "uri": _, .. } =>
-      raise JsonDecodeError((path.add_key("uri"), "expected string"))
-    _ => raise JsonDecodeError((path.add_key("uri"), "uri is required"))
+  let uri = match fields.get("uri") {
+    Some(String(u)) => u
+    Some(_) => raise JsonDecodeError((path.add_key("uri"), "expected string"))
+    None => raise JsonDecodeError((path.add_key("uri"), "uri is required"))
   }
-  let mime_type = match fields {
-    { "mimeType": String(m), .. } => Some(m)
-    { "mimeType": Null, .. } => None
-    { "mimeType": _, .. } =>
+  let mime_type = match fields.get("mimeType") {
+    Some(String(m)) => Some(m)
+    Some(Null) | None => None
+    Some(_) =>
       raise JsonDecodeError((path.add_key("mimeType"), "expected string"))
-    _ => None
   }
-  let meta = match fields {
-    { "_meta": m, .. } => Some(m)
-    _ => None
-  }
-  match fields {
-    { "text": String(_), "blob": _, .. } =>
+  let meta = fields.get("_meta")
+  match (fields.get("text"), fields.get("blob")) {
+    (Some(_), Some(_)) =>
       raise JsonDecodeError((path, "cannot contain both text and blob"))
-    { "text": _, "blob": String(_), .. } =>
-      raise JsonDecodeError((path, "cannot contain both text and blob"))
-    { "text": String(text), .. } =>
+    (Some(String(text)), None) =>
       ResourceContent::text(uri~, text~, mime_type?, meta?)
-    { "blob": String(blob), .. } =>
+    (None, Some(String(blob))) =>
       ResourceContent::blob(uri~, blob~, mime_type?, meta?)
-    { "text": _, .. } | { "blob": _, .. } =>
+    (Some(_), None) | (None, Some(_)) =>
       raise JsonDecodeError((path, "text/blob must be a string"))
     _ => raise JsonDecodeError((path, "requires text or blob content"))
   }
@@ -485,21 +453,25 @@ pub impl @json.FromJson for ReadResourceResult with fn from_json(
   guard value is Object(fields) else {
     raise JsonDecodeError((path, "expected object"))
   }
-  let contents_val = match fields {
-    { "contents": Array(arr), .. } => arr
-    { "contents": _, .. } =>
+  let contents : Array[ResourceContent] = match fields.get("contents") {
+    Some(Array(arr)) => {
+      let result : Array[ResourceContent] = []
+      for i, it in arr {
+        result.push(
+          @json.from_json(it) catch {
+            JsonDecodeError((_, msg)) =>
+              raise JsonDecodeError(
+                (path.add_key("contents").add_index(i), msg),
+              )
+          },
+        )
+      }
+      result
+    }
+    Some(_) =>
       raise JsonDecodeError((path.add_key("contents"), "expected array"))
-    _ =>
+    None =>
       raise JsonDecodeError((path.add_key("contents"), "contents is required"))
-  }
-  let contents : Array[ResourceContent] = []
-  for i, it in contents_val {
-    contents.push(
-      @json.from_json(it) catch {
-        JsonDecodeError((_, msg)) =>
-          raise JsonDecodeError((path.add_key("contents").add_index(i), msg))
-      },
-    )
   }
   let cache_policy : CachePolicy? = if fields.contains("ttlMs") {
     Some(
@@ -510,9 +482,9 @@ pub impl @json.FromJson for ReadResourceResult with fn from_json(
   } else {
     None
   }
-  let meta : ResultMeta? = match fields {
-    { "_meta": v, .. } => Some(@json.from_json(v, path=path.add_key("_meta")))
-    _ => None
+  let meta : ResultMeta? = match fields.get("_meta") {
+    Some(v) => Some(@json.from_json(v, path=path.add_key("_meta")))
+    None => None
   }
   ReadResourceResult(contents~, cache_policy?, meta?)
 }
@@ -567,34 +539,35 @@ pub impl @json.FromJson for ListResourcesResult with fn from_json(
   guard value is Object(fields) else {
     raise JsonDecodeError((path, "expected object"))
   }
-  let res_val = match fields {
-    { "resources": Array(arr), .. } => arr
-    { "resources": _, .. } =>
+  let resources : Array[Resource] = match fields.get("resources") {
+    Some(Array(arr)) => {
+      let result : Array[Resource] = []
+      for i, it in arr {
+        result.push(
+          @json.from_json(it, path=path.add_key("resources").add_index(i)),
+        )
+      }
+      result
+    }
+    Some(_) =>
       raise JsonDecodeError((path.add_key("resources"), "expected array"))
-    _ =>
+    None =>
       raise JsonDecodeError(
         (path.add_key("resources"), "resources is required"),
       )
   }
-  let resources : Array[Resource] = []
-  for i, it in res_val {
-    resources.push(
-      @json.from_json(it, path=path.add_key("resources").add_index(i)),
-    )
-  }
-  let next_cursor = match fields {
-    { "nextCursor": String(s), .. } => Some(s)
-    { "nextCursor": Null, .. } => None
-    { "nextCursor": _, .. } =>
+  let next_cursor = match fields.get("nextCursor") {
+    Some(String(s)) => Some(s)
+    Some(Null) | None => None
+    Some(_) =>
       raise JsonDecodeError((path.add_key("nextCursor"), "expected string"))
-    _ => None
   }
   let cache_policy : CachePolicy = @json.from_json(value) catch {
     JsonDecodeError((_, msg)) => raise JsonDecodeError((path, msg))
   }
-  let meta : ResultMeta? = match fields {
-    { "_meta": v, .. } => Some(@json.from_json(v, path=path.add_key("_meta")))
-    _ => None
+  let meta : ResultMeta? = match fields.get("_meta") {
+    Some(v) => Some(@json.from_json(v, path=path.add_key("_meta")))
+    None => None
   }
   { resources, next_cursor, cache_policy, meta }
 }
@@ -641,36 +614,41 @@ pub impl @json.FromJson for ListResourceTemplatesResult with fn from_json(
   guard value is Object(fields) else {
     raise JsonDecodeError((path, "expected object"))
   }
-  let t_val = match fields {
-    { "resourceTemplates": Array(arr), .. } => arr
-    { "resourceTemplates": _, .. } =>
+  let resource_templates : Array[ResourceTemplate] = match
+    fields.get("resourceTemplates") {
+    Some(Array(arr)) => {
+      let result : Array[ResourceTemplate] = []
+      for i, it in arr {
+        result.push(
+          @json.from_json(
+            it,
+            path=path.add_key("resourceTemplates").add_index(i),
+          ),
+        )
+      }
+      result
+    }
+    Some(_) =>
       raise JsonDecodeError(
         (path.add_key("resourceTemplates"), "expected array"),
       )
-    _ =>
+    None =>
       raise JsonDecodeError(
         (path.add_key("resourceTemplates"), "resourceTemplates is required"),
       )
   }
-  let resource_templates : Array[ResourceTemplate] = []
-  for i, it in t_val {
-    resource_templates.push(
-      @json.from_json(it, path=path.add_key("resourceTemplates").add_index(i)),
-    )
-  }
-  let next_cursor = match fields {
-    { "nextCursor": String(s), .. } => Some(s)
-    { "nextCursor": Null, .. } => None
-    { "nextCursor": _, .. } =>
+  let next_cursor = match fields.get("nextCursor") {
+    Some(String(s)) => Some(s)
+    Some(Null) | None => None
+    Some(_) =>
       raise JsonDecodeError((path.add_key("nextCursor"), "expected string"))
-    _ => None
   }
   let cache_policy : CachePolicy = @json.from_json(value) catch {
     JsonDecodeError((_, msg)) => raise JsonDecodeError((path, msg))
   }
-  let meta : ResultMeta? = match fields {
-    { "_meta": v, .. } => Some(@json.from_json(v, path=path.add_key("_meta")))
-    _ => None
+  let meta : ResultMeta? = match fields.get("_meta") {
+    Some(v) => Some(@json.from_json(v, path=path.add_key("_meta")))
+    None => None
   }
   { resource_templates, next_cursor, cache_policy, meta }
 }
