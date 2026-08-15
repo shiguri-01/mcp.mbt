@@ -43,8 +43,8 @@ fn sse_message(message : Json) -> String {
 ///|
 async fn send_subscription_stream(
   conn : @async_http.ServerConnection,
-  subscription : @mcp.Subscription,
-  on_subscription : async (@mcp.Subscription, async (Json) -> Unit) -> Unit,
+  subscription : @server.Subscription,
+  on_subscription : async (@server.Subscription, async (Json) -> Unit) -> Unit,
 ) -> Unit {
   conn.send_response(200, "OK", extra_headers={
     "Content-Type": "text/event-stream",
@@ -124,7 +124,7 @@ async fn send_subscription_stream(
 ///|
 async fn send_request_stream(
   conn : @async_http.ServerConnection,
-  server : @mcp.Server,
+  server : @server.Server,
   request : @async_http.Request,
   message : Json,
 ) -> Unit {
@@ -315,7 +315,7 @@ fn common_request_error(
 
 ///|
 fn validate_tool_call_headers(
-  server : @mcp.Server,
+  server : @server.Server,
   request : @async_http.Request,
   message : Json,
 ) -> Unit raise @mcp.McpError {
@@ -371,7 +371,7 @@ fn validate_post_media(
 fn validate_post_request(
   request : @async_http.Request,
   message : Json,
-  server : @mcp.Server,
+  server : @server.Server,
 ) -> Unit raise @mcp.McpError {
   validate_post_media(request)
   ignore(parse_request_metadata(message))
@@ -400,7 +400,7 @@ fn decode_http_client_message(
 
 ///|
 async fn handle_post(
-  server : @mcp.Server,
+  server : @server.Server,
   options : ServerOptions,
   request : @async_http.Request,
   body : &@io.Reader,
@@ -519,7 +519,7 @@ async fn handle_post(
 
 ///|
 async fn handle_request(
-  server : @mcp.Server,
+  server : @server.Server,
   options : ServerOptions,
   request : @async_http.Request,
   body : &@io.Reader,
@@ -548,7 +548,7 @@ async fn handle_request(
 /// request-scoped progress notifications and the final response over SSE.
 pub async fn serve(
   http_server : @async_http.Server,
-  server : @mcp.Server,
+  server : @server.Server,
   options? : ServerOptions = ServerOptions(),
 ) -> Unit {
   http_server.run_forever() <| ((request, body, conn) => {

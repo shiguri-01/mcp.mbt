@@ -82,18 +82,18 @@ pub struct Tool {
   output_schema : Json?
   annotations : ToolAnnotations?
   icons : Array[Icon]
-  meta : Json?
+  meta : Map[String, Json]
 } derive(Debug, Eq)
 
 ///|
 /// Copy a tool descriptor before handing it to an adapter.
-fn Tool::copy(self : Tool) -> Tool {
+pub fn Tool::copy(self : Tool) -> Tool {
   {
     ..self,
     input_schema: self.input_schema.copy(),
     output_schema: self.output_schema.map(fn(s) { s.copy() }),
     icons: self.icons.map(icon => icon.copy()),
-    meta: self.meta.map(fn(m) { m.copy() }),
+    meta: self.meta.copy_json(),
   }
 }
 
@@ -107,7 +107,7 @@ pub fn Tool::Tool(
   output_schema? : Json,
   annotations? : ToolAnnotations,
   icons? : Array[Icon] = [],
-  meta? : Json,
+  meta? : Map[String, Json] = {},
 ) -> Tool raise McpError {
   let _ = @schema.Document(input_schema) catch {
     _ =>
@@ -129,6 +129,7 @@ pub fn Tool::Tool(
         )
     }
   }
+  validate_meta_map(meta)
   {
     name,
     title,
@@ -137,7 +138,7 @@ pub fn Tool::Tool(
     output_schema: output_schema.map(fn(s) { s.copy() }),
     annotations,
     icons: icons.map(icon => icon.copy()),
-    meta: meta.map(fn(m) { m.copy() }),
+    meta: meta.copy_json(),
   }
 }
 
@@ -157,7 +158,9 @@ pub impl ToJson for Tool with fn to_json(self : Tool) -> Json {
   if !self.icons.is_empty() {
     fields["icons"] = self.icons.map(fn(icon) { icon.to_json() }).to_json()
   }
-  fields.set_opt("_meta", self.meta.map(fn(m) { m.copy() }))
+  if !self.meta.is_empty() {
+    fields["_meta"] = Json::object(self.meta.copy_json())
+  }
   Json::object(fields)
 }
 
@@ -208,7 +211,16 @@ pub impl @json.FromJson for Tool with fn from_json(
     Some(Null) | None => []
     Some(_) => raise JsonDecodeError((path.add_key("icons"), "expected array"))
   }
-  let meta = fields.get("_meta")
+  let meta : Map[String, Json] = match fields.get("_meta") {
+    Some(Object(m)) => {
+      validate_meta_map(m) catch {
+        error => raise JsonDecodeError((path.add_key("_meta"), error.message()))
+      }
+      m.copy_json()
+    }
+    Some(Null) | None => Map([])
+    Some(_) => raise JsonDecodeError((path.add_key("_meta"), "expected object"))
+  }
   Tool(
     name~,
     title?,
@@ -217,7 +229,7 @@ pub impl @json.FromJson for Tool with fn from_json(
     output_schema?,
     annotations?,
     icons~,
-    meta?,
+    meta~,
   ) catch {
     error => raise JsonDecodeError((path, error.message()))
   }

@@ -80,7 +80,7 @@ test "resource descriptors encode annotations icons and size" {
     icons=[icon],
     annotations~,
     size=5000000000L,
-    meta=Json::object({ "owner": Json::string("test") }),
+    meta={ "owner": Json::string("test") },
   ).to_json()
   guard resource is Object(resource_fields) else {
     fail("expected resource descriptor")
@@ -109,7 +109,7 @@ test "resource descriptors encode annotations icons and size" {
     mime_type="text/markdown",
     icons=[icon],
     annotations~,
-    meta=Json::object({ "templated": Json::boolean(true) }),
+    meta={ "templated": Json::boolean(true) },
   ).to_json()
   guard template is Object(template_fields) else {
     fail("expected resource template")
@@ -142,18 +142,4 @@ test "ResourceLink decodes independently and roundtrips" {
   assert_true(link.uri == "file:///data.csv")
   assert_true(link.name == "data")
   assert_true(link.size == Some(1024L))
-}
-
-///|
-test "Server explicit seal prevents further registrations" {
-  let server = try! @mcp.Server(name="test-server", version="1.0.0")
-  server.seal()
-  let error_caught = Ref(false)
-  server.tool_raw(name="dummy", fn(_ctx, _input) {
-    @mcp.Complete(@mcp.CallToolResult::text("dummy"))
-  }) catch {
-    @mcp.InvalidRequest(_) => error_caught.val = true
-    _ => ()
-  }
-  assert_true(error_caught.val)
 }

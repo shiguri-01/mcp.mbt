@@ -1,3 +1,5 @@
+古いのであまり参考にしないように
+
 # MCP 2026-07-28 MoonBit API design
 
 This document describes the current public contract. It is deliberately

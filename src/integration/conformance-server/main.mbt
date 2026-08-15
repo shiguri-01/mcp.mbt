@@ -11,8 +11,8 @@ async fn main {
 }
 
 ///|
-fn make_conformance_server() -> @mcp.Server {
-  let server = try! @mcp.Server(
+fn make_conformance_server() -> @mcp_server.Server {
+  let server = try! @mcp_server.Server(
     name="moonbit-mcp-conformance-fixture",
     version="2026.7.28",
     instructions="Deterministic fixture for the frozen MCP 2026-07-28 server conformance requirements.",

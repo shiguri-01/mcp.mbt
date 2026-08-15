@@ -1,7 +1,7 @@
 ///|
 /// Stateless Streamable HTTP client for a single MCP endpoint.
 pub struct Client {
-  priv core : @mcp.Client
+  priv core : @client.Client
   priv endpoint : String
   priv supported_protocol_versions : Array[String]
   priv mut protocol_version : String
@@ -126,7 +126,7 @@ pub fn Client::Client(
     _ => raise @mcp.InternalError("could not initialize authorization policy")
   }
   {
-    core: @mcp.Client(
+    core: @client.Client(
       name~,
       version~,
       capabilities~,
@@ -839,7 +839,7 @@ pub async fn Client::request_with_notifications(
 }
 
 ///|
-pub impl @mcp.ClientTransport for Client with fn request_with_notifications(
+pub impl @client.ClientTransport for Client with fn request_with_notifications(
   self : Client,
   request : Json,
   on_notification~ : (Json) -> Unit,
@@ -848,7 +848,7 @@ pub impl @mcp.ClientTransport for Client with fn request_with_notifications(
 }
 
 ///|
-pub impl @mcp.ClientTransport for Client with fn notify(
+pub impl @client.ClientTransport for Client with fn notify(
   self : Client,
   notification : Json,
 ) -> Unit raise @mcp.McpError {
@@ -1146,17 +1146,16 @@ async fn Client::listen_once(
       error => raise @mcp.ParseError(error.to_string())
     }
     validate_response_id(message, expected_id, "subscription")
-    return @mcp.require_complete(
-      self.core.decode_response(message),
-      "subscriptions/listen",
-    )
+    return self.core
+      .decode_response(message)
+      .require_complete(context="subscriptions/listen")
   }
   guard has_media_type(content_type, "text/event-stream") else {
     raise @mcp.InvalidRequest(
       "subscriptions/listen requires a text/event-stream response",
     )
   }
-  let state = @mcp.SubscriptionStreamState::new(expected_id, notifications)
+  let state = @client.SubscriptionStreamState::new(expected_id, notifications)
   let sse = SseReadState::new()
   while true {
     let data = read_sse_data(stream, sse, self.max_sse_event_bytes) catch {
@@ -1170,10 +1169,9 @@ async fn Client::listen_once(
       Acknowledged => ()
       Notification(notification) => on_notification(notification)
       Final(response) =>
-        return @mcp.require_complete(
-          self.core.decode_response(response),
-          "subscriptions/listen",
-        )
+        return self.core
+          .decode_response(response)
+          .require_complete(context="subscriptions/listen")
     }
   }
   raise @mcp.InvalidRequest(

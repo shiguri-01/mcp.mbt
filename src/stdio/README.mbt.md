@@ -35,7 +35,7 @@ impl @schema.JsonSchema for GreetInput with fn json_schema() -> @schema.Schema {
 
 ///|
 async fn main {
-  let server = try! @mcp.Server(name="greeter", version="1.0.0")
+  let server = try! @server.Server(name="greeter", version="1.0.0")
   try! server.tool(name="greet", fn(
     _context,
     input : GreetInput,

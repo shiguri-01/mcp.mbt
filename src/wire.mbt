@@ -54,7 +54,7 @@ pub fn success_response_from_json_id(
 }
 
 ///|
-fn rpc_response_result(message : Json) -> Json raise McpError {
+pub fn rpc_response_result(message : Json) -> Json raise McpError {
   let decoded = decode_message(message)
   match decoded {
     @jsonrpc.Message::Response(@jsonrpc.Response::Success(result~, ..)) =>
@@ -68,7 +68,7 @@ fn rpc_response_result(message : Json) -> Json raise McpError {
 ///|
 
 ///|
-fn require_result_type(result : Json) -> String raise McpError {
+pub fn require_result_type(result : Json) -> String raise McpError {
   match result {
     Object({ "resultType": String("complete"), .. }) => "complete"
     Object({ "resultType": String("input_required"), .. }) => "input_required"

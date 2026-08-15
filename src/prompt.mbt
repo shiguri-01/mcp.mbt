@@ -98,7 +98,7 @@ pub struct Prompt {
   description : String?
   arguments : Array[PromptArgument]
   icons : Array[Icon]
-  meta : Json?
+  meta : Map[String, Json]
 } derive(Debug, Eq)
 
 ///|
@@ -108,15 +108,20 @@ pub fn Prompt::Prompt(
   description? : String,
   arguments? : Array[PromptArgument] = [],
   icons? : Array[Icon] = [],
-  meta? : Json,
-) -> Prompt {
+  meta? : Map[String, Json] = {},
+) -> Prompt raise McpError {
+  if name.is_empty() {
+    raise InvalidParams("prompt name must not be empty")
+  }
+  validate_prompt_argument_names(arguments, "prompt \{name}")
+  validate_meta_map(meta)
   {
     name,
     title,
     description,
     arguments: arguments.copy(),
     icons: icons.map(icon => icon.copy()),
-    meta: meta.map(fn(m) { m.copy() }),
+    meta: meta.copy_json(),
   }
 }
 
@@ -133,7 +138,9 @@ pub impl ToJson for Prompt with fn to_json(self : Prompt) -> Json {
   if !self.icons.is_empty() {
     fields["icons"] = self.icons.map(fn(icon) { icon.to_json() }).to_json()
   }
-  fields.set_opt("_meta", self.meta.map(fn(m) { m.copy() }))
+  if !self.meta.is_empty() {
+    fields["_meta"] = Json::object(self.meta.copy_json())
+  }
   Json::object(fields)
 }
 
@@ -191,8 +198,19 @@ pub impl @json.FromJson for Prompt with fn from_json(
     Some(Null) | None => []
     Some(_) => raise JsonDecodeError((path.add_key("icons"), "expected array"))
   }
-  let meta = fields.get("_meta")
-  Prompt(name~, title?, description?, arguments~, icons~, meta?)
+  let meta : Map[String, Json] = match fields.get("_meta") {
+    Some(Object(m)) => {
+      validate_meta_map(m) catch {
+        error => raise JsonDecodeError((path.add_key("_meta"), error.message()))
+      }
+      m.copy_json()
+    }
+    Some(Null) | None => Map([])
+    Some(_) => raise JsonDecodeError((path.add_key("_meta"), "expected object"))
+  }
+  Prompt(name~, title?, description?, arguments~, icons~, meta~) catch {
+    error => raise JsonDecodeError((path, error.message()))
+  }
 }
 
 ///|

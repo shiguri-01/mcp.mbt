@@ -1,6 +1,6 @@
 ///|
 async fn run_server() -> Unit {
-  let server = try! @mcp.Server(
+  let server = try! @mcp_server.Server(
     name="integration-server",
     version="1",
     tool_list_changed=true,
@@ -104,7 +104,7 @@ async fn run_client(executable : String) -> Unit {
       abort("HTTP tool round trip did not preserve UTF-8 content")
     }
     let progress_received = Ref(false)
-    let core = @mcp.Client(name="integration-client", version="1")
+    let core = @mcp_client.Client(name="integration-client", version="1")
     let progress_task = group.spawn(async fn() {
       ignore(
         try! client.request_with_notifications(

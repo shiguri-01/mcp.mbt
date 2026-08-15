@@ -5,7 +5,7 @@ Native Streamable HTTP transport for `shiguri-01/mcp`, following the
 
 The transport carries the protocol version, client identity, and client
 capabilities on every request. Applications expose typed async tools through a
-transport-neutral `@mcp.Server`; clients start with `server/discover` and call
+transport-neutral `@server.Server`; clients start with `server/discover` and call
 only features advertised by the server. Clients may list supported protocol
 versions in preference order; an `UnsupportedProtocolVersion` response is
 retried once with the first mutually supported version and a fresh JSON-RPC ID.

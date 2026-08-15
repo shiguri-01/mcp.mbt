@@ -1,6 +1,6 @@
 ///|
 test "stdio accepts only requests in the outbound direction" {
-  let core = @mcp.Client(name="test", version="1")
+  let core = @client.Client(name="test", version="1")
   let request = core.discover_request()
   assert_eq(@mcp.request_id(request), Json::number(1.0, repr="1"))
   try
@@ -78,7 +78,7 @@ test "cancel is a client-to-server notification" {
 
 ///|
 test "subscriptions/listen is a long-lived transport request" {
-  let core = @mcp.Client(name="test", version="1")
+  let core = @client.Client(name="test", version="1")
   let request = core.listen_request(
     notifications=SubscriptionFilter(tools_list_changed=true),
   )
@@ -136,9 +136,34 @@ test "closing a client wakes every pending request" {
 }
 
 ///|
-test "MRTR resolution requires a positive bound" {
-  try @mcp.validate_max_rounds(0) catch {
-    InvalidRequest(message) => assert_true(message.contains("positive"))
+priv struct DummyTransport {}
+
+///|
+impl @client.ClientTransport for DummyTransport with fn request_with_notifications(
+  _self,
+  _req,
+  on_notification~,
+) {
+  ignore(on_notification)
+  @mcp.Complete(Json::object({}))
+}
+
+///|
+impl @client.ClientTransport for DummyTransport with fn notify(_self, _notif) {
+  ()
+}
+
+///|
+async test "MRTR resolution requires a positive bound" {
+  let core = @client.Client(name="test", version="1")
+  try
+    core.call_tool_resolving(DummyTransport::{  }, name="test", max_rounds=0, resolve=fn(
+      _,
+    ) {
+      Map([])
+    })
+  catch {
+    @mcp.InvalidRequest(message) => assert_true(message.contains("positive"))
     _ => fail("expected invalid request")
   } noraise {
     _ => fail("expected max_rounds validation error")

@@ -11,8 +11,8 @@ impl @schema.JsonSchema for GreetInput with fn json_schema() -> @schema.Schema r
 }
 
 ///|
-fn make_server() -> @mcp.Server {
-  let server = try! @mcp.Server(
+fn make_server() -> @mcp_server.Server {
+  let server = try! @mcp_server.Server(
     name="http-greeter",
     version="1.0.0",
     instructions="Call greet with a name to receive a greeting.",

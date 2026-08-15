@@ -12,7 +12,7 @@ pub struct Resource {
   icons : Array[Icon]
   annotations : Annotations?
   size : Int64?
-  meta : Json?
+  meta : Map[String, Json]
 } derive(Debug, Eq)
 
 ///|
@@ -25,6 +25,7 @@ pub fn Resource::text(
   mime_type? : String = "text/plain",
   annotations? : Annotations,
   size? : Int64,
+  meta? : Map[String, Json] = {},
 ) -> Resource raise McpError {
   Resource::Resource(
     uri~,
@@ -34,6 +35,7 @@ pub fn Resource::text(
     mime_type~,
     annotations?,
     size?,
+    meta~,
   )
 }
 
@@ -48,7 +50,7 @@ pub fn Resource::Resource(
   icons? : Array[Icon] = [],
   annotations? : Annotations,
   size? : Int64,
-  meta? : Json,
+  meta? : Map[String, Json] = {},
 ) -> Resource raise McpError {
   if uri.is_empty() {
     raise InvalidParams("resource uri must not be empty")
@@ -59,6 +61,7 @@ pub fn Resource::Resource(
   if size is Some(value) && value < 0L {
     raise InvalidParams("resource size must be non-negative")
   }
+  validate_meta_map(meta)
   {
     uri,
     name,
@@ -68,7 +71,7 @@ pub fn Resource::Resource(
     icons: icons.map(icon => icon.copy()),
     annotations: annotations.map(fn(a) { a.copy() }),
     size,
-    meta: meta.map(fn(m) { m.copy() }),
+    meta: meta.copy_json(),
   }
 }
 
@@ -91,7 +94,9 @@ pub impl ToJson for Resource with fn to_json(self : Resource) -> Json {
     "size",
     self.size.map(fn(size) { Json::number(size.to_double(), repr="\{size}") }),
   )
-  fields.set_opt("_meta", self.meta.map(fn(m) { m.copy() }))
+  if !self.meta.is_empty() {
+    fields["_meta"] = Json::object(self.meta.copy_json())
+  }
   Json::object(fields)
 }
 
@@ -159,7 +164,16 @@ pub impl @json.FromJson for Resource with fn from_json(
     Some(Null) | None => None
     Some(_) => raise JsonDecodeError((path.add_key("size"), "expected number"))
   }
-  let meta = fields.get("_meta")
+  let meta : Map[String, Json] = match fields.get("_meta") {
+    Some(Object(m)) => {
+      validate_meta_map(m) catch {
+        error => raise JsonDecodeError((path.add_key("_meta"), error.message()))
+      }
+      m.copy_json()
+    }
+    Some(Null) | None => Map([])
+    Some(_) => raise JsonDecodeError((path.add_key("_meta"), "expected object"))
+  }
   Resource(
     uri~,
     name~,
@@ -169,7 +183,7 @@ pub impl @json.FromJson for Resource with fn from_json(
     icons~,
     annotations?,
     size?,
-    meta?,
+    meta~,
   ) catch {
     error => raise JsonDecodeError((path, error.message()))
   }
@@ -193,7 +207,7 @@ pub struct ResourceTemplate {
   mime_type : String?
   icons : Array[Icon]
   annotations : Annotations?
-  meta : Json?
+  meta : Map[String, Json]
 } derive(Debug, Eq)
 
 ///|
@@ -206,8 +220,9 @@ pub fn ResourceTemplate::ResourceTemplate(
   mime_type? : String,
   icons? : Array[Icon] = [],
   annotations? : Annotations,
-  meta? : Json,
-) -> ResourceTemplate {
+  meta? : Map[String, Json] = {},
+) -> ResourceTemplate raise McpError {
+  validate_meta_map(meta)
   {
     uri_template,
     name,
@@ -216,7 +231,7 @@ pub fn ResourceTemplate::ResourceTemplate(
     mime_type,
     icons: icons.map(icon => icon.copy()),
     annotations: annotations.map(fn(a) { a.copy() }),
-    meta: meta.map(fn(m) { m.copy() }),
+    meta: meta.copy_json(),
   }
 }
 
@@ -235,7 +250,9 @@ pub impl ToJson for ResourceTemplate with fn to_json(self : ResourceTemplate) ->
   if self.annotations is Some(annotations) {
     fields["annotations"] = annotations.to_json()
   }
-  fields.set_opt("_meta", self.meta.map(fn(m) { m.copy() }))
+  if !self.meta.is_empty() {
+    fields["_meta"] = Json::object(self.meta.copy_json())
+  }
   Json::object(fields)
 }
 
@@ -295,7 +312,16 @@ pub impl @json.FromJson for ResourceTemplate with fn from_json(
     Some(v) => Some(@json.from_json(v, path=path.add_key("annotations")))
     None => None
   }
-  let meta = fields.get("_meta")
+  let meta : Map[String, Json] = match fields.get("_meta") {
+    Some(Object(m)) => {
+      validate_meta_map(m) catch {
+        error => raise JsonDecodeError((path.add_key("_meta"), error.message()))
+      }
+      m.copy_json()
+    }
+    Some(Null) | None => Map([])
+    Some(_) => raise JsonDecodeError((path.add_key("_meta"), "expected object"))
+  }
   ResourceTemplate(
     uri_template~,
     name~,
@@ -304,8 +330,10 @@ pub impl @json.FromJson for ResourceTemplate with fn from_json(
     mime_type?,
     icons~,
     annotations?,
-    meta?,
-  )
+    meta~,
+  ) catch {
+    error => raise JsonDecodeError((path, error.message()))
+  }
 }
 
 ///|

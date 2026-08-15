@@ -1,0 +1,59 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "shiguri-01/mcp/server"
+
+import {
+  "moonbitlang/core/json",
+  "shiguri-01/mcp",
+  "shiguri-01/mcp/schema",
+}
+
+// Values
+pub fn is_cancelled_notification(Json) -> Bool
+
+pub fn is_subscription_request(Json) -> Bool
+
+// Errors
+
+// Types and methods
+pub struct Server {
+  // private fields
+}
+pub fn Server::Server(name~ : String, version~ : String, title? : String, description? : String, icons? : Array[@mcp.Icon], website_url? : String, instructions? : String, cache_policy? : @mcp.CachePolicy, supported_versions? : Array[String], tool_list_changed? : Bool, resource_list_changed? : Bool, prompt_list_changed? : Bool, resource_subscriptions? : Bool, extensions? : Map[String, Json], extension_result_types? : Map[String, String], experimental? : Map[String, Json]) -> Self raise @mcp.McpError
+pub fn Server::accept_subscription(Self, Json) -> Subscription raise @mcp.McpError
+pub fn Server::completion(Self, reference~ : @mcp.CompletionReference, async (@mcp.RequestContext, @mcp.CompletionRequest) -> @mcp.CompleteResult raise @mcp.McpError) -> Unit raise @mcp.McpError
+pub async fn Server::handle_jsonrpc(Self, Json) -> Json?
+pub async fn Server::handle_jsonrpc_with_hooks(Self, Json, hooks~ : @mcp.RequestHooks) -> Json?
+pub fn Server::is_cancelled_notification(Self, Json) -> Bool
+pub fn Server::is_subscription_request(Self, Json) -> Bool
+pub fn Server::on(Self, method_name~ : String, async (@mcp.RequestContext, Json) -> @mcp.HandlerOutcome[Json] raise @mcp.McpError) -> Unit raise @mcp.McpError
+pub fn Server::prompt(Self, name~ : String, title? : String, description? : String, arguments? : Array[@mcp.PromptArgument], icons? : Array[@mcp.Icon], meta? : Map[String, Json], async (@mcp.RequestContext, Map[String, String]) -> @mcp.HandlerOutcome[@mcp.GetPromptResult] raise @mcp.McpError) -> Unit raise @mcp.McpError
+pub fn Server::resource(Self, uri~ : String, name? : String, title? : String, description? : String, mime_type? : String, icons? : Array[@mcp.Icon], annotations? : @mcp.Annotations, size? : Int64, meta? : Map[String, Json], async (@mcp.RequestContext, String) -> @mcp.HandlerOutcome[@mcp.ReadResourceResult] raise @mcp.McpError) -> Unit raise @mcp.McpError
+pub fn Server::resource_template(Self, uri_template~ : String, name? : String, title? : String, description? : String, mime_type? : String, icons? : Array[@mcp.Icon], annotations? : @mcp.Annotations, meta? : Map[String, Json], async (@mcp.RequestContext, String, Map[String, String]) -> @mcp.HandlerOutcome[@mcp.ReadResourceResult] raise @mcp.McpError) -> Unit raise @mcp.McpError
+pub fn Server::seal(Self) -> Unit
+pub async fn Server::serve_framed(Self, read_message~ : async () -> Json?, send_message~ : async (Json) -> Unit, on_subscription? : async (Subscription, async (Json) -> Unit) -> Unit) -> Unit
+pub fn Server::supports_protocol_version(Self, String) -> Bool
+pub fn[A : @json.FromJson + @schema.JsonSchema] Server::tool(Self, name~ : String, title? : String, description? : String, input_schema? : Json, output_schema? : Json, annotations? : @mcp.ToolAnnotations, icons? : Array[@mcp.Icon], meta? : Map[String, Json], async (@mcp.RequestContext, A) -> @mcp.HandlerOutcome[@mcp.CallToolResult] raise @mcp.McpError) -> Unit raise @mcp.McpError
+pub fn Server::tool_descriptor(Self, String) -> @mcp.Tool?
+pub fn Server::tool_raw(Self, name~ : String, title? : String, description? : String, input_schema? : Json, output_schema? : Json, annotations? : @mcp.ToolAnnotations, icons? : Array[@mcp.Icon], meta? : Map[String, Json], async (@mcp.RequestContext, Json) -> @mcp.HandlerOutcome[@mcp.CallToolResult] raise @mcp.McpError) -> Unit raise @mcp.McpError
+
+pub struct Subscription {
+  id : Json
+  notifications : @mcp.SubscriptionFilter
+  // private fields
+}
+pub fn Subscription::acknowledgement(Self) -> Json
+pub fn Subscription::allows_event(Self, Json) -> Bool
+pub fn Subscription::close_response(Self) -> Json
+
+// Type aliases
+pub type CompletionHandler = async (@mcp.RequestContext, @mcp.CompletionRequest) -> @mcp.CompleteResult raise @mcp.McpError
+
+pub type PromptHandler = async (@mcp.RequestContext, Map[String, String]) -> @mcp.HandlerOutcome[@mcp.GetPromptResult] raise @mcp.McpError
+
+pub type RawHandler = async (@mcp.RequestContext, Json) -> @mcp.HandlerOutcome[Json] raise @mcp.McpError
+
+pub type ResourceHandler = async (@mcp.RequestContext, String) -> @mcp.HandlerOutcome[@mcp.ReadResourceResult] raise @mcp.McpError
+
+pub type ToolHandler = async (@mcp.RequestContext, Json) -> @mcp.HandlerOutcome[@mcp.CallToolResult] raise @mcp.McpError
+
+// Traits

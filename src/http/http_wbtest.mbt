@@ -301,7 +301,7 @@ test "annotated integer enforces JavaScript safe range" {
 
 ///|
 test "POST requests require both JSON and SSE response media types" {
-  let server = try! @mcp.Server(name="test", version="0.1.0")
+  let server = try! @server.Server(name="test", version="0.1.0")
   let message = metadata_request("server/discover")
   let accepted_headers = standard_request_headers(
     message,
@@ -336,7 +336,7 @@ test "POST requests require both JSON and SSE response media types" {
 
 ///|
 test "Mcp-Param headers match annotated tool arguments" {
-  let server = try! @mcp.Server(name="tool-header-test", version="0.1.0")
+  let server = try! @server.Server(name="tool-header-test", version="0.1.0")
   try! server.tool_raw(name="regional", input_schema=annotated_schema(), (_, _) => {
     @mcp.Complete(@mcp.CallToolResult::text("ok"))
   })
@@ -419,7 +419,7 @@ test "invalid request metadata is reported before header mismatch" {
     "method": Json::string("tools/list"),
     "params": Json::object({}),
   })
-  let server = try! @mcp.Server(name="server", version="1")
+  let server = try! @server.Server(name="server", version="1")
   let headers : Map[String, String] = {
     "Accept": "application/json, text/event-stream",
     "Content-Type": "application/json",
@@ -672,12 +672,12 @@ test "method-not-found responses map to HTTP 404" {
 
 ///|
 test "subscription SSE starts with acknowledgement and ends with response" {
-  let server = try! @mcp.Server(
+  let server = try! @server.Server(
     name="subscription-test",
     version="0.1.0",
     tool_list_changed=true,
   )
-  let client = @mcp.Client(name="test", version="0.1.0")
+  let client = try! @client.Client(name="test", version="0.1.0")
   let request = client.listen_request(
     notifications=@mcp.SubscriptionFilter(tools_list_changed=true),
   )
@@ -805,7 +805,7 @@ async test "SSE limit applies independently to every event" {
 
 ///|
 test "accepted notifications still require every standard header" {
-  let server = try! @mcp.Server(name="notification-test", version="0.1.0")
+  let server = try! @server.Server(name="notification-test", version="0.1.0")
   let message = Json::object({
     "jsonrpc": Json::string("2.0"),
     "method": Json::string("notifications/cancelled"),
@@ -868,17 +868,17 @@ test "response ids are checked before decoding results" {
 
 ///|
 test "subscription client enforces acknowledgement and stream identity" {
-  let server = try! @mcp.Server(
+  let server = try! @server.Server(
     name="subscription-state-test",
     version="0.1.0",
     tool_list_changed=true,
   )
-  let core = @mcp.Client(name="test", version="0.1.0")
+  let core = try! @client.Client(name="test", version="0.1.0")
   let requested = @mcp.SubscriptionFilter(tools_list_changed=true)
   let request = core.listen_request(notifications=requested)
   let expected_id = request_id(request).unwrap()
   let subscription = try! server.accept_subscription(request)
-  let before_ack = @mcp.SubscriptionStreamState::new(expected_id, requested)
+  let before_ack = @client.SubscriptionStreamState::new(expected_id, requested)
   let premature = try
     before_ack.consume(
       @mcp.tools_list_changed_notification(subscription_id=subscription.id),
@@ -890,7 +890,7 @@ test "subscription client enforces acknowledgement and stream identity" {
     _ => false
   }
   assert_true(premature)
-  let state = @mcp.SubscriptionStreamState::new(expected_id, requested)
+  let state = @client.SubscriptionStreamState::new(expected_id, requested)
   assert_true(state.consume(subscription.acknowledgement()) is Acknowledged)
   assert_true(
     state.consume(
@@ -926,7 +926,7 @@ test "subscription client enforces acknowledgement and stream identity" {
 ///|
 test "subscription producer errors retain their JSON-RPC identity" {
   let expected_id = Json::number(7.0, repr="7")
-  let state = @mcp.SubscriptionStreamState::new(
+  let state = @client.SubscriptionStreamState::new(
     expected_id,
     @mcp.SubscriptionFilter(tools_list_changed=true),
   )
@@ -953,7 +953,9 @@ test "subscription client rejects unhonored filters and wrong final id" {
     subscription_id=expected_id,
     notifications=@mcp.SubscriptionFilter(prompts_list_changed=true),
   )
-  let invalid_state = @mcp.SubscriptionStreamState::new(expected_id, requested)
+  let invalid_state = @client.SubscriptionStreamState::new(
+    expected_id, requested,
+  )
   let unrequested = try invalid_state.consume(invalid_ack) catch {
     @mcp.InvalidRequest(_) => true
     _ => false
@@ -961,7 +963,7 @@ test "subscription client rejects unhonored filters and wrong final id" {
     _ => false
   }
   assert_true(unrequested)
-  let state = @mcp.SubscriptionStreamState::new(expected_id, requested)
+  let state = @client.SubscriptionStreamState::new(expected_id, requested)
   let ack = @mcp.subscriptions_acknowledged_notification(
     subscription_id=expected_id,
     notifications=requested,

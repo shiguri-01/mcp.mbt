@@ -12,7 +12,7 @@ impl @schema.JsonSchema for GreetInput with fn json_schema() -> @schema.Schema r
 
 ///|
 async fn main {
-  let server = try! @mcp.Server(
+  let server = try! @mcp_server.Server(
     name="stdio-greeter",
     version="1.0.0",
     instructions="Call greet with a name to receive a greeting.",

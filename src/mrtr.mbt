@@ -14,7 +14,7 @@ pub fn InputRequest::InputRequest(
   guard params is Object(fields) else {
     raise InvalidParams("input request params must be an object")
   }
-  ignore(parse_core_input_request(method_name, fields))
+  validate_core_input_request(method_name, fields)
   { method_name, params }
 }
 
@@ -584,61 +584,35 @@ pub impl ToJson for RootsListResult with fn to_json(self : RootsListResult) -> J
 }
 
 ///|
-pub(all) enum CoreInputRequestPayload {
-  Elicitation(ElicitationCreateParams)
-  Sampling(SamplingCreateMessageParams)
-  Roots
-  Other(method_name~ : String, params~ : Map[String, Json])
-}
-
-///|
-pub fn parse_core_input_request(
+fn validate_core_input_request(
   method_name : String,
   fields : Map[String, Json],
-) -> CoreInputRequestPayload raise McpError {
+) -> Unit raise McpError {
   match method_name {
-    "elicitation/create" =>
-      CoreInputRequestPayload::Elicitation(
-        ElicitationCreateParams::from_json(fields),
-      )
+    "elicitation/create" => ignore(ElicitationCreateParams::from_json(fields))
     "sampling/createMessage" =>
-      CoreInputRequestPayload::Sampling(
-        SamplingCreateMessageParams::from_json(fields),
-      )
-    "roots/list" => CoreInputRequestPayload::Roots
-    _ => CoreInputRequestPayload::Other(method_name~, params=fields)
+      ignore(SamplingCreateMessageParams::from_json(fields))
+    "roots/list" => ()
+    _ => ()
   }
 }
 
 ///|
-pub(all) enum CoreInputResponsePayload {
-  Elicitation(ElicitationCreateResult)
-  Sampling(SamplingCreateMessageResult)
-  Roots(RootsListResult)
-  Other(Map[String, Json])
-}
-
-///|
-pub fn parse_core_input_response(
+fn validate_core_input_response(
   method_name : String,
   request_params : Json,
   result : Json,
-) -> CoreInputResponsePayload raise McpError {
+) -> Unit raise McpError {
   guard result is Object(fields) else {
     raise InvalidParams("input response must be an object")
   }
   match method_name {
     "elicitation/create" =>
-      CoreInputResponsePayload::Elicitation(
-        ElicitationCreateResult::from_json(fields, request_params),
-      )
+      ignore(ElicitationCreateResult::from_json(fields, request_params))
     "sampling/createMessage" =>
-      CoreInputResponsePayload::Sampling(
-        SamplingCreateMessageResult::from_json(fields),
-      )
-    "roots/list" =>
-      CoreInputResponsePayload::Roots(RootsListResult::from_json(fields))
-    _ => CoreInputResponsePayload::Other(fields)
+      ignore(SamplingCreateMessageResult::from_json(fields))
+    "roots/list" => ignore(RootsListResult::from_json(fields))
+    _ => ()
   }
 }
 
@@ -784,12 +758,10 @@ pub fn InputRequiredResult::retry_options(
         }
       }
       for key, request in requests {
-        ignore(
-          parse_core_input_response(
-            request.method_name,
-            request.params,
-            responses[key].result,
-          ),
+        validate_core_input_response(
+          request.method_name,
+          request.params,
+          responses[key].result,
         )
       }
     }
@@ -891,4 +863,21 @@ pub(all) enum HandlerOutcome[T] {
   Complete(T)
   InputRequired(InputRequiredResult)
   ExtensionResult(String, Json)
+}
+
+///|
+/// Unwrap a Complete outcome or raise an error if more input is required or an extension result was returned.
+pub fn[T] HandlerOutcome::require_complete(
+  self : HandlerOutcome[T],
+  context~ : String,
+) -> T raise McpError {
+  match self {
+    Complete(result) => result
+    InputRequired(_) =>
+      raise InvalidRequest("\{context} cannot return input_required")
+    ExtensionResult(result_type, _) =>
+      raise InvalidRequest(
+        "\{context} cannot return extension result type \{result_type}",
+      )
+  }
 }

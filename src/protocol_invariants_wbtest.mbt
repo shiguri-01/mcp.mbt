@@ -15,48 +15,13 @@ test "request metadata owns reserved fields and preserves extension fields" {
 
 ///|
 test "metadata keys follow the MCP prefix and name grammar" {
-  let client = try! Client(name="client", version="1")
-  try
-    client.request_raw(
-      method_name="example/run",
-      options=RequestOptions(meta={ "bad/key/extra": Json::boolean(true) }),
-    )
-  catch {
+  assert_false(valid_meta_key("bad/key/extra"))
+  assert_true(valid_meta_key("com.example/trace-id"))
+  try validate_meta_map({ "bad/key/extra": Json::boolean(true) }) catch {
     InvalidParams(_) => ()
     _ => fail("expected invalid metadata key")
   } noraise {
     _ => fail("invalid metadata key must be rejected")
-  }
-  ignore(
-    try! client.request_raw(
-      method_name="example/run",
-      options=RequestOptions(meta={ "com.example/trace-id": Json::string("1") }),
-    ),
-  )
-}
-
-///|
-test "extension result types require an advertised extension mapping" {
-  let capabilities = ClientCapabilities(extensions={
-    "com.example/flow": Json::object({}),
-  })
-  let client = try! Client(name="client", version="1", capabilities~, extension_result_types={
-    "paused": "com.example/flow",
-  })
-  let response = @jsonrpc.response_success(
-    id=try! @jsonrpc.RequestId::number(1.0),
-    result=Json::object({
-      "resultType": Json::string("paused"),
-      "resumeToken": Json::string("next"),
-    }),
-  ).to_json()
-  assert_true(client.decode_response(response) is ExtensionResult("paused", _))
-  let strict = try! Client(name="strict", version="1")
-  try strict.decode_response(response) catch {
-    InvalidRequest("unknown resultType: paused") => ()
-    _ => fail("expected unknown result type")
-  } noraise {
-    _ => fail("unadvertised result type must be rejected")
   }
 }
 
@@ -233,49 +198,6 @@ test "MRTR retry options preserve request metadata" {
   assert_eq(retry.progress_token, base.progress_token)
   assert_eq(retry.log_level, base.log_level)
   assert_eq(retry.meta, base.meta)
-}
-
-///|
-test "subscription acceptance acknowledges the honored filter first" {
-  let server = try! Server(name="server", version="1", tool_list_changed=true)
-  let client = Client(name="client", version="1")
-  let request = client.listen_request(
-    notifications=SubscriptionFilter(
-      tools_list_changed=true,
-      prompts_list_changed=true,
-    ),
-  )
-  let subscription = try! server.accept_subscription(request)
-  guard subscription.acknowledgement()
-    is Object(
-      {
-        "method": String("notifications/subscriptions/acknowledged"),
-        "params": Object(
-          {
-            "_meta": Object(
-              { "io.modelcontextprotocol/subscriptionId": Number(1.0, ..), .. }
-            ),
-            "notifications": Object(
-              { "toolsListChanged": True, "promptsListChanged"? : None, .. }
-            ),
-            ..
-          }
-        ),
-        ..
-      }
-    ) else {
-    fail("expected acknowledgement with honored filter")
-  }
-  guard subscription.close_response()
-    is Object(
-      {
-        "id": Number(1.0, ..),
-        "result": Object({ "resultType": String("complete"), .. }),
-        ..
-      }
-    ) else {
-    fail("expected graceful final response")
-  }
 }
 
 ///|

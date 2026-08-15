@@ -76,36 +76,6 @@ test "result decoders enforce descriptor numeric constraints" {
 
 ///|
 test "protocol objects retain independent copies of mutable inputs" {
-  let versions = [@mcp.LATEST_PROTOCOL_VERSION]
-  let server = try! @mcp.Server(
-    name="server",
-    version="1",
-    supported_versions=versions,
-  )
-  versions[0] = "mutated"
-  assert_true(server.supports_protocol_version(@mcp.LATEST_PROTOCOL_VERSION))
-  assert_false(server.supports_protocol_version("mutated"))
-  let settings : Map[String, Json] = { "enabled": Json::boolean(true) }
-  let extensions : Map[String, Json] = {
-    "com.example/feature": Json::object(settings),
-  }
-  let client = try! @mcp.Client(
-    name="client",
-    version="1",
-    capabilities=@mcp.ClientCapabilities(extensions~),
-  )
-  settings["enabled"] = Json::boolean(false)
-  guard client.capabilities.to_json()
-    is Object(
-      {
-        "extensions": Object(
-          { "com.example/feature": Object({ "enabled": True, .. }), .. }
-        ),
-        ..
-      }
-    ) else {
-    fail("client capabilities changed with caller-owned JSON")
-  }
   let schema_fields : Map[String, Json] = { "type": Json::string("object") }
   let tool = try! @mcp.Tool(
     name="stable",
@@ -189,35 +159,13 @@ test "protocol objects retain independent copies of mutable inputs" {
 }
 
 ///|
-async test "prompts/get requires every advertised required argument" {
-  let server = try! @mcp.Server(name="server", version="1")
-  try! server.prompt(
-    name="review",
-    arguments=[@mcp.PromptArgument(name="document", required=true)],
-    fn(_context, _arguments) { @mcp.Complete(@mcp.GetPromptResult::user("ok")) },
-  )
-  let client = try! @mcp.Client(name="client", version="1")
-  guard server.handle_jsonrpc(try! client.get_prompt_request(name="review"))
-    is Some(
-      Object({ "error": Object({ "code": Number(-32602.0, ..), .. }), .. })
-    ) else {
-    fail("missing required prompt argument was accepted")
-  }
-}
-
-///|
 test "prompt argument descriptor names are unique" {
-  let server = try! @mcp.Server(name="server", version="1")
   assert_invalid_params(fn() -> Unit raise @mcp.McpError {
-    server.prompt(
-      name="review",
-      arguments=[
+    ignore(
+      @mcp.Prompt(name="review", arguments=[
         @mcp.PromptArgument(name="document"),
         @mcp.PromptArgument(name="document"),
-      ],
-      fn(_context, _arguments) {
-        @mcp.Complete(@mcp.GetPromptResult::user("ok"))
-      },
+      ]),
     )
   })
 }
@@ -309,95 +257,8 @@ test "request options own retry responses and metadata" {
 }
 
 ///|
-test "client and server constructors reject empty protocol identities" {
-  assert_invalid_params(fn() -> Unit raise @mcp.McpError {
-    ignore(@mcp.Client(name="", version="1"))
-  })
-  assert_invalid_params(fn() -> Unit raise @mcp.McpError {
-    ignore(@mcp.Client(name="client", version="", protocol_version=""))
-  })
-  assert_invalid_params(fn() -> Unit raise @mcp.McpError {
-    ignore(@mcp.Server(name="", version="1"))
-  })
-  assert_invalid_params(fn() -> Unit raise @mcp.McpError {
-    ignore(@mcp.Server(name="server", version="1", supported_versions=[""]))
-  })
+test "request meta constructor rejects empty protocol version" {
   assert_invalid_params(fn() -> Unit raise @mcp.McpError {
     ignore(@mcp.RequestMeta(protocol_version=""))
   })
-}
-
-///|
-async test "transport descriptor snapshots do not expose the server registry" {
-  let schema_fields : Map[String, Json] = { "type": Json::string("object") }
-  let server = try! @mcp.Server(name="server", version="1")
-  try! server.tool_raw(name="owned", input_schema=Json::object(schema_fields), fn(
-    _context,
-    _arguments,
-  ) {
-    @mcp.Complete(@mcp.CallToolResult::text("ok"))
-  })
-  let descriptor = server.tool_descriptor("owned").unwrap()
-  guard descriptor.input_schema is Object(fields) else {
-    fail("descriptor did not contain an object schema")
-  }
-  fields["type"] = Json::string("string")
-  let listed = server.handle_jsonrpc(
-    try! @mcp.Client(name="client", version="1").list_tools_request(),
-  )
-  guard listed is Some(Object({ "result": Object(result), .. })) else {
-    fail("tools/list did not return a result")
-  }
-  guard result["tools"]
-    is Array(
-      [
-        Object({ "inputSchema": Object({ "type": String("object"), .. }), .. }),
-        ..,
-      ]
-    ) else {
-    fail("adapter snapshot mutation changed the server registry")
-  }
-}
-
-///|
-test "resource template validation rejects invalid syntax and supports literals" {
-  let server = try! @mcp.Server(name="server", version="1")
-  // Invalid unclosed {
-  assert_invalid_params(fn() -> Unit raise @mcp.McpError {
-    server.resource_template(uri_template="file:///items/{id", name="test", fn(
-      _ctx,
-      _uri,
-      _vars,
-    ) {
-      @mcp.Complete(@mcp.ReadResourceResult::text(uri="a", text="b"))
-    })
-  })
-  // Invalid nested {
-  assert_invalid_params(fn() -> Unit raise @mcp.McpError {
-    server.resource_template(uri_template="file:///items/{{id}}", name="test", fn(
-      _ctx,
-      _uri,
-      _vars,
-    ) {
-      @mcp.ReadResourceResult::text(uri="a", text="b") |> @mcp.Complete
-    })
-  })
-  // Unexpected }
-  assert_invalid_params(fn() -> Unit raise @mcp.McpError {
-    server.resource_template(uri_template="file:///items/id}", name="test", fn(
-      _ctx,
-      _uri,
-      _vars,
-    ) {
-      @mcp.ReadResourceResult::text(uri="a", text="b") |> @mcp.Complete
-    })
-  })
-  // Valid with special characters in literals like . and +
-  try! server.resource_template(
-    uri_template="file:///api/v1.0/items/{item_id}.json",
-    name="item_template",
-    fn(_ctx, _uri, _vars) {
-      @mcp.ReadResourceResult::text(uri="a", text="b") |> @mcp.Complete
-    },
-  )
 }

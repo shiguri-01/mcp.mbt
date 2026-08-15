@@ -1,7 +1,7 @@
 import {
   "moonbitlang/core/json",
+  "shiguri-01/mcp",
   "shiguri-01/mcp/jsonrpc",
-  "shiguri-01/mcp/schema",
 }
 
 import {

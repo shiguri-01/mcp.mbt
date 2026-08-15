@@ -57,9 +57,9 @@ test "tool constructor rejects network schema references" {
 
 ///|
 test "prompt metadata and messages match the content union" {
-  let prompt = @mcp.Prompt(name="review", icons=[
+  let prompt = (try! @mcp.Prompt(name="review", icons=[
     @mcp.Icon(src="data:image/png;base64,AA=="),
-  ]).to_json()
+  ])).to_json()
   guard prompt is Object({ "icons": Array([Object(icon)]), .. }) else {
     fail("expected prompt icon")
   }
@@ -102,15 +102,12 @@ test "subscription filters and acknowledgements use protocol field names" {
   let filter = @mcp.SubscriptionFilter(tools_list_changed=true, resource_subscriptions=[
     "memory://status",
   ])
-  let params = @mcp.subscriptions_listen_params(
-    notifications=filter,
-    meta=Json::object({}),
-  )
-  guard params is Object({ "notifications": Object(notifications), .. }) else {
-    fail("expected subscription params")
+  let notifications = filter.to_json()
+  guard notifications is Object(fields) else {
+    fail("expected subscription filter object")
   }
-  assert_eq(notifications["toolsListChanged"], Json::boolean(true))
-  assert_true(!notifications.contains("promptsListChanged"))
+  assert_eq(fields["toolsListChanged"], Json::boolean(true))
+  assert_true(!fields.contains("promptsListChanged"))
   let ack = @mcp.subscriptions_acknowledged_notification(
     subscription_id=Json::string("subscription-1"),
     notifications=filter,

@@ -5,7 +5,7 @@ let pixel_png : String = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQV
 let silent_wav : String = "UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA="
 
 ///|
-fn register_tool_fixtures(server : @mcp.Server) -> Unit {
+fn register_tool_fixtures(server : @mcp_server.Server) -> Unit {
   try! server.tool_raw(
     name="test_simple_text",
     description="Return one deterministic text content block.",

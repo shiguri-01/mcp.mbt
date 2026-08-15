@@ -8,8 +8,8 @@ async fn write_frames(queue : @aqueue.Queue[String?]) -> Unit {
 ///|
 /// Serve newline-delimited MCP with concurrent request dispatch and one stdout writer.
 pub async fn serve(
-  server : @mcp.Server,
-  on_subscription? : async (@mcp.Subscription, async (Json) -> Unit) -> Unit = fn(
+  server : @server.Server,
+  on_subscription? : async (@server.Subscription, async (Json) -> Unit) -> Unit = fn(
     _,
     _,
   ) {

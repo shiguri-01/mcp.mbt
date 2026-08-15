@@ -1,6 +1,6 @@
 ///|
 async test "each request carries the client context used by the server" {
-  let server = try! @mcp.Server(
+  let server = try! Server(
     name="test-server",
     version="1.0.0",
     instructions="Use the echo tool",
@@ -16,7 +16,7 @@ async test "each request carries the client context used by the server" {
       @mcp.Complete(@mcp.CallToolResult::text(name))
     },
   )
-  let first = @mcp.Client(name="client-a", version="1")
+  let first = try! @client.Client(name="client-a", version="1")
   let discover_response = server.handle_jsonrpc(first.discover_request())
   guard discover_response is Some(discover_message) else {
     fail("expected discover response")
@@ -49,7 +49,7 @@ async test "each request carries the client context used by the server" {
     ) else {
     fail("expected cacheable tools list")
   }
-  let second = @mcp.Client(name="client-b", version="1")
+  let second = try! @client.Client(name="client-b", version="1")
   let call_response = server.handle_jsonrpc(
     try! second.call_tool_request(name="whoami"),
   )
@@ -72,8 +72,8 @@ async test "each request carries the client context used by the server" {
 
 ///|
 async test "unsupported protocol versions return -32022" {
-  let server = try! @mcp.Server(name="server", version="1")
-  let unsupported = @mcp.Client(
+  let server = try! Server(name="server", version="1")
+  let unsupported = try! @client.Client(
     name="unsupported",
     version="1",
     protocol_version="1900-01-01",
@@ -95,7 +95,7 @@ async test "unsupported protocol versions return -32022" {
 
 ///|
 async test "requests without required metadata return InvalidParams" {
-  let server = try! @mcp.Server(name="server", version="1")
+  let server = try! Server(name="server", version="1")
   let missing_meta = Json::object({
     "jsonrpc": Json::string("2.0"),
     "id": Json::number(1.0, repr="1"),
@@ -112,7 +112,7 @@ async test "requests without required metadata return InvalidParams" {
 
 ///|
 async test "JSON-RPC batches return InvalidRequest" {
-  let server = try! @mcp.Server(name="server", version="1")
+  let server = try! Server(name="server", version="1")
   guard server.handle_jsonrpc(Json::array([]))
     is Some(
       Object({ "error": Object({ "code": Number(-32600.0, ..), .. }), .. })
@@ -123,7 +123,7 @@ async test "JSON-RPC batches return InvalidRequest" {
 
 ///|
 async test "JSON-RPC notifications never receive a response" {
-  let server = try! @mcp.Server(name="server", version="1")
+  let server = try! Server(name="server", version="1")
   let notification = Json::object({
     "jsonrpc": Json::string("2.0"),
     "method": Json::string("com.example/event"),
@@ -134,7 +134,7 @@ async test "JSON-RPC notifications never receive a response" {
 
 ///|
 async test "MRTR retries echo opaque state and supply input responses" {
-  let server = try! @mcp.Server(name="server", version="1")
+  let server = try! Server(name="server", version="1")
   try! server.tool_raw(name="confirm", fn(
     context,
     _arguments,
@@ -162,7 +162,7 @@ async test "MRTR retries echo opaque state and supply input responses" {
       ),
     )
   })
-  let client = @mcp.Client(
+  let client = try! @client.Client(
     name="client",
     version="1",
     capabilities=@mcp.ClientCapabilities(
@@ -195,7 +195,7 @@ async test "MRTR retries echo opaque state and supply input responses" {
 
 ///|
 async test "MRTR requirements without client capabilities return -32021" {
-  let server = try! @mcp.Server(name="server", version="1")
+  let server = try! Server(name="server", version="1")
   try! server.tool_raw(name="confirm", fn(
     _context,
     _arguments,
@@ -215,7 +215,7 @@ async test "MRTR requirements without client capabilities return -32021" {
       }),
     )
   })
-  let client = @mcp.Client(name="client", version="1")
+  let client = try! @client.Client(name="client", version="1")
   let response = server.handle_jsonrpc(
     try! client.call_tool_request(name="confirm"),
   )
@@ -240,7 +240,7 @@ async test "MRTR requirements without client capabilities return -32021" {
 
 ///|
 async test "progress notifications carry the request progress token" {
-  let server = try! @mcp.Server(name="server", version="1")
+  let server = try! Server(name="server", version="1")
   try! server.tool_raw(name="work", async fn(
     context,
     _arguments,
@@ -252,7 +252,7 @@ async test "progress notifications carry the request progress token" {
   let hooks = @mcp.RequestHooks(emit_notification=fn(message) {
     emitted.push(message)
   })
-  let client = @mcp.Client(name="client", version="1")
+  let client = try! @client.Client(name="client", version="1")
   let response = server.handle_jsonrpc_with_hooks(
     try! client.call_tool_request(
       name="work",
@@ -279,7 +279,7 @@ async test "progress notifications carry the request progress token" {
 
 ///|
 async test "tool input and structured output honor declared JSON Schemas" {
-  let server = try! @mcp.Server(name="schema-server", version="1")
+  let server = try! Server(name="schema-server", version="1")
   try! server.tool_raw(
     name="bounded",
     input_schema=Json::object({
@@ -298,7 +298,7 @@ async test "tool input and structured output honor declared JSON Schemas" {
       @mcp.Complete(@mcp.CallToolResult::json(Json::number(42.0)))
     },
   )
-  let client = @mcp.Client(name="client", version="1")
+  let client = try! @client.Client(name="client", version="1")
   let missing_input = server.handle_jsonrpc(
     try! client.call_tool_request(name="bounded", arguments={}),
   )
@@ -344,7 +344,7 @@ async test "tool input and structured output honor declared JSON Schemas" {
 
 ///|
 async test "resource templates are readable through their registered handler" {
-  let server = try! @mcp.Server(name="resource-server", version="1")
+  let server = try! Server(name="resource-server", version="1")
   try! server.resource_template(uri_template="notes://{id}", name="note", fn(
     _context,
     uri,
@@ -357,7 +357,7 @@ async test "resource templates are readable through their registered handler" {
       ),
     )
   })
-  let client = @mcp.Client(name="client", version="1")
+  let client = try! @client.Client(name="client", version="1")
   let response = server.handle_jsonrpc(
     client.read_resource_request(uri="notes://alpha"),
   )
@@ -386,5 +386,307 @@ async test "resource templates are readable through their registered handler" {
       )
     ) else {
     fail("expected template handler result")
+  }
+}
+
+///|
+test "Server explicit seal prevents further registrations" {
+  let server = try! Server(name="test-server", version="1.0.0")
+  server.seal()
+  let error_caught = Ref(false)
+  server.tool_raw(name="dummy", fn(_ctx, _input) {
+    @mcp.Complete(@mcp.CallToolResult::text("dummy"))
+  }) catch {
+    @mcp.InvalidRequest(_) => error_caught.val = true
+    _ => ()
+  }
+  assert_true(error_caught.val)
+}
+
+///|
+test "server constructor rejects empty protocol identities" {
+  let assert_invalid_params = fn(
+    f : () -> Unit raise @mcp.McpError,
+  ) -> Unit raise {
+    let error = try {
+      f()
+      false
+    } catch {
+      @mcp.InvalidParams(_) => true
+      _ => false
+    }
+    assert_true(error)
+  }
+  assert_invalid_params(fn() -> Unit raise @mcp.McpError {
+    ignore(Server(name="", version="1"))
+  })
+  assert_invalid_params(fn() -> Unit raise @mcp.McpError {
+    ignore(Server(name="server", version="1", supported_versions=[""]))
+  })
+}
+
+///|
+test "server retains independent copies of mutable inputs" {
+  let versions = [@mcp.LATEST_PROTOCOL_VERSION]
+  let server = try! Server(
+    name="server",
+    version="1",
+    supported_versions=versions,
+  )
+  versions[0] = "mutated"
+  assert_true(server.supports_protocol_version(@mcp.LATEST_PROTOCOL_VERSION))
+  assert_false(server.supports_protocol_version("mutated"))
+}
+
+///|
+async test "prompts/get requires every advertised required argument" {
+  let server = try! Server(name="server", version="1")
+  try! server.prompt(
+    name="review",
+    arguments=[@mcp.PromptArgument(name="document", required=true)],
+    fn(_context, _arguments) { @mcp.Complete(@mcp.GetPromptResult::user("ok")) },
+  )
+  let client = try! @client.Client(name="client", version="1")
+  guard server.handle_jsonrpc(try! client.get_prompt_request(name="review"))
+    is Some(
+      Object({ "error": Object({ "code": Number(-32602.0, ..), .. }), .. })
+    ) else {
+    fail("missing required prompt argument was accepted")
+  }
+}
+
+///|
+test "prompt argument descriptor names are unique" {
+  let server = try! Server(name="server", version="1")
+  let assert_invalid_params = fn(
+    f : () -> Unit raise @mcp.McpError,
+  ) -> Unit raise {
+    let error = try {
+      f()
+      false
+    } catch {
+      @mcp.InvalidParams(_) => true
+      _ => false
+    }
+    assert_true(error)
+  }
+  assert_invalid_params(fn() -> Unit raise @mcp.McpError {
+    server.prompt(
+      name="review",
+      arguments=[
+        @mcp.PromptArgument(name="document"),
+        @mcp.PromptArgument(name="document"),
+      ],
+      fn(_context, _arguments) {
+        @mcp.Complete(@mcp.GetPromptResult::user("ok"))
+      },
+    )
+  })
+}
+
+///|
+async test "transport descriptor snapshots do not expose the server registry" {
+  let schema_fields : Map[String, Json] = { "type": Json::string("object") }
+  let server = try! Server(name="server", version="1")
+  try! server.tool_raw(name="owned", input_schema=Json::object(schema_fields), fn(
+    _context,
+    _arguments,
+  ) {
+    @mcp.Complete(@mcp.CallToolResult::text("ok"))
+  })
+  let descriptor = server.tool_descriptor("owned").unwrap()
+  guard descriptor.input_schema is Object(fields) else {
+    fail("descriptor did not contain an object schema")
+  }
+  fields["type"] = Json::string("string")
+  let listed = server.handle_jsonrpc(
+    try! @client.Client(name="client", version="1").list_tools_request(),
+  )
+  guard listed is Some(Object({ "result": Object(result), .. })) else {
+    fail("tools/list did not return a result")
+  }
+  guard result["tools"]
+    is Array(
+      [
+        Object({ "inputSchema": Object({ "type": String("object"), .. }), .. }),
+        ..,
+      ]
+    ) else {
+    fail("adapter snapshot mutation changed the server registry")
+  }
+}
+
+///|
+test "resource template validation rejects invalid syntax and supports literals" {
+  let server = try! Server(name="server", version="1")
+  let assert_invalid_params = fn(
+    f : () -> Unit raise @mcp.McpError,
+  ) -> Unit raise {
+    let error = try {
+      f()
+      false
+    } catch {
+      @mcp.InvalidParams(_) => true
+      _ => false
+    }
+    assert_true(error)
+  }
+  // Invalid unclosed {
+  assert_invalid_params(fn() -> Unit raise @mcp.McpError {
+    server.resource_template(uri_template="file:///items/{id", name="test", fn(
+      _ctx,
+      _uri,
+      _vars,
+    ) {
+      @mcp.Complete(@mcp.ReadResourceResult::text(uri="a", text="b"))
+    })
+  })
+  // Invalid nested {
+  assert_invalid_params(fn() -> Unit raise @mcp.McpError {
+    server.resource_template(uri_template="file:///items/{{id}}", name="test", fn(
+      _ctx,
+      _uri,
+      _vars,
+    ) {
+      @mcp.ReadResourceResult::text(uri="a", text="b") |> @mcp.Complete
+    })
+  })
+  // Unexpected }
+  assert_invalid_params(fn() -> Unit raise @mcp.McpError {
+    server.resource_template(uri_template="file:///items/id}", name="test", fn(
+      _ctx,
+      _uri,
+      _vars,
+    ) {
+      @mcp.HandlerOutcome::Complete(
+        @mcp.ReadResourceResult::text(uri="a", text="b"),
+      )
+    })
+  })
+  // Valid with special characters in literals like . and +
+  try! server.resource_template(
+    uri_template="file:///api/v1.0/items/{item_id}.json",
+    name="item_template",
+    fn(_ctx, _uri, _vars) {
+      @mcp.HandlerOutcome::Complete(
+        @mcp.ReadResourceResult::text(uri="a", text="b"),
+      )
+    },
+  )
+}
+
+///|
+test "client capabilities negotiation for roots and sampling" {
+  let server = try! Server(name="server", version="1")
+  let result = try! @mcp.InputRequiredResult(input_requests={
+    "roots": try! @mcp.InputRequest(method_name="roots/list"),
+    "sampling": try! @mcp.InputRequest(
+      method_name="sampling/createMessage",
+      params=Json::object({
+        "messages": Json::array([
+          Json::object({
+            "role": Json::string("user"),
+            "content": Json::object({
+              "type": Json::string("text"),
+              "text": Json::string("hello"),
+            }),
+          }),
+        ]),
+        "maxTokens": Json::number(1.0),
+      }),
+    ),
+  })
+  let context = try! @mcp.RequestContext(
+    request_id=Json::number(1.0),
+    method_name="tools/call",
+    meta=@mcp.RequestMeta(
+      client_capabilities=@mcp.ClientCapabilities(
+        roots=@mcp.RootsCapability(),
+        sampling=@mcp.SamplingCapability(),
+      ),
+    ),
+  )
+  try! server.validate_input_requests(context, result)
+
+  let missing = try! @mcp.RequestContext(
+    request_id=Json::number(2.0),
+    method_name="tools/call",
+    meta=@mcp.RequestMeta(),
+  )
+  try server.validate_input_requests(missing, result) catch {
+    @mcp.MissingRequiredClientCapability(_, required) =>
+      assert_true(required.roots is Some(_))
+    _ => fail("expected missing capability")
+  } noraise {
+    _ => fail("expected missing capability")
+  }
+}
+
+///|
+test "subscription acceptance acknowledges the honored filter first" {
+  let server = try! Server(name="server", version="1", tool_list_changed=true)
+  let client = try! @client.Client(name="client", version="1")
+  let request = client.listen_request(
+    notifications=@mcp.SubscriptionFilter(
+      tools_list_changed=true,
+      prompts_list_changed=true,
+    ),
+  )
+  let subscription = try! server.accept_subscription(request)
+  guard subscription.acknowledgement()
+    is Object(
+      {
+        "method": String("notifications/subscriptions/acknowledged"),
+        "params": Object(
+          {
+            "_meta": Object(
+              { "io.modelcontextprotocol/subscriptionId": Number(1.0, ..), .. }
+            ),
+            "notifications": Object({ "toolsListChanged": True, .. }),
+            ..
+          }
+        ),
+        ..
+      }
+    ) else {
+    fail("expected acknowledgement with honored filter")
+  }
+  guard subscription.close_response()
+    is Object(
+      {
+        "id": Number(1.0, ..),
+        "result": Object({ "resultType": String("complete"), .. }),
+        ..
+      }
+    ) else {
+    fail("expected graceful final response")
+  }
+}
+
+///|
+test "empty cursor is a valid opaque cursor" {
+  let page = try! paginate(["a", "b"], cursor="", page_size=1)
+  assert_eq(page.items, ["a"])
+  assert_eq(page.next_cursor, Some("1"))
+}
+
+///|
+test "cursor parsing accepts the Int boundary and rejects overflow" {
+  assert_eq(try! parse_cursor(Some("2147483647"), 2147483647), 2147483647)
+  try ignore(parse_cursor(Some("2147483648"), 2147483647)) catch {
+    @mcp.InvalidParams(_) => ()
+    _ => fail("expected InvalidParams")
+  } noraise {
+    _ => fail("overflowing cursor was accepted")
+  }
+}
+
+///|
+test "cursor parsing bounds work before decimal accumulation" {
+  try ignore(parse_cursor(Some("000000000000000000000"), 1)) catch {
+    @mcp.InvalidParams(_) => ()
+    _ => fail("expected InvalidParams")
+  } noraise {
+    _ => fail("overlong cursor was accepted")
   }
 }

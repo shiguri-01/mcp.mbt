@@ -1,18 +1,17 @@
 import {
   "moonbitlang/async",
   "moonbitlang/async/aqueue",
-  "moonbitlang/async/io",
-  "moonbitlang/async/process",
-  "moonbitlang/async/stdio" @async_stdio,
   "moonbitlang/core/json",
   "shiguri-01/mcp",
-  "shiguri-01/mcp/client",
   "shiguri-01/mcp/jsonrpc",
-  "shiguri-01/mcp/server",
+  "shiguri-01/mcp/schema",
 }
-
-supported_targets = "+native"
 
 import {
   "moonbitlang/core/test",
+} for "test"
+
+import {
+  "moonbitlang/core/test",
+  "shiguri-01/mcp/client",
 } for "wbtest"

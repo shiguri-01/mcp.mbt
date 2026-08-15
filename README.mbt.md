@@ -29,7 +29,7 @@ impl @schema.JsonSchema for GreetInput with fn json_schema() {
 
 ///|
 async test "discover and call a typed tool" {
-  let server = try! @mcp.Server(name="greeter", version="1.0.0")
+  let server = try! @server.Server(name="greeter", version="1.0.0")
   try! server.tool(
     name="greet",
     description="Greet someone by name",
@@ -38,7 +38,7 @@ async test "discover and call a typed tool" {
     },
   )
 
-  let client = try! @mcp.Client(name="example-client", version="1.0.0")
+  let client = try! @client.Client(name="example-client", version="1.0.0")
   let discover_response = server.handle_jsonrpc(client.discover_request())
   guard discover_response is Some(discover_response) else {
     fail("server/discover returned no response")
@@ -83,8 +83,12 @@ expressions, so every advertised template is readable.
 
 ## Packages
 
-- `shiguri-01/mcp`: protocol types, typed server dispatch, modern client
-  request builders, discovery, and response decoding.
+- `shiguri-01/mcp`: canonical protocol types, result envelopes, content models,
+  pagination, and wire codecs.
+- `shiguri-01/mcp/server`: typed server dispatch, handler registration,
+  MRTR coordination, and framed session runtime.
+- `shiguri-01/mcp/client`: client request builders, discovery, response decoding,
+  MRTR resolution loop, and subscription state tracker.
 - `shiguri-01/mcp/schema`: JSON Schema builders for typed tool inputs.
 - `shiguri-01/mcp/auth`: native MCP Authorization discovery, PKCE,
   registration, token, issuer, scope, and resource-binding primitives.
@@ -96,7 +100,7 @@ Transport clients return these canonical root-package types from their normal
 verbs: `ListToolsResult`, `ListResourcesResult`,
 `ListResourceTemplatesResult`, `ListPromptsResult`, `CallToolResult`,
 `ReadResourceResult`, `GetPromptResult`, and `CompleteResult`. Each transport
-also exposes a matching `*_raw` verb, while `Client::request` remains the
+also exposes a matching `*_raw` verb, while `@client.Client::request` remains the
 lowest-level escape hatch for protocol extensions.
 
 See [`docs/design-2026-07-28.md`](docs/design-2026-07-28.md) for the protocol

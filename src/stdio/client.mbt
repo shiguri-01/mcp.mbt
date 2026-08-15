@@ -1,7 +1,7 @@
 ///|
 /// Native stdio client for the self-contained MCP 2026-07-28 protocol.
 pub struct Client {
-  priv core : @mcp.Client
+  priv core : @client.Client
   priv process : @process.Process
   pid : Int
   priv outbound : @aqueue.Queue[String?]
@@ -71,7 +71,12 @@ pub async fn[X] Client::spawn(
     read_messages(client_reader, pending, progress_routes)
   })
   {
-    core: Client(name~, version~, capabilities~, extension_result_types~),
+    core: @client.Client(
+      name~,
+      version~,
+      capabilities~,
+      extension_result_types~,
+    ),
     process,
     pid: process.pid,
     outbound,
@@ -192,7 +197,7 @@ async fn route_message(
         put_inbound(queue, Message(message))
       }
     None =>
-      match @mcp.extract_subscription_id(message) {
+      match @client.extract_subscription_id(message) {
         Some(id) =>
           if pending.get(@mcp.routing_key(id)) is Some(queue) {
             put_inbound(queue, Message(message))
@@ -354,7 +359,7 @@ pub async fn Client::cancel(
 }
 
 ///|
-pub impl @mcp.ClientTransport for Client with fn request_with_notifications(
+pub impl @client.ClientTransport for Client with fn request_with_notifications(
   self : Client,
   request : Json,
   on_notification~ : (Json) -> Unit,
@@ -363,7 +368,7 @@ pub impl @mcp.ClientTransport for Client with fn request_with_notifications(
 }
 
 ///|
-pub impl @mcp.ClientTransport for Client with fn notify(
+pub impl @client.ClientTransport for Client with fn notify(
   self : Client,
   notification : Json,
 ) -> Unit raise @mcp.McpError {

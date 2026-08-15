@@ -1,15 +1,4 @@
 ///|
-/// Metadata required on every MCP 2026-07-28 request.
-pub struct RequestMeta {
-  protocol_version : String
-  client_info : Implementation?
-  client_capabilities : ClientCapabilities
-  progress_token : Json?
-  log_level : LoggingLevel?
-  extra : Map[String, Json]
-} derive(Debug, Eq)
-
-///|
 fn valid_meta_key(key : String) -> Bool {
   let segments = key.split("/").to_array()
   if segments.length() > 2 {
@@ -58,6 +47,17 @@ fn validate_meta_map(values : Map[String, Json]) -> Unit raise McpError {
     }
   }
 }
+
+///|
+/// Metadata required on every MCP 2026-07-28 request.
+pub struct RequestMeta {
+  protocol_version : String
+  client_info : Implementation?
+  client_capabilities : ClientCapabilities
+  progress_token : Json?
+  log_level : LoggingLevel?
+  extra : Map[String, Json]
+} derive(Debug, Eq)
 
 ///|
 pub fn RequestMeta::RequestMeta(
@@ -117,9 +117,6 @@ pub impl @json.FromJson for RequestMeta with fn from_json(
   guard value is Object(fields) else {
     raise JsonDecodeError((path, "expected object"))
   }
-  validate_meta_map(fields) catch {
-    error => raise JsonDecodeError((path, error.message()))
-  }
   let protocol_version = match
     fields.get("io.modelcontextprotocol/protocolVersion") {
     Some(String(s)) => s
@@ -159,7 +156,14 @@ pub impl @json.FromJson for RequestMeta with fn from_json(
       | "io.modelcontextprotocol/clientInfo"
       | "io.modelcontextprotocol/clientCapabilities"
       | "io.modelcontextprotocol/logLevel" => ()
-      _ => extra[key] = item
+      _ => {
+        if !valid_meta_key(key) {
+          raise JsonDecodeError(
+            (path.add_key(key), "invalid _meta key: \{key}"),
+          )
+        }
+        extra[key] = item.copy()
+      }
     }
   }
   let client_info : Implementation? = match

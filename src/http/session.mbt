@@ -15,7 +15,7 @@ pub struct ServerOptions {
   /// Publish notifications for a validated subscription. The adapter sends
   /// the acknowledgement before invoking this callback and the final response
   /// after it returns.
-  on_subscription : async (@mcp.Subscription, async (Json) -> Unit) -> Unit
+  on_subscription : async (@server.Subscription, async (Json) -> Unit) -> Unit
   /// Observe a client notification. Notifications are always acknowledged
   /// with HTTP 202 and never receive a JSON-RPC response.
   on_notification : async (Json) -> Unit
@@ -27,7 +27,7 @@ pub fn ServerOptions::ServerOptions(
   allowed_origins? : Set[String] = Set([]),
   stream_responses? : Bool = false,
   max_request_body_bytes? : Int = default_max_request_body_bytes,
-  on_subscription? : async (@mcp.Subscription, async (Json) -> Unit) -> Unit = (
+  on_subscription? : async (@server.Subscription, async (Json) -> Unit) -> Unit = (
     _,
     _,
   ) => (),

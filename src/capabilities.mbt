@@ -172,7 +172,9 @@ pub fn ClientCapabilities::ClientCapabilities(
 }
 
 ///|
-fn ClientCapabilities::copy(self : ClientCapabilities) -> ClientCapabilities {
+pub fn ClientCapabilities::copy(
+  self : ClientCapabilities,
+) -> ClientCapabilities {
   ClientCapabilities(
     roots?=self.roots,
     sampling?=self.sampling,
@@ -243,28 +245,6 @@ fn validate_extension_keys(
         None => "extension '\{key}'"
       }
       raise InvalidParams("\{p}: not a valid extension identifier")
-    }
-  }
-}
-
-///|
-fn validate_extension_map(
-  values : Map[String, Json],
-  path? : @json.JsonPath,
-) -> Unit raise McpError {
-  validate_extension_keys(values, path?)
-}
-
-///|
-fn validate_extension_result_types(
-  result_types : Map[String, String],
-  extensions : Map[String, Json],
-) -> Unit raise McpError {
-  for result_type, extension in result_types {
-    if !extensions.contains(extension) {
-      raise InvalidParams(
-        "extension resultType '\{result_type}' requires declared extension capability '\{extension}'",
-      )
     }
   }
 }

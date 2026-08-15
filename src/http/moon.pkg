@@ -9,7 +9,9 @@ import {
   "moonbitlang/core/string",
   "shiguri-01/mcp",
   "shiguri-01/mcp/auth",
+  "shiguri-01/mcp/client",
   "shiguri-01/mcp/jsonrpc",
+  "shiguri-01/mcp/server",
 }
 
 import {
