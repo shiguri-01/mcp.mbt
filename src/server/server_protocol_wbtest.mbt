@@ -1,4 +1,20 @@
 ///|
+fn test_client(
+  name? : String = "client",
+  version? : String = "1",
+  protocol_version? : String,
+  capabilities? : @mcp.ClientCapabilities = @mcp.ClientCapabilities::empty(),
+) -> @client.Client raise @mcp.McpError {
+  @client.Client(
+    name~,
+    version~,
+    transport=@client.NoopTransport(),
+    protocol_version?,
+    capabilities~,
+  )
+}
+
+///|
 async test "each request carries the client context used by the server" {
   let server = try! Server(
     name="test-server",
@@ -16,7 +32,7 @@ async test "each request carries the client context used by the server" {
       @mcp.Complete(@mcp.CallToolResult::text(name))
     },
   )
-  let first = try! @client.Client(name="client-a", version="1")
+  let first = try! test_client(name="client-a", version="1")
   let discover_response = server.handle_jsonrpc(first.discover_request())
   guard discover_response is Some(discover_message) else {
     fail("expected discover response")
@@ -49,7 +65,7 @@ async test "each request carries the client context used by the server" {
     ) else {
     fail("expected cacheable tools list")
   }
-  let second = try! @client.Client(name="client-b", version="1")
+  let second = try! test_client(name="client-b", version="1")
   let call_response = server.handle_jsonrpc(
     try! second.call_tool_request(name="whoami"),
   )
@@ -73,7 +89,7 @@ async test "each request carries the client context used by the server" {
 ///|
 async test "unsupported protocol versions return -32022" {
   let server = try! Server(name="server", version="1")
-  let unsupported = try! @client.Client(
+  let unsupported = try! test_client(
     name="unsupported",
     version="1",
     protocol_version="1900-01-01",
@@ -162,7 +178,7 @@ async test "MRTR retries echo opaque state and supply input responses" {
       ),
     )
   })
-  let client = try! @client.Client(
+  let client = try! test_client(
     name="client",
     version="1",
     capabilities=@mcp.ClientCapabilities(
@@ -215,7 +231,7 @@ async test "MRTR requirements without client capabilities return -32021" {
       }),
     )
   })
-  let client = try! @client.Client(name="client", version="1")
+  let client = try! test_client(name="client", version="1")
   let response = server.handle_jsonrpc(
     try! client.call_tool_request(name="confirm"),
   )
@@ -252,7 +268,7 @@ async test "progress notifications carry the request progress token" {
   let hooks = @mcp.RequestHooks(emit_notification=fn(message) {
     emitted.push(message)
   })
-  let client = try! @client.Client(name="client", version="1")
+  let client = try! test_client(name="client", version="1")
   let response = server.handle_jsonrpc_with_hooks(
     try! client.call_tool_request(
       name="work",
@@ -298,7 +314,7 @@ async test "tool input and structured output honor declared JSON Schemas" {
       @mcp.Complete(@mcp.CallToolResult::json(Json::number(42.0)))
     },
   )
-  let client = try! @client.Client(name="client", version="1")
+  let client = try! test_client(name="client", version="1")
   let missing_input = server.handle_jsonrpc(
     try! client.call_tool_request(name="bounded", arguments={}),
   )
@@ -357,7 +373,7 @@ async test "resource templates are readable through their registered handler" {
       ),
     )
   })
-  let client = try! @client.Client(name="client", version="1")
+  let client = try! test_client(name="client", version="1")
   let response = server.handle_jsonrpc(
     client.read_resource_request(uri="notes://alpha"),
   )
@@ -446,7 +462,7 @@ async test "prompts/get requires every advertised required argument" {
     arguments=[@mcp.PromptArgument(name="document", required=true)],
     fn(_context, _arguments) { @mcp.Complete(@mcp.GetPromptResult::user("ok")) },
   )
-  let client = try! @client.Client(name="client", version="1")
+  let client = try! test_client(name="client", version="1")
   guard server.handle_jsonrpc(try! client.get_prompt_request(name="review"))
     is Some(
       Object({ "error": Object({ "code": Number(-32602.0, ..), .. }), .. })
@@ -500,7 +516,7 @@ async test "transport descriptor snapshots do not expose the server registry" {
   }
   fields["type"] = Json::string("string")
   let listed = server.handle_jsonrpc(
-    try! @client.Client(name="client", version="1").list_tools_request(),
+    try! test_client(name="client", version="1").list_tools_request(),
   )
   guard listed is Some(Object({ "result": Object(result), .. })) else {
     fail("tools/list did not return a result")
@@ -625,7 +641,7 @@ test "client capabilities negotiation for roots and sampling" {
 ///|
 test "subscription acceptance acknowledges the honored filter first" {
   let server = try! Server(name="server", version="1", tool_list_changed=true)
-  let client = try! @client.Client(name="client", version="1")
+  let client = try! test_client(name="client", version="1")
   let request = client.listen_request(
     notifications=@mcp.SubscriptionFilter(
       tools_list_changed=true,

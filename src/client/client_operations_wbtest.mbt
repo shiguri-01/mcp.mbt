@@ -29,8 +29,12 @@ impl ClientTransport for MockTransport with fn notify(
 }
 
 ///|
+impl ClientTransport for MockTransport with fn close(_self : MockTransport) -> Unit {
+  ()
+}
+
+///|
 async test "client discover over ClientTransport" {
-  let client = try! Client(name="test-client", version="1.0.0")
   let discover_transport = MockTransport::new((req, _) => {
     guard req is Object({ "method": String("server/discover"), .. }) else {
       panic()
@@ -47,13 +51,17 @@ async test "client discover over ClientTransport" {
       }),
     )
   })
-  let discover_res = try! client.discover(discover_transport)
+  let client = try! Client(
+    name="test-client",
+    version="1.0.0",
+    transport=discover_transport,
+  )
+  let discover_res = try! client.discover()
   assert_eq(discover_res.supported_versions, [@mcp.LATEST_PROTOCOL_VERSION])
 }
 
 ///|
 async test "client list_tools over ClientTransport" {
-  let client = try! Client(name="test-client", version="1.0.0")
   let list_tools_transport = MockTransport::new((req, _) => {
     guard req is Object({ "method": String("tools/list"), .. }) else { panic() }
     @mcp.Complete(
@@ -71,14 +79,18 @@ async test "client list_tools over ClientTransport" {
       }),
     )
   })
-  let tools_res = try! client.list_tools(list_tools_transport)
+  let client = try! Client(
+    name="test-client",
+    version="1.0.0",
+    transport=list_tools_transport,
+  )
+  let tools_res = try! client.list_tools()
   assert_eq(tools_res.tools.length(), 1)
   assert_eq(tools_res.tools[0].name, "calculate")
 }
 
 ///|
 async test "client call_tool over ClientTransport" {
-  let client = try! Client(name="test-client", version="1.0.0")
   let call_tool_transport = MockTransport::new((req, _) => {
     guard req
       is Object(
@@ -99,10 +111,12 @@ async test "client call_tool over ClientTransport" {
       }),
     )
   })
-  let call_outcome = try! client.call_tool(
-    call_tool_transport,
-    name="calculate",
+  let client = try! Client(
+    name="test-client",
+    version="1.0.0",
+    transport=call_tool_transport,
   )
+  let call_outcome = try! client.call_tool(name="calculate")
   match call_outcome {
     @mcp.Complete(res) => {
       assert_eq(res.content.length(), 1)
@@ -117,13 +131,6 @@ async test "client call_tool over ClientTransport" {
 
 ///|
 async test "client MRTR resolving with multiple rounds" {
-  let client = try! Client(
-    name="test-client",
-    version="1.0.0",
-    capabilities=@mcp.ClientCapabilities(
-      elicitation=@mcp.ElicitationCapability(form=Json::object({})),
-    ),
-  )
   let mut round = 0
   let mrtr_transport = MockTransport::new((req, _) => {
     round += 1
@@ -186,23 +193,29 @@ async test "client MRTR resolving with multiple rounds" {
       )
     }
   })
-  let result = try! client.call_tool_resolving(
-    mrtr_transport,
-    name="greet_wizard",
-    resolve=fn(reqs) -> Map[String, @mcp.InputResponse] raise @mcp.McpError {
-      guard reqs.length() == 1 else {
-        raise @mcp.InvalidParams("expected 1 request")
-      }
-      {
-        "req1": @mcp.InputResponse(
-          Json::object({
-            "action": Json::string("accept"),
-            "content": Json::object({ "name": Json::string("Alice") }),
-          }),
-        ),
-      }
-    },
+  let client = try! Client(
+    name="test-client",
+    version="1.0.0",
+    transport=mrtr_transport,
+    capabilities=@mcp.ClientCapabilities(
+      elicitation=@mcp.ElicitationCapability(form=Json::object({})),
+    ),
   )
+  let result = try! client.call_tool_resolving(name="greet_wizard", resolve=fn(
+    reqs,
+  ) -> Map[String, @mcp.InputResponse] raise @mcp.McpError {
+    guard reqs.length() == 1 else {
+      raise @mcp.InvalidParams("expected 1 request")
+    }
+    {
+      "req1": @mcp.InputResponse(
+        Json::object({
+          "action": Json::string("accept"),
+          "content": Json::object({ "name": Json::string("Alice") }),
+        }),
+      ),
+    }
+  })
   assert_eq(round, 2)
   match result.content[0] {
     @mcp.Content::TextContent(text~, ..) => assert_eq(text, "Hello Alice!")
@@ -212,7 +225,6 @@ async test "client MRTR resolving with multiple rounds" {
 
 ///|
 async test "client listen over ClientTransport" {
-  let client = try! Client(name="test-client", version="1.0.0")
   let notifications_received : Array[Json] = []
   let listen_transport = MockTransport::new((req, on_notification) => {
     guard req is Object({ "method": String("subscriptions/listen"), .. }) else {
@@ -252,8 +264,12 @@ async test "client listen over ClientTransport" {
       }),
     )
   })
+  let client = try! Client(
+    name="test-client",
+    version="1.0.0",
+    transport=listen_transport,
+  )
   let final_result = try! client.listen(
-    listen_transport,
     notifications=@mcp.SubscriptionFilter(tools_list_changed=true),
     on_notification=fn(n) { notifications_received.push(n) },
   )
@@ -264,7 +280,9 @@ async test "client listen over ClientTransport" {
 
 ///|
 test "client constructor rejects empty protocol identities" {
-  let r1 = try ignore(Client(name="", version="1")) catch {
+  let r1 = try
+    ignore(Client(name="", version="1", transport=NoopTransport()))
+  catch {
     @mcp.InvalidParams(_) => true
     _ => false
   } noraise {
@@ -272,7 +290,14 @@ test "client constructor rejects empty protocol identities" {
   }
   assert_true(r1)
   let r2 = try
-    ignore(Client(name="client", version="", protocol_version=""))
+    ignore(
+      Client(
+        name="client",
+        version="",
+        protocol_version="",
+        transport=NoopTransport(),
+      ),
+    )
   catch {
     @mcp.InvalidParams(_) => true
     _ => false
@@ -284,7 +309,11 @@ test "client constructor rejects empty protocol identities" {
 
 ///|
 test "metadata keys follow the MCP prefix and name grammar" {
-  let client = try! Client(name="client", version="1")
+  let client = try! Client(
+    name="client",
+    version="1",
+    transport=NoopTransport(),
+  )
   try
     client.request_raw(
       method_name="example/run",
@@ -311,9 +340,13 @@ test "extension result types require an advertised extension mapping" {
   let capabilities = @mcp.ClientCapabilities(extensions={
     "com.example/flow": Json::object({}),
   })
-  let client = try! Client(name="client", version="1", capabilities~, extension_result_types={
-    "paused": "com.example/flow",
-  })
+  let client = try! Client(
+    name="client",
+    version="1",
+    transport=NoopTransport(),
+    capabilities~,
+    extension_result_types={ "paused": "com.example/flow" },
+  )
   let response = @jsonrpc.response_success(
     id=try! @jsonrpc.RequestId::number(1.0),
     result=Json::object({
@@ -324,7 +357,11 @@ test "extension result types require an advertised extension mapping" {
   assert_true(
     client.decode_response(response) is @mcp.ExtensionResult("paused", _),
   )
-  let strict = try! Client(name="strict", version="1")
+  let strict = try! Client(
+    name="strict",
+    version="1",
+    transport=NoopTransport(),
+  )
   try strict.decode_response(response) catch {
     @mcp.InvalidRequest("unknown resultType: paused") => ()
     _ => fail("expected unknown result type")
@@ -342,6 +379,7 @@ test "client retains independent copies of mutable inputs" {
   let client = try! Client(
     name="client",
     version="1",
+    transport=NoopTransport(),
     capabilities=@mcp.ClientCapabilities(extensions~),
   )
   settings["enabled"] = Json::boolean(false)
@@ -361,4 +399,23 @@ test "client retains independent copies of mutable inputs" {
     ) else {
     fail("client capabilities mutated")
   }
+}
+
+///|
+async test "offline client raises InternalError on operations" {
+  let client = try! Client(
+    name="client",
+    version="1",
+    transport=NoopTransport(),
+  )
+  let error_caught = try {
+    ignore(client.discover())
+    false
+  } catch {
+    @mcp.InternalError("client is using NoopTransport") => true
+    _ => false
+  } noraise {
+    _ => false
+  }
+  assert_true(error_caught)
 }

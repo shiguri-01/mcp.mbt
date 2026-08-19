@@ -38,7 +38,11 @@ async test "discover and call a typed tool" {
     },
   )
 
-  let client = try! @client.Client(name="example-client", version="1.0.0")
+  let client = try! @client.Client(
+    name="example-client",
+    version="1.0.0",
+    transport=@client.NoopTransport(),
+  )
   let discover_response = server.handle_jsonrpc(client.discover_request())
   guard discover_response is Some(discover_response) else {
     fail("server/discover returned no response")

@@ -11,13 +11,17 @@ fn conformance_capabilities() -> @mcp.ClientCapabilities {
 fn make_client(
   endpoint : String,
   protocol_version : String,
-) -> @mcp_http.Client {
-  try! @mcp_http.Client(
-    endpoint,
+) -> @mcp_client.Client {
+  let transport = try! @mcp_http.Transport(endpoint, supported_protocol_versions=[
+    protocol_version,
+    @mcp.LATEST_PROTOCOL_VERSION,
+  ])
+  try! @mcp_client.Client(
     name="moonbit-mcp-conformance-client",
     version="2026.7.28",
     capabilities=conformance_capabilities(),
-    supported_protocol_versions=[protocol_version, @mcp.LATEST_PROTOCOL_VERSION],
+    protocol_version~,
+    transport~,
   )
 }
 

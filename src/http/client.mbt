@@ -1,20 +1,19 @@
 ///|
-/// Stateless Streamable HTTP client for a single MCP endpoint.
-pub struct Client {
-  priv core : @client.Client
-  priv endpoint : String
-  priv supported_protocol_versions : Array[String]
-  priv mut protocol_version : String
-  priv tool_schemas : Map[String, Json]
-  priv authorization : AuthorizationOptions?
-  priv credential_cache : @auth.CredentialCache
-  priv token_cache : @auth.TokenCache
-  priv retry_policy : @auth.RetryPolicy
-  priv mut authorization_issuer : String?
-  priv authorization_resource : String
-  priv authorization_resource_exact : Bool
-  priv max_response_body_bytes : Int
-  priv max_sse_event_bytes : Int
+/// Stateless Streamable HTTP transport for a single MCP endpoint.
+pub struct Transport {
+  endpoint : String
+  supported_protocol_versions : Array[String]
+  mut protocol_version : String
+  tool_schemas : Map[String, Json]
+  authorization : AuthorizationOptions?
+  credential_cache : @auth.CredentialCache
+  token_cache : @auth.TokenCache
+  retry_policy : @auth.RetryPolicy
+  mut authorization_issuer : String?
+  authorization_resource : String
+  authorization_resource_exact : Bool
+  max_response_body_bytes : Int
+  max_sse_event_bytes : Int
 }
 
 ///|
@@ -22,13 +21,13 @@ pub struct Client {
 /// and secure random generation remain explicit host responsibilities through
 /// `AuthorizationProvider`.
 pub struct AuthorizationOptions {
-  priv provider : @auth.AuthorizationProvider
-  priv redirect_uri : String
-  priv client_name : String
-  priv client_id_metadata_url : String?
-  priv pre_registered : Map[String, @auth.ClientCredentials]
-  priv wants_refresh_token : Bool
-  priv resource_uri : String?
+  provider : @auth.AuthorizationProvider
+  redirect_uri : String
+  client_name : String
+  client_id_metadata_url : String?
+  pre_registered : Map[String, @auth.ClientCredentials]
+  wants_refresh_token : Bool
+  resource_uri : String?
 }
 
 ///|
@@ -64,22 +63,14 @@ pub fn AuthorizationOptions::AuthorizationOptions(
 }
 
 ///|
-/// Create a modern MCP HTTP client. Every request carries a fresh copy of the
-/// protocol version, client information, and client capabilities. Protocol
-/// versions are listed in client preference order; an unsupported-version
-/// response is retried once with the first version also supported by the
-/// server.
-pub fn Client::Client(
+/// Create a modern MCP HTTP transport.
+pub fn Transport::Transport(
   endpoint : String,
-  name? : String = "moonbit-http-client",
-  version? : String = "0.2.0",
-  capabilities? : @mcp.ClientCapabilities = @mcp.ClientCapabilities::empty(),
-  extension_result_types? : Map[String, String] = Map([]),
   supported_protocol_versions? : Array[String] = [@mcp.LATEST_PROTOCOL_VERSION],
   authorization? : AuthorizationOptions,
   max_response_body_bytes? : Int = default_max_response_body_bytes,
   max_sse_event_bytes? : Int = default_max_sse_event_bytes,
-) -> Client raise @mcp.McpError {
+) -> Transport raise @mcp.McpError {
   if max_response_body_bytes <= 0 {
     raise @mcp.InvalidParams("max_response_body_bytes must be positive")
   }
@@ -126,13 +117,6 @@ pub fn Client::Client(
     _ => raise @mcp.InternalError("could not initialize authorization policy")
   }
   {
-    core: @client.Client(
-      name~,
-      version~,
-      capabilities~,
-      extension_result_types~,
-      protocol_version~,
-    ),
     endpoint,
     supported_protocol_versions: supported_protocol_versions.copy(),
     protocol_version,
@@ -150,8 +134,8 @@ pub fn Client::Client(
 }
 
 ///|
-fn Client::headers(
-  self : Client,
+pub fn Transport::headers(
+  self : Transport,
   request : Json,
   input_schema? : Json,
 ) -> Map[String, String] raise HttpHeaderError {
@@ -206,7 +190,7 @@ fn request_operation(request : Json) -> String {
 }
 
 ///|
-fn response_requires_authorization(response : @async_http.Response) -> Bool {
+pub fn response_requires_authorization(response : @async_http.Response) -> Bool {
   if response.code == 401 {
     return true
   }
@@ -230,8 +214,8 @@ fn response_requires_authorization(response : @async_http.Response) -> Bool {
 }
 
 ///|
-async fn Client::read_response_text(
-  self : Client,
+async fn Transport::read_response_text(
+  self : Transport,
   stream : @async_http.Client,
   response : @async_http.Response,
   subject? : String = "MCP HTTP response body",
@@ -265,8 +249,8 @@ fn auth_error_to_mcp(error : @auth.AuthError) -> @mcp.McpError {
 }
 
 ///|
-async fn Client::authorize_challenge(
-  self : Client,
+pub async fn Transport::authorize_challenge(
+  self : Transport,
   response : @async_http.Response,
   operation : String,
 ) -> Unit raise @mcp.McpError {
@@ -489,8 +473,8 @@ fn notification_with_protocol_version(
 }
 
 ///|
-fn Client::mutually_supported_protocol_version(
-  self : Client,
+fn Transport::mutually_supported_protocol_version(
+  self : Transport,
   server_versions : Array[String],
 ) -> String? {
   for client_version in self.supported_protocol_versions {
@@ -542,7 +526,6 @@ fn parse_event_stream_messages(
       }
       continue
     }
-    // SSE comments, event names, retry values, and IDs do not carry MCP data.
     if line.has_prefix("data:"[:]) {
       let value = line[5:]
       let value = if value.has_prefix(" "[:]) { value[1:] } else { value }
@@ -588,8 +571,6 @@ fn parse_http_messages(
 }
 
 ///|
-
-///|
 fn validate_response_id(
   message : Json,
   expected_id : Json,
@@ -603,8 +584,8 @@ fn validate_response_id(
 }
 
 ///|
-async fn Client::send_response_once_with_notifications(
-  self : Client,
+async fn Transport::send_response_once_with_notifications(
+  self : Transport,
   request : Json,
   input_schema? : Json,
   on_notification~ : (Json) -> Unit,
@@ -682,8 +663,8 @@ async fn Client::send_response_once_with_notifications(
 }
 
 ///|
-async fn Client::send_response_with_notifications(
-  self : Client,
+async fn Transport::send_response_with_notifications(
+  self : Transport,
   request : Json,
   input_schema? : Json,
   on_notification~ : (Json) -> Unit,
@@ -716,19 +697,6 @@ async fn Client::send_response_with_notifications(
 }
 
 ///|
-async fn Client::send_response(
-  self : Client,
-  request : Json,
-  input_schema? : Json,
-) -> Json raise @mcp.McpError {
-  self.send_response_with_notifications(request, input_schema?, on_notification=fn(
-    _,
-  ) {
-
-  })
-}
-
-///|
 fn validate_notification_response(
   response : @async_http.Response,
   body : String,
@@ -749,8 +717,8 @@ fn validate_notification_response(
 }
 
 ///|
-async fn Client::send_notification_once(
-  self : Client,
+async fn Transport::send_notification_once(
+  self : Transport,
   notification : Json,
 ) -> Unit raise @mcp.McpError {
   let headers = self.headers(notification) catch {
@@ -785,8 +753,8 @@ async fn Client::send_notification_once(
 ///|
 /// Send one JSON-RPC notification over Streamable HTTP. A conforming server
 /// acknowledges it with HTTP 202 and no response body.
-pub async fn Client::notify(
-  self : Client,
+pub impl @client.ClientTransport for Transport with fn notify(
+  self : Transport,
   notification : Json,
 ) -> Unit raise @mcp.McpError {
   let initial = notification_with_protocol_version(
@@ -809,63 +777,10 @@ pub async fn Client::notify(
 }
 
 ///|
-
-///|
-/// Send one self-contained JSON-RPC request over Streamable HTTP.
-pub async fn Client::request(
-  self : Client,
-  request : Json,
-  input_schema? : Json,
-) -> @mcp.HandlerOutcome[Json] raise @mcp.McpError {
-  self.core.decode_response(self.send_response(request, input_schema?))
-}
-
-///|
-/// Send a request while consuming request-scoped progress and logging
-/// notifications as they arrive on an SSE response.
-pub async fn Client::request_with_notifications(
-  self : Client,
-  request : Json,
-  input_schema? : Json,
-  on_notification~ : (Json) -> Unit,
-) -> @mcp.HandlerOutcome[Json] raise @mcp.McpError {
-  self.core.decode_response(
-    self.send_response_with_notifications(
-      request,
-      input_schema?,
-      on_notification~,
-    ),
-  )
-}
-
-///|
-pub impl @client.ClientTransport for Client with fn request_with_notifications(
-  self : Client,
-  request : Json,
-  on_notification~ : (Json) -> Unit,
-) -> @mcp.HandlerOutcome[Json] raise @mcp.McpError {
-  self.request_with_notifications(request, on_notification~)
-}
-
-///|
-pub impl @client.ClientTransport for Client with fn notify(
-  self : Client,
-  notification : Json,
-) -> Unit raise @mcp.McpError {
-  self.notify(notification)
-}
-
-///|
-/// Discover server capabilities and supported protocol versions.
-pub async fn Client::discover(
-  self : Client,
-  options? : @mcp.RequestOptions = @mcp.RequestOptions(),
-) -> @mcp.DiscoverResult raise @mcp.McpError {
-  self.core.discover(self, options~)
-}
-
-///|
-fn Client::filter_and_remember_tools(self : Client, result : Json) -> Json {
+fn Transport::filter_and_remember_tools(
+  self : Transport,
+  result : Json,
+) -> Json {
   guard result is Object(fields) && fields.get("tools") is Some(Array(tools)) else {
     return result
   }
@@ -891,455 +806,37 @@ fn Client::filter_and_remember_tools(self : Client, result : Json) -> Json {
 }
 
 ///|
-/// List tools, excluding invalid `x-mcp-header` definitions and remembering
-/// valid schemas for subsequent `call_tool` requests.
-pub async fn Client::list_tools_raw(
-  self : Client,
-  cursor? : String,
-  options? : @mcp.RequestOptions = @mcp.RequestOptions(),
-) -> Json raise @mcp.McpError {
-  let result = self.core.list_tools_raw(self, cursor?, options~)
-  self.filter_and_remember_tools(result)
-}
-
-///|
-/// List tools as the canonical domain result. Use `list_tools_raw` to inspect
-/// extension fields that are not represented by the core specification.
-pub async fn Client::list_tools(
-  self : Client,
-  cursor? : String,
-  options? : @mcp.RequestOptions = @mcp.RequestOptions(),
-) -> @mcp.ListToolsResult raise @mcp.McpError {
-  @mcp.ListToolsResult::from_json(self.list_tools_raw(cursor?, options~))
-}
-
-///|
-/// Call a tool. Pass `input_schema` to call directly, or call `list_tools`
-/// first so the client can use its validated schema cache.
-pub async fn Client::call_tool_raw(
-  self : Client,
-  name~ : String,
-  arguments? : Json = Json::object({}),
-  input_schema? : Json,
-  options? : @mcp.RequestOptions = @mcp.RequestOptions(),
+fn decode_raw_response(
+  message : Json,
 ) -> @mcp.HandlerOutcome[Json] raise @mcp.McpError {
-  let schema = match input_schema {
-    Some(schema) => Some(schema)
-    None => self.tool_schemas.get(name)
-  }
-  self.request(
-    self.core.call_tool_request(name~, arguments~, options~),
-    input_schema?=schema,
-  )
-}
-
-///|
-/// Call a tool and decode every complete response into `CallToolResult`.
-pub async fn Client::call_tool(
-  self : Client,
-  name~ : String,
-  arguments? : Json = Json::object({}),
-  input_schema? : Json,
-  options? : @mcp.RequestOptions = @mcp.RequestOptions(),
-) -> @mcp.HandlerOutcome[@mcp.CallToolResult] raise @mcp.McpError {
-  match self.call_tool_raw(name~, arguments~, input_schema?, options~) {
-    Complete(result) => Complete(@mcp.CallToolResult::from_json(result))
-    InputRequired(value) => InputRequired(value)
-    ExtensionResult(result_type, value) => ExtensionResult(result_type, value)
+  let result = @mcp.rpc_response_result(message)
+  match @mcp.require_result_type(result) {
+    "complete" => @mcp.Complete(result)
+    "input_required" =>
+      @mcp.InputRequired(@mcp.InputRequiredResult::from_json(result))
+    result_type => @mcp.ExtensionResult(result_type, result)
   }
 }
 
 ///|
-/// Call a tool and decode its `structuredContent` as `T`.
-pub async fn[T : FromJson] Client::call_tool_as(
-  self : Client,
-  name~ : String,
-  arguments? : Json = Json::object({}),
-  input_schema? : Json,
-  options? : @mcp.RequestOptions = @mcp.RequestOptions(),
-) -> @mcp.HandlerOutcome[T] raise @mcp.McpError {
-  match self.call_tool_raw(name~, arguments~, input_schema?, options~) {
-    Complete(result) =>
-      Complete(@mcp.CallToolResult::from_json(result).decode_structured())
-    InputRequired(value) => InputRequired(value)
-    ExtensionResult(result_type, value) => ExtensionResult(result_type, value)
-  }
-}
-
-///|
-pub async fn Client::list_resources_raw(
-  self : Client,
-  cursor? : String,
-  options? : @mcp.RequestOptions = @mcp.RequestOptions(),
-) -> Json raise @mcp.McpError {
-  self.core.list_resources_raw(self, cursor?, options~)
-}
-
-///|
-pub async fn Client::list_resources(
-  self : Client,
-  cursor? : String,
-  options? : @mcp.RequestOptions = @mcp.RequestOptions(),
-) -> @mcp.ListResourcesResult raise @mcp.McpError {
-  self.core.list_resources(self, cursor?, options~)
-}
-
-///|
-pub async fn Client::list_resource_templates_raw(
-  self : Client,
-  cursor? : String,
-  options? : @mcp.RequestOptions = @mcp.RequestOptions(),
-) -> Json raise @mcp.McpError {
-  self.core.list_resource_templates_raw(self, cursor?, options~)
-}
-
-///|
-pub async fn Client::list_resource_templates(
-  self : Client,
-  cursor? : String,
-  options? : @mcp.RequestOptions = @mcp.RequestOptions(),
-) -> @mcp.ListResourceTemplatesResult raise @mcp.McpError {
-  self.core.list_resource_templates(self, cursor?, options~)
-}
-
-///|
-pub async fn Client::read_resource_raw(
-  self : Client,
-  uri~ : String,
-  options? : @mcp.RequestOptions = @mcp.RequestOptions(),
-) -> @mcp.HandlerOutcome[Json] raise @mcp.McpError {
-  self.core.read_resource_raw(self, uri~, options~)
-}
-
-///|
-pub async fn Client::read_resource(
-  self : Client,
-  uri~ : String,
-  options? : @mcp.RequestOptions = @mcp.RequestOptions(),
-) -> @mcp.HandlerOutcome[@mcp.ReadResourceResult] raise @mcp.McpError {
-  self.core.read_resource(self, uri~, options~)
-}
-
-///|
-pub async fn Client::list_prompts_raw(
-  self : Client,
-  cursor? : String,
-  options? : @mcp.RequestOptions = @mcp.RequestOptions(),
-) -> Json raise @mcp.McpError {
-  self.core.list_prompts_raw(self, cursor?, options~)
-}
-
-///|
-pub async fn Client::list_prompts(
-  self : Client,
-  cursor? : String,
-  options? : @mcp.RequestOptions = @mcp.RequestOptions(),
-) -> @mcp.ListPromptsResult raise @mcp.McpError {
-  self.core.list_prompts(self, cursor?, options~)
-}
-
-///|
-pub async fn Client::get_prompt_raw(
-  self : Client,
-  name~ : String,
-  arguments? : Json = Json::object({}),
-  options? : @mcp.RequestOptions = @mcp.RequestOptions(),
-) -> @mcp.HandlerOutcome[Json] raise @mcp.McpError {
-  self.core.get_prompt_raw(self, name~, arguments~, options~)
-}
-
-///|
-pub async fn Client::get_prompt(
-  self : Client,
-  name~ : String,
-  arguments? : Json = Json::object({}),
-  options? : @mcp.RequestOptions = @mcp.RequestOptions(),
-) -> @mcp.HandlerOutcome[@mcp.GetPromptResult] raise @mcp.McpError {
-  self.core.get_prompt(self, name~, arguments~, options~)
-}
-
-///|
-pub async fn Client::complete_raw(
-  self : Client,
-  reference~ : @mcp.CompletionReference,
-  argument_name~ : String,
-  argument_value~ : String,
-  context_arguments? : Map[String, String],
-  options? : @mcp.RequestOptions = @mcp.RequestOptions(),
-) -> Json raise @mcp.McpError {
-  self.core.complete_raw(
-    self,
-    reference~,
-    argument_name~,
-    argument_value~,
-    context_arguments?,
-    options~,
-  )
-}
-
-///|
-pub async fn Client::complete(
-  self : Client,
-  reference~ : @mcp.CompletionReference,
-  argument_name~ : String,
-  argument_value~ : String,
-  context_arguments? : Map[String, String],
-  options? : @mcp.RequestOptions = @mcp.RequestOptions(),
-) -> @mcp.CompleteResult raise @mcp.McpError {
-  self.core.complete(
-    self,
-    reference~,
-    argument_name~,
-    argument_value~,
-    context_arguments?,
-    options~,
-  )
-}
-
-///|
-async fn Client::listen_once(
-  self : Client,
+pub impl @client.ClientTransport for Transport with fn request_with_notifications(
+  self : Transport,
   request : Json,
-  notifications~ : @mcp.SubscriptionFilter,
   on_notification~ : (Json) -> Unit,
-) -> Json raise @mcp.McpError {
-  guard request_id(request) is Some(expected_id) else {
-    raise @mcp.InvalidRequest("subscriptions/listen request is missing its id")
-  }
-  let headers = self.headers(request) catch {
-    InvalidHeaderSchema(message)
-    | InvalidHeaderValue(message)
-    | HeaderMismatch(message) => raise @mcp.InvalidRequest(message)
-  }
-  let request_bytes = @utf8.encode(request.stringify())
-  headers["Content-Length"] = request_bytes.length().to_string()
-  let stream = @async_http.post_stream(self.endpoint, headers~) catch {
-    error => raise @mcp.InternalError(error.to_string())
-  }
-  defer stream.close()
-  stream.write(request_bytes) catch {
-    error => raise @mcp.InternalError(error.to_string())
-  }
-  let response = stream.end_request() catch {
-    error => raise @mcp.InternalError(error.to_string())
-  }
-  if response_requires_authorization(response) && self.authorization is Some(_) {
-    ignore(self.read_response_text(stream, response))
-    self.authorize_challenge(response, request_operation(request))
-    return self.listen_once(request, notifications~, on_notification~)
-  }
-  guard response.code is (200..<300) else {
-    let body = self.read_response_text(stream, response)
-    raise http_error_to_mcp(response, body)
-  }
-  self.retry_policy.clear(
-    self.authorization_resource,
-    request_operation(request),
-  )
-  let content_type = match header(response.headers, "Content-Type") {
-    Some(value) => value
-    None => raise @mcp.InvalidRequest("MCP HTTP response omitted Content-Type")
-  }
-  if has_media_type(content_type, "application/json") {
-    let body = self.read_response_text(stream, response)
-    let message : Json = @json.parse(body) catch {
-      error => raise @mcp.ParseError(error.to_string())
-    }
-    validate_response_id(message, expected_id, "subscription")
-    return self.core
-      .decode_response(message)
-      .require_complete(context="subscriptions/listen")
-  }
-  guard has_media_type(content_type, "text/event-stream") else {
-    raise @mcp.InvalidRequest(
-      "subscriptions/listen requires a text/event-stream response",
-    )
-  }
-  let state = @client.SubscriptionStreamState::new(expected_id, notifications)
-  let sse = SseReadState::new()
-  while true {
-    let data = read_sse_data(stream, sse, self.max_sse_event_bytes) catch {
-      error => raise body_read_error_to_mcp(error)
-    }
-    guard data is Some(data) else { break }
-    let message : Json = @json.parse(data) catch {
-      error => raise @mcp.ParseError(error.to_string())
-    }
-    match state.consume(message) {
-      Acknowledged => ()
-      Notification(notification) => on_notification(notification)
-      Final(response) =>
-        return self.core
-          .decode_response(response)
-          .require_complete(context="subscriptions/listen")
-    }
-  }
-  raise @mcp.InvalidRequest(
-    "subscription stream ended without a final JSON-RPC response",
-  )
-}
-
-///|
-/// Listen for subscribed notifications and invoke `on_notification` as each
-/// complete SSE data event arrives. Closing the underlying stream cancels the
-/// request at the transport layer.
-pub async fn Client::listen(
-  self : Client,
-  notifications~ : @mcp.SubscriptionFilter,
-  on_notification~ : (Json) -> Unit,
-  options? : @mcp.RequestOptions = @mcp.RequestOptions(),
-) -> Json raise @mcp.McpError {
-  let request = self.core.listen_request(notifications~, options~)
-  let initial = request_with_protocol_version(
+) -> @mcp.HandlerOutcome[Json] raise @mcp.McpError {
+  let response_json = self.send_response_with_notifications(
     request,
-    self.protocol_version,
-    false,
+    on_notification~,
   )
-  self.listen_once(initial, notifications~, on_notification~) catch {
-    @mcp.UnsupportedProtocolVersion(supported~, ..) as version_error => {
-      guard self.mutually_supported_protocol_version(supported)
-        is Some(protocol_version) else {
-        raise version_error
-      }
-      self.protocol_version = protocol_version
-      self.listen_once(
-        request_with_protocol_version(request, protocol_version, true),
-        notifications~,
-        on_notification~,
-      )
-    }
-    error => raise error
+  let outcome = decode_raw_response(response_json)
+  match (request, outcome) {
+    (Object({ "method": String("tools/list"), .. }), @mcp.Complete(result)) =>
+      @mcp.Complete(self.filter_and_remember_tools(result))
+    _ => outcome
   }
 }
 
 ///|
-/// Resolve bounded multi-round-trip tool input requests. Each retry gets a
-/// fresh JSON-RPC ID while `retry_options` preserves opaque request state.
-pub async fn Client::call_tool_resolving_raw(
-  self : Client,
-  name~ : String,
-  arguments? : Json = Json::object({}),
-  input_schema? : Json,
-  options? : @mcp.RequestOptions = @mcp.RequestOptions(),
-  max_rounds? : Int = 8,
-  resolve~ : async (Map[String, @mcp.InputRequest]) -> Map[
-    String,
-    @mcp.InputResponse,
-  ] raise @mcp.McpError,
-) -> Json raise @mcp.McpError {
-  if input_schema is Some(schema) {
-    self.tool_schemas[name] = schema
-  }
-  self.core.call_tool_resolving_raw(
-    self,
-    name~,
-    arguments~,
-    options~,
-    max_rounds~,
-    resolve~,
-  )
-}
-
-///|
-/// Resolve bounded MRTR input and decode the final tool result.
-pub async fn Client::call_tool_resolving(
-  self : Client,
-  name~ : String,
-  arguments? : Json = Json::object({}),
-  input_schema? : Json,
-  options? : @mcp.RequestOptions = @mcp.RequestOptions(),
-  max_rounds? : Int = 8,
-  resolve~ : async (Map[String, @mcp.InputRequest]) -> Map[
-    String,
-    @mcp.InputResponse,
-  ] raise @mcp.McpError,
-) -> @mcp.CallToolResult raise @mcp.McpError {
-  @mcp.CallToolResult::from_json(
-    self.call_tool_resolving_raw(
-      name~,
-      arguments~,
-      input_schema?,
-      options~,
-      max_rounds~,
-      resolve~,
-    ),
-  )
-}
-
-///|
-pub async fn Client::read_resource_resolving_raw(
-  self : Client,
-  uri~ : String,
-  options? : @mcp.RequestOptions = @mcp.RequestOptions(),
-  max_rounds? : Int = 8,
-  resolve~ : async (Map[String, @mcp.InputRequest]) -> Map[
-    String,
-    @mcp.InputResponse,
-  ] raise @mcp.McpError,
-) -> Json raise @mcp.McpError {
-  self.core.read_resource_resolving_raw(
-    self,
-    uri~,
-    options~,
-    max_rounds~,
-    resolve~,
-  )
-}
-
-///|
-pub async fn Client::read_resource_resolving(
-  self : Client,
-  uri~ : String,
-  options? : @mcp.RequestOptions = @mcp.RequestOptions(),
-  max_rounds? : Int = 8,
-  resolve~ : async (Map[String, @mcp.InputRequest]) -> Map[
-    String,
-    @mcp.InputResponse,
-  ] raise @mcp.McpError,
-) -> @mcp.ReadResourceResult raise @mcp.McpError {
-  self.core.read_resource_resolving(self, uri~, options~, max_rounds~, resolve~)
-}
-
-///|
-pub async fn Client::get_prompt_resolving_raw(
-  self : Client,
-  name~ : String,
-  arguments? : Json = Json::object({}),
-  options? : @mcp.RequestOptions = @mcp.RequestOptions(),
-  max_rounds? : Int = 8,
-  resolve~ : async (Map[String, @mcp.InputRequest]) -> Map[
-    String,
-    @mcp.InputResponse,
-  ] raise @mcp.McpError,
-) -> Json raise @mcp.McpError {
-  self.core.get_prompt_resolving_raw(
-    self,
-    name~,
-    arguments~,
-    options~,
-    max_rounds~,
-    resolve~,
-  )
-}
-
-///|
-pub async fn Client::get_prompt_resolving(
-  self : Client,
-  name~ : String,
-  arguments? : Json = Json::object({}),
-  options? : @mcp.RequestOptions = @mcp.RequestOptions(),
-  max_rounds? : Int = 8,
-  resolve~ : async (Map[String, @mcp.InputRequest]) -> Map[
-    String,
-    @mcp.InputResponse,
-  ] raise @mcp.McpError,
-) -> @mcp.GetPromptResult raise @mcp.McpError {
-  self.core.get_prompt_resolving(
-    self,
-    name~,
-    arguments~,
-    options~,
-    max_rounds~,
-    resolve~,
-  )
+pub impl @client.ClientTransport for Transport with fn close(self : Transport) -> Unit {
+  ignore(self)
 }

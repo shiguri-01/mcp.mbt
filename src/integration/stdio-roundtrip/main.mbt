@@ -37,12 +37,13 @@ async fn run_server() -> Unit {
 ///|
 async fn run_client(executable : String) -> Unit {
   @async.with_task_group <| group => {
-    let client = try! @mcp_stdio.Client::spawn(
-      group,
-      executable,
+    let transport = try! @mcp_stdio.Transport(group, executable, args=[
+      "--stdio-server",
+    ])
+    let client = try! @mcp_client.Client(
       name="integration-client",
       version="1",
-      args=["--stdio-server"],
+      transport~,
     )
     let discovery = client.discover() catch {
       error => abort("stdio discovery failed: \{error.message()}")
@@ -71,21 +72,22 @@ async fn run_client(executable : String) -> Unit {
       abort("stdio tool round trip did not return content")
     }
     println("roundtrip complete")
-    try! client.shutdown()
+    try! transport.shutdown()
     println("shutdown complete")
-    let closing_client = try! @mcp_stdio.Client::spawn(
-      group,
-      executable,
+    let closing_transport = try! @mcp_stdio.Transport(group, executable, args=[
+      "--stdio-server",
+    ])
+    let closing_client = try! @mcp_client.Client(
       name="closing-client",
       version="1",
-      args=["--stdio-server"],
+      transport=closing_transport,
     )
     let pending = group.spawn(
       async fn() { closing_client.call_tool(name="wait") },
       allow_failure=true,
     )
     @async.sleep(200)
-    try! closing_client.close_and_wait()
+    try! closing_transport.close_and_wait()
     try pending.wait() catch {
       _ => println("in-flight close complete")
     } noraise {

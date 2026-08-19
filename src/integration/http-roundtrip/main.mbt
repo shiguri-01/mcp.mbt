@@ -62,10 +62,11 @@ async fn run_client(executable : String) -> Unit {
       ["--http-server"],
       no_wait=true,
     )
-    let client = try! @mcp_http.Client(
-      "http://127.0.0.1:18088/mcp",
+    let transport = try! @mcp_http.Transport("http://127.0.0.1:18088/mcp")
+    let client = try! @mcp_client.Client(
       name="integration-client",
       version="1",
+      transport~,
     )
     let mut discovered : @mcp.DiscoverResult? = None
     for _ in 0..<50 {
@@ -104,11 +105,10 @@ async fn run_client(executable : String) -> Unit {
       abort("HTTP tool round trip did not preserve UTF-8 content")
     }
     let progress_received = Ref(false)
-    let core = @mcp_client.Client(name="integration-client", version="1")
     let progress_task = group.spawn(async fn() {
       ignore(
         try! client.request_with_notifications(
-          core.call_tool_request(
+          client.call_tool_request(
             name="progress",
             options=@mcp.RequestOptions(
               progress_token=Json::string("integration-progress"),

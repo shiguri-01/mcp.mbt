@@ -1,9 +1,10 @@
 ///|
 async fn main {
-  let client = try! @mcp_http.Client(
-    "http://127.0.0.1:8080/mcp",
+  let transport = try! @mcp_http.Transport("http://127.0.0.1:8080/mcp")
+  let client = try! @mcp_client.Client(
     name="http-example-client",
     version="1.0.0",
+    transport~,
   )
   let discovered = try! client.discover()
   println(discovered.to_json().stringify(indent=2))

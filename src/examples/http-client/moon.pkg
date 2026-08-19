@@ -2,6 +2,7 @@ import {
   "moonbitlang/async",
   "moonbitlang/core/json",
   "shiguri-01/mcp",
+  "shiguri-01/mcp/client" @mcp_client,
   "shiguri-01/mcp/http" @mcp_http,
 }
 

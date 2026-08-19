@@ -21,17 +21,19 @@ fn accept_elicitation_requests(
 
 ///|
 async fn complete_echo_state_round(
-  client : @mcp_http.Client,
+  client : @mcp_client.Client,
 ) -> Unit raise @mcp.McpError {
   match client.call_tool(name="test_mrtr_echo_state") {
-    @mcp.InputRequired(required) => {
+    @mcp.HandlerOutcome::InputRequired(required) => {
       ignore(client.call_tool(name="test_mrtr_unrelated"))
-      let requests = required.input_requests.unwrap_or(Map([]))
+      let requests : Map[String, @mcp.InputRequest] = required.input_requests.unwrap_or(
+        Map([]),
+      )
       let options = required.retry_options(
         accept_elicitation_requests(requests),
       )
       guard client.call_tool(name="test_mrtr_echo_state", options~)
-        is @mcp.Complete(_) else {
+        is @mcp.HandlerOutcome::Complete(_) else {
         raise @mcp.InvalidRequest("requestState retry did not complete")
       }
     }
@@ -41,16 +43,18 @@ async fn complete_echo_state_round(
 
 ///|
 async fn complete_no_state_round(
-  client : @mcp_http.Client,
+  client : @mcp_client.Client,
 ) -> Unit raise @mcp.McpError {
   match client.call_tool(name="test_mrtr_no_state") {
-    @mcp.InputRequired(required) => {
-      let requests = required.input_requests.unwrap_or(Map([]))
+    @mcp.HandlerOutcome::InputRequired(required) => {
+      let requests : Map[String, @mcp.InputRequest] = required.input_requests.unwrap_or(
+        Map([]),
+      )
       let options = required.retry_options(
         accept_elicitation_requests(requests),
       )
       guard client.call_tool(name="test_mrtr_no_state", options~)
-        is @mcp.Complete(_) else {
+        is @mcp.HandlerOutcome::Complete(_) else {
         raise @mcp.InvalidRequest("no-state retry did not complete")
       }
     }
@@ -60,12 +64,13 @@ async fn complete_no_state_round(
 
 ///|
 async fn run_request_state(
-  client : @mcp_http.Client,
+  client : @mcp_client.Client,
 ) -> Unit raise @mcp.McpError {
   ignore(client.list_tools_raw())
   complete_echo_state_round(client)
   complete_no_state_round(client)
-  guard client.call_tool(name="test_mrtr_no_result_type") is @mcp.Complete(_) else {
+  guard client.call_tool(name="test_mrtr_no_result_type")
+    is @mcp.HandlerOutcome::Complete(_) else {
     raise @mcp.InvalidRequest("missing resultType was not treated as complete")
   }
 }

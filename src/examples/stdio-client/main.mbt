@@ -6,11 +6,11 @@ async fn main {
       None =>
         abort("MCP_STDIO_SERVER must name a built stdio server executable")
     }
-    let client = try! @mcp_stdio.Client::spawn(
-      group,
-      server_executable,
+    let transport = try! @mcp_stdio.Transport(group, server_executable)
+    let client = try! @mcp_client.Client(
       name="stdio-example-client",
       version="1.0.0",
+      transport~,
     )
     let discovered = try! client.discover()
     println(discovered.to_json().stringify(indent=2))
@@ -27,6 +27,6 @@ async fn main {
       @mcp.HandlerOutcome::ExtensionResult(_, result) =>
         println(result.stringify(indent=2))
     }
-    try! client.shutdown()
+    try! transport.shutdown()
   }
 }

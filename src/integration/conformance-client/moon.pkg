@@ -9,6 +9,7 @@ import {
   "moonbitlang/core/random",
   "shiguri-01/mcp",
   "shiguri-01/mcp/auth",
+  "shiguri-01/mcp/client" @mcp_client,
   "shiguri-01/mcp/http" @mcp_http,
 }
 

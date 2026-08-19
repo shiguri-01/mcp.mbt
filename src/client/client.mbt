@@ -15,6 +15,7 @@ fn[K : Eq + Hash, V] Map::set_opt(
 /// The client keeps only defaults and a request-id counter. Every request is
 /// self-contained and receives a fresh copy of protocol metadata.
 pub struct Client {
+  transport : &ClientTransport
   info : @mcp.Implementation
   capabilities : @mcp.ClientCapabilities
   extension_result_types : Map[String, String]
@@ -26,6 +27,7 @@ pub struct Client {
 pub fn Client::Client(
   name~ : String,
   version~ : String,
+  transport~ : &ClientTransport,
   title? : String,
   description? : String,
   icons? : Array[@mcp.Icon] = [],
@@ -45,6 +47,7 @@ pub fn Client::Client(
     capabilities.extensions,
   )
   {
+    transport,
     info: @mcp.Implementation(
       name~,
       version~,
@@ -58,6 +61,11 @@ pub fn Client::Client(
     protocol_version,
     next_request_id: 1,
   }
+}
+
+///|
+pub fn Client::close(self : Client) -> Unit {
+  self.transport.close()
 }
 
 ///|

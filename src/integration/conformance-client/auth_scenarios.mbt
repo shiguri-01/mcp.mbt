@@ -67,7 +67,7 @@ async fn make_auth_client(
   scenario : String,
   endpoint : String,
   protocol_version : String,
-) -> @mcp_http.Client raise @mcp.McpError {
+) -> @mcp_client.Client raise @mcp.McpError {
   let provider = conformance_authorization_provider()
   let pre_registered = if scenario == "auth/pre-registration" {
     pre_registered_credentials(provider, endpoint)
@@ -82,13 +82,17 @@ async fn make_auth_client(
     pre_registered~,
     wants_refresh_token=scenario == "auth/offline-access-scope",
   )
-  @mcp_http.Client(
+  let transport = @mcp_http.Transport(
     endpoint,
+    supported_protocol_versions=[protocol_version, @mcp.LATEST_PROTOCOL_VERSION],
+    authorization~,
+  )
+  @mcp_client.Client(
     name="moonbit-mcp-conformance-client",
     version="2026.7.28",
     capabilities=conformance_capabilities(),
-    supported_protocol_versions=[protocol_version, @mcp.LATEST_PROTOCOL_VERSION],
-    authorization~,
+    protocol_version~,
+    transport~,
   )
 }
 

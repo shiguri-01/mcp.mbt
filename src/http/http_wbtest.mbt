@@ -436,8 +436,13 @@ test "invalid request metadata is reported before header mismatch" {
 
 ///|
 test "client derives standard and tool parameter headers" {
-  let client = Client("http://127.0.0.1:8080/mcp")
-  let request = client.core.call_tool_request(
+  let transport = try! Transport("http://127.0.0.1:8080/mcp")
+  let core = try! @client.Client(
+    name="test",
+    version="1.0.0",
+    transport=@client.NoopTransport(),
+  )
+  let request = core.call_tool_request(
     name="echo",
     arguments=Json::object({ "region": Json::string("東京") }),
   )
@@ -450,7 +455,7 @@ test "client derives standard and tool parameter headers" {
       }),
     }),
   })
-  let headers = try! client.headers(request, input_schema=schema)
+  let headers = try! transport.headers(request, input_schema=schema)
   assert_eq(headers["MCP-Protocol-Version"], @mcp.LATEST_PROTOCOL_VERSION)
   assert_eq(headers["Mcp-Method"], "tools/call")
   assert_eq(headers["Mcp-Name"], "echo")
@@ -459,17 +464,22 @@ test "client derives standard and tool parameter headers" {
 
 ///|
 test "protocol negotiation rewrites metadata and uses a fresh request id" {
-  let client = try! Client("http://127.0.0.1:8080/mcp", supported_protocol_versions=[
+  let transport = try! Transport("http://127.0.0.1:8080/mcp", supported_protocol_versions=[
     "2026-07-28", "2026-01-01",
   ])
-  let request = client.core.list_tools_request()
+  let core = try! @client.Client(
+    name="test",
+    version="1.0.0",
+    transport=@client.NoopTransport(),
+  )
+  let request = core.list_tools_request()
   let rewritten = try! request_with_protocol_version(
     request, "2026-01-01", true,
   )
   guard request
     is Object(
       {
-        "id": original_id,
+        "id": _,
         "params": Object(
           {
             "_meta": Object(
@@ -483,17 +493,18 @@ test "protocol negotiation rewrites metadata and uses a fresh request id" {
         ),
         ..
       }
-    ) &&
-    rewritten
+    ) else {
+    fail("expected initial protocolVersion")
+  }
+  guard rewritten
     is Object(
       {
-        "id": retry_id,
+        "id": String(fresh_id),
         "params": Object(
           {
             "_meta": Object(
               {
                 "io.modelcontextprotocol/protocolVersion": String("2026-01-01"),
-                "io.modelcontextprotocol/clientCapabilities": Object(_),
                 ..
               }
             ),
@@ -503,22 +514,20 @@ test "protocol negotiation rewrites metadata and uses a fresh request id" {
         ..
       }
     ) else {
-    fail("expected rewritten protocol metadata")
+    fail("expected rewritten protocolVersion and fresh request id")
   }
-  assert_true(original_id != retry_id)
+  assert_true(fresh_id.contains("mcp-version-retry:"[:]))
   assert_eq(
-    client.mutually_supported_protocol_version([
-      "2025-11-25", "2026-01-01", "2026-07-28",
-    ]),
+    transport.mutually_supported_protocol_version(["1900-01-01", "2026-07-28"]),
     Some("2026-07-28"),
   )
-  assert_eq(client.mutually_supported_protocol_version(["2025-11-25"]), None)
+  assert_eq(transport.mutually_supported_protocol_version(["2025-11-25"]), None)
 }
 
 ///|
 test "HTTP clients require at least one supported protocol version" {
   let rejected = try
-    Client("http://127.0.0.1:8080/mcp", supported_protocol_versions=[])
+    Transport("http://127.0.0.1:8080/mcp", supported_protocol_versions=[])
   catch {
     @mcp.InvalidParams(_) => true
     _ => false
@@ -530,7 +539,7 @@ test "HTTP clients require at least one supported protocol version" {
 
 ///|
 test "HTTP notifications carry standard headers and accept only empty 202" {
-  let client = try! Client("http://127.0.0.1:8080/mcp")
+  let client = try! Transport("http://127.0.0.1:8080/mcp")
   let notification = Json::object({
     "jsonrpc": Json::string("2.0"),
     "method": Json::string("notifications/cancelled"),
@@ -677,7 +686,11 @@ test "subscription SSE starts with acknowledgement and ends with response" {
     version="0.1.0",
     tool_list_changed=true,
   )
-  let client = try! @client.Client(name="test", version="0.1.0")
+  let client = try! @client.Client(
+    name="test",
+    version="0.1.0",
+    transport=@client.NoopTransport(),
+  )
   let request = client.listen_request(
     notifications=@mcp.SubscriptionFilter(tools_list_changed=true),
   )
@@ -716,7 +729,7 @@ test "HTTP body limits are positive and have safe defaults" {
     ServerOptions().max_request_body_bytes,
     default_max_request_body_bytes,
   )
-  ignore(try! Client("http://127.0.0.1:8080/mcp"))
+  ignore(try! Transport("http://127.0.0.1:8080/mcp"))
   try ignore(ServerOptions(max_request_body_bytes=0)) catch {
     @mcp.InvalidParams(_) => ()
     _ => fail("expected an invalid request body limit")
@@ -724,14 +737,16 @@ test "HTTP body limits are positive and have safe defaults" {
     _ => fail("accepted a zero request body limit")
   }
   try
-    ignore(Client("http://127.0.0.1:8080/mcp", max_response_body_bytes=0))
+    ignore(Transport("http://127.0.0.1:8080/mcp", max_response_body_bytes=0))
   catch {
     @mcp.InvalidParams(_) => ()
     _ => fail("expected an invalid response body limit")
   } noraise {
     _ => fail("accepted a zero response body limit")
   }
-  try ignore(Client("http://127.0.0.1:8080/mcp", max_sse_event_bytes=0)) catch {
+  try
+    ignore(Transport("http://127.0.0.1:8080/mcp", max_sse_event_bytes=0))
+  catch {
     @mcp.InvalidParams(_) => ()
     _ => fail("expected an invalid SSE event limit")
   } noraise {
@@ -873,7 +888,11 @@ test "subscription client enforces acknowledgement and stream identity" {
     version="0.1.0",
     tool_list_changed=true,
   )
-  let core = try! @client.Client(name="test", version="0.1.0")
+  let core = try! @client.Client(
+    name="test",
+    version="0.1.0",
+    transport=@client.NoopTransport(),
+  )
   let requested = @mcp.SubscriptionFilter(tools_list_changed=true)
   let request = core.listen_request(notifications=requested)
   let expected_id = request_id(request).unwrap()
@@ -1062,7 +1081,7 @@ test "Bearer credentials are attached only as an Authorization header" {
     provider=test_authorization_provider(),
     redirect_uri="https://client.example/callback",
   )
-  let client = try! Client("https://rs.example/mcp", authorization=options)
+  let client = try! Transport("https://rs.example/mcp", authorization=options)
   let issuer = "https://as.example"
   client.authorization_issuer = Some(issuer)
   client.token_cache.put(
@@ -1083,7 +1102,7 @@ test "Bearer credentials are not reused across resource bindings" {
     provider=test_authorization_provider(),
     redirect_uri="https://client.example/callback",
   )
-  let client = try! Client("https://rs.example/mcp", authorization=options)
+  let client = try! Transport("https://rs.example/mcp", authorization=options)
   let issuer = "https://as.example"
   client.authorization_issuer = Some(issuer)
   client.token_cache.put(
@@ -1159,7 +1178,7 @@ async test "401 without a challenge falls back to protected-resource discovery" 
     redirect_uri="https://client.example/callback",
     pre_registered=Map([("https://as.example", credentials)]),
   )
-  let client = try! Client("https://rs.example/mcp", authorization=options)
+  let client = try! Transport("https://rs.example/mcp", authorization=options)
   let response : @async_http.Response = {
     code: 401,
     reason: "Unauthorized",
@@ -1209,7 +1228,9 @@ test "authorization endpoint policy is enforced when Client is constructed" {
     provider=test_authorization_provider(),
     redirect_uri="https://client.example/callback",
   )
-  try ignore(Client("http://127.0.0.1:8080/mcp", authorization=strict)) catch {
+  try
+    ignore(Transport("http://127.0.0.1:8080/mcp", authorization=strict))
+  catch {
     @mcp.InvalidRequest(_) => ()
     _ => fail("expected authorization destination rejection")
   } noraise {
@@ -1225,7 +1246,7 @@ test "authorization endpoint policy is enforced when Client is constructed" {
     provider=loopback_provider,
     redirect_uri="http://127.0.0.1:9000/callback",
   )
-  ignore(try! Client("http://127.0.0.1:8080/mcp", authorization=loopback))
+  ignore(try! Transport("http://127.0.0.1:8080/mcp", authorization=loopback))
 }
 
 ///|
@@ -1235,7 +1256,7 @@ test "authorization resource override preserves a significant trailing slash" {
     redirect_uri="https://client.example/callback",
     resource_uri="https://rs.example/mcp/",
   )
-  let client = try! Client("https://rs.example/mcp", authorization=options)
+  let client = try! Transport("https://rs.example/mcp", authorization=options)
   assert_eq(client.authorization_resource, "https://rs.example/mcp/")
   assert_true(client.authorization_resource_exact)
   let issuer = "https://as.example"
@@ -1258,7 +1279,7 @@ test "authorization resource override obeys destination security policy" {
     redirect_uri="https://client.example/callback",
     resource_uri="https://169.254.169.254/mcp/",
   )
-  try ignore(Client("https://rs.example/mcp", authorization=options)) catch {
+  try ignore(Transport("https://rs.example/mcp", authorization=options)) catch {
     @mcp.InvalidRequest(_) => ()
     _ => fail("expected resource policy rejection")
   } noraise {

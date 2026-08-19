@@ -103,13 +103,14 @@ The conformance-client integration supplies:
 
 ```mbt check
 ///|
-pub fn make_client() -> @http.Client {
-  try! @http.Client("http://127.0.0.1:8080/mcp")
+pub fn make_client() -> @client.Client raise @mcp.McpError {
+  let transport = @http.Transport("http://127.0.0.1:8080/mcp")
+  @client.Client(name="example-client", version="1.0.0", transport~)
 }
 
 ///|
-pub fn make_options() -> @http.ServerOptions {
-  try! @http.ServerOptions(endpoint_path="/mcp")
+pub fn make_options() -> @http.ServerOptions raise @mcp.McpError {
+  @http.ServerOptions(endpoint_path="/mcp")
 }
 ```
 
