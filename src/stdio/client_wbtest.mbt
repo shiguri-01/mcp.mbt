@@ -5,7 +5,7 @@ test "stdio accepts only requests in the outbound direction" {
     version="1",
     transport=@client.NoopTransport(),
   )
-  let request = core.discover_request()
+  let request = core.request_raw(method_name="server/discover")
   assert_eq(@mcp.request_id(request), Json::number(1.0, repr="1"))
   try
     @mcp.request_id(
@@ -87,9 +87,9 @@ test "subscriptions/listen is a long-lived transport request" {
     version="1",
     transport=@client.NoopTransport(),
   )
-  let request = core.listen_request(
-    notifications=SubscriptionFilter(tools_list_changed=true),
-  )
+  let request = core.request_raw(method_name="subscriptions/listen", params={
+    "notifications": @mcp.SubscriptionFilter(tools_list_changed=true).to_json(),
+  })
   let decoded = try! @jsonrpc.decode(request)
   guard decoded is Request({ method_name: "subscriptions/listen", id, .. }) else {
     fail("expected subscriptions/listen request")
@@ -151,9 +151,7 @@ async test "MRTR resolution requires a positive bound" {
     transport=@client.NoopTransport(),
   )
   try
-    core.call_tool_resolving(name="test", max_rounds=0, resolve=fn(_) {
-      Map([])
-    })
+    core.call_tool(name="test", max_rounds=0, resolve_input=fn(_) { Map([]) })
   catch {
     @mcp.InvalidRequest(message) => assert_true(message.contains("positive"))
     _ => fail("expected invalid request")

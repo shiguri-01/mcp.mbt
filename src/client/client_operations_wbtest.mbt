@@ -201,7 +201,7 @@ async test "client MRTR resolving with multiple rounds" {
       elicitation=@mcp.ElicitationCapability(form=Json::object({})),
     ),
   )
-  let result = try! client.call_tool_resolving(name="greet_wizard", resolve=fn(
+  let outcome = try! client.call_tool(name="greet_wizard", resolve_input=fn(
     reqs,
   ) -> Map[String, @mcp.InputResponse] raise @mcp.McpError {
     guard reqs.length() == 1 else {
@@ -216,6 +216,9 @@ async test "client MRTR resolving with multiple rounds" {
       ),
     }
   })
+  guard outcome is @mcp.Complete(result) else {
+    fail("expected Complete outcome")
+  }
   assert_eq(round, 2)
   match result.content[0] {
     @mcp.Content::TextContent(text~, ..) => assert_eq(text, "Hello Alice!")
@@ -347,7 +350,7 @@ test "extension result types require an advertised extension mapping" {
     capabilities~,
     extension_result_types={ "paused": "com.example/flow" },
   )
-  let response = @jsonrpc.response_success(
+  let response = @jsonrpc.Response::Success(
     id=try! @jsonrpc.RequestId::number(1.0),
     result=Json::object({
       "resultType": Json::string("paused"),

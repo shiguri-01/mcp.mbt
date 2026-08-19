@@ -27,7 +27,7 @@ pub fn Client::request_raw(
 }
 
 ///|
-pub fn Client::discover_request(
+fn Client::discover_request(
   self : Client,
   options? : @mcp.RequestOptions = @mcp.RequestOptions(),
 ) -> Json raise @mcp.McpError {
@@ -35,7 +35,7 @@ pub fn Client::discover_request(
 }
 
 ///|
-pub fn Client::list_tools_request(
+fn Client::list_tools_request(
   self : Client,
   cursor? : String,
   options? : @mcp.RequestOptions = @mcp.RequestOptions(),
@@ -46,7 +46,7 @@ pub fn Client::list_tools_request(
 }
 
 ///|
-pub fn Client::call_tool_request(
+fn Client::call_tool_request(
   self : Client,
   name~ : String,
   arguments? : Json = Json::object({}),
@@ -63,7 +63,7 @@ pub fn Client::call_tool_request(
 }
 
 ///|
-pub fn Client::list_resources_request(
+fn Client::list_resources_request(
   self : Client,
   cursor? : String,
   options? : @mcp.RequestOptions = @mcp.RequestOptions(),
@@ -74,7 +74,7 @@ pub fn Client::list_resources_request(
 }
 
 ///|
-pub fn Client::list_resource_templates_request(
+fn Client::list_resource_templates_request(
   self : Client,
   cursor? : String,
   options? : @mcp.RequestOptions = @mcp.RequestOptions(),
@@ -85,7 +85,7 @@ pub fn Client::list_resource_templates_request(
 }
 
 ///|
-pub fn Client::read_resource_request(
+fn Client::read_resource_request(
   self : Client,
   uri~ : String,
   options? : @mcp.RequestOptions = @mcp.RequestOptions(),
@@ -98,7 +98,7 @@ pub fn Client::read_resource_request(
 }
 
 ///|
-pub fn Client::list_prompts_request(
+fn Client::list_prompts_request(
   self : Client,
   cursor? : String,
   options? : @mcp.RequestOptions = @mcp.RequestOptions(),
@@ -109,7 +109,7 @@ pub fn Client::list_prompts_request(
 }
 
 ///|
-pub fn Client::get_prompt_request(
+fn Client::get_prompt_request(
   self : Client,
   name~ : String,
   arguments? : Json = Json::object({}),
@@ -126,7 +126,7 @@ pub fn Client::get_prompt_request(
 }
 
 ///|
-pub fn Client::complete_request(
+fn Client::complete_request(
   self : Client,
   reference~ : @mcp.CompletionReference,
   argument_name~ : String,
@@ -152,7 +152,7 @@ pub fn Client::complete_request(
 }
 
 ///|
-pub fn Client::listen_request(
+fn Client::listen_request(
   self : Client,
   notifications~ : @mcp.SubscriptionFilter,
   options? : @mcp.RequestOptions = @mcp.RequestOptions(),

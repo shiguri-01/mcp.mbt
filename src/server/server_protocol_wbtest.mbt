@@ -34,7 +34,9 @@ async test "each request carries the client context used by the server" {
   )
   let server = builder.build()
   let first = try! test_client(name="client-a", version="1")
-  let discover_response = server.handle_jsonrpc(first.discover_request())
+  let discover_response = server.handle_jsonrpc(
+    first.request_raw(method_name="server/discover"),
+  )
   guard discover_response is Some(discover_message) else {
     fail("expected discover response")
   }
@@ -51,7 +53,9 @@ async test "each request carries the client context used by the server" {
     ) else {
     fail("expected discovery result")
   }
-  let tools_response = server.handle_jsonrpc(first.list_tools_request())
+  let tools_response = server.handle_jsonrpc(
+    first.request_raw(method_name="tools/list"),
+  )
   guard tools_response is Some(message) else { fail("expected tools response") }
   guard (try! first.decode_response(message))
     is @mcp.Complete(
@@ -68,7 +72,9 @@ async test "each request carries the client context used by the server" {
   }
   let second = try! test_client(name="client-b", version="1")
   let call_response = server.handle_jsonrpc(
-    try! second.call_tool_request(name="whoami"),
+    try! second.request_raw(method_name="tools/call", params={
+      "name": Json::string("whoami"),
+    }),
   )
   guard call_response is Some(message) else { fail("expected call response") }
   guard (try! second.decode_response(message))
@@ -95,7 +101,9 @@ async test "unsupported protocol versions return -32022" {
     version="1",
     protocol_version="1900-01-01",
   )
-  guard server.handle_jsonrpc(unsupported.discover_request())
+  guard server.handle_jsonrpc(
+      unsupported.request_raw(method_name="server/discover"),
+    )
     is Some(
       Object(
         {
@@ -188,15 +196,18 @@ async test "MRTR retries echo opaque state and supply input responses" {
     ),
   )
   let first = server.handle_jsonrpc(
-    try! client.call_tool_request(name="confirm"),
+    try! client.request_raw(method_name="tools/call", params={
+      "name": Json::string("confirm"),
+    }),
   )
   guard first is Some(message) else { fail("expected MRTR response") }
   let first_outcome = try! client.decode_response(message)
   guard first_outcome is @mcp.InputRequired(required) else {
     fail("expected input_required")
   }
-  let retry = try! client.call_tool_request(
-    name="confirm",
+  let retry = try! client.request_raw(
+    method_name="tools/call",
+    params={ "name": Json::string("confirm") },
     options=try! required.retry_options({
       "answer": @mcp.InputResponse(
         Json::object({
@@ -236,7 +247,9 @@ async test "MRTR requirements without client capabilities return -32021" {
   let server = builder.build()
   let client = try! test_client(name="client", version="1")
   let response = server.handle_jsonrpc(
-    try! client.call_tool_request(name="confirm"),
+    try! client.request_raw(method_name="tools/call", params={
+      "name": Json::string("confirm"),
+    }),
   )
   guard response
     is Some(
@@ -274,8 +287,9 @@ async test "progress notifications carry the request progress token" {
   })
   let client = try! test_client(name="client", version="1")
   let response = server.handle_jsonrpc_with_hooks(
-    try! client.call_tool_request(
-      name="work",
+    try! client.request_raw(
+      method_name="tools/call",
+      params={ "name": Json::string("work") },
       options=@mcp.RequestOptions(progress_token=Json::string("p-1")),
     ),
     hooks~,
@@ -321,15 +335,18 @@ async test "tool input and structured output honor declared JSON Schemas" {
   let server = builder.build()
   let client = try! test_client(name="client", version="1")
   let missing_input = server.handle_jsonrpc(
-    try! client.call_tool_request(name="bounded", arguments={}),
+    try! client.request_raw(method_name="tools/call", params={
+      "name": Json::string("bounded"),
+    }),
   )
   guard missing_input
     is Some(Object({ "result": Object({ "isError": True, .. }), .. })) else {
     fail("expected actionable input validation error")
   }
   let bad_input = server.handle_jsonrpc(
-    try! client.call_tool_request(name="bounded", arguments={
-      "count": Json::number(0.0),
+    try! client.request_raw(method_name="tools/call", params={
+      "name": Json::string("bounded"),
+      "arguments": Json::object({ "count": Json::number(0.0) }),
     }),
   )
   guard bad_input
@@ -351,8 +368,9 @@ async test "tool input and structured output honor declared JSON Schemas" {
     fail("expected inputSchema validation error")
   }
   let bad_output = server.handle_jsonrpc(
-    try! client.call_tool_request(name="bounded", arguments={
-      "count": Json::number(1.0),
+    try! client.request_raw(method_name="tools/call", params={
+      "name": Json::string("bounded"),
+      "arguments": Json::object({ "count": Json::number(1.0) }),
     }),
   )
   guard bad_output
@@ -381,7 +399,9 @@ async test "resource templates are readable through their registered handler" {
   let server = builder.build()
   let client = try! test_client(name="client", version="1")
   let response = server.handle_jsonrpc(
-    client.read_resource_request(uri="notes://alpha"),
+    client.request_raw(method_name="resources/read", params={
+      "uri": Json::string("notes://alpha"),
+    }),
   )
   guard response
     is Some(
@@ -473,7 +493,11 @@ async test "prompts/get requires every advertised required argument" {
   )
   let server = builder.build()
   let client = try! test_client(name="client", version="1")
-  guard server.handle_jsonrpc(try! client.get_prompt_request(name="review"))
+  guard server.handle_jsonrpc(
+      try! client.request_raw(method_name="prompts/get", params={
+        "name": Json::string("review"),
+      }),
+    )
     is Some(
       Object({ "error": Object({ "code": Number(-32602.0, ..), .. }), .. })
     ) else {
@@ -526,7 +550,9 @@ async test "transport descriptor snapshots do not expose the server registry" {
   }
   fields["type"] = Json::string("string")
   let listed = server.handle_jsonrpc(
-    try! test_client(name="client", version="1").list_tools_request(),
+    try! test_client(name="client", version="1").request_raw(
+      method_name="tools/list",
+    ),
   )
   guard listed is Some(Object({ "result": Object(result), .. })) else {
     fail("tools/list did not return a result")
@@ -656,12 +682,12 @@ test "subscription acceptance acknowledges the honored filter first" {
     tool_list_changed=true,
   )).build()
   let client = try! test_client(name="client", version="1")
-  let request = client.listen_request(
-    notifications=@mcp.SubscriptionFilter(
+  let request = client.request_raw(method_name="subscriptions/listen", params={
+    "notifications": @mcp.SubscriptionFilter(
       tools_list_changed=true,
       prompts_list_changed=true,
-    ),
-  )
+    ).to_json(),
+  })
   let subscription = try! server.accept_subscription(request)
   guard subscription.acknowledgement()
     is Object(

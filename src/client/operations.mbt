@@ -49,7 +49,9 @@ pub async fn Client::discover(
 }
 
 ///|
-pub async fn Client::list_tools_raw(
+
+///|
+async fn Client::list_tools_raw(
   self : Client,
   cursor? : String,
   options? : @mcp.RequestOptions = @mcp.RequestOptions(),
@@ -69,7 +71,7 @@ pub async fn Client::list_tools(
 }
 
 ///|
-pub async fn Client::call_tool_raw(
+async fn Client::call_tool_raw(
   self : Client,
   name~ : String,
   arguments? : Json = Json::object({}),
@@ -79,39 +81,41 @@ pub async fn Client::call_tool_raw(
 }
 
 ///|
+
+///|
 pub async fn Client::call_tool(
   self : Client,
   name~ : String,
   arguments? : Json = Json::object({}),
   options? : @mcp.RequestOptions = @mcp.RequestOptions(),
+  max_rounds? : Int = 8,
+  resolve_input? : InputResolver,
 ) -> @mcp.HandlerOutcome[@mcp.CallToolResult] raise @mcp.McpError {
-  match self.call_tool_raw(name~, arguments~, options~) {
-    @mcp.Complete(result) =>
+  match resolve_input {
+    Some(resolve) => {
+      let result = self.resolve_mrtr(
+        request_builder=options => {
+          self.call_tool_request(name~, arguments~, options~)
+        },
+        resolve~,
+        options~,
+        max_rounds~,
+      )
       @mcp.Complete(@mcp.CallToolResult::from_json(result))
-    @mcp.InputRequired(value) => @mcp.InputRequired(value)
-    @mcp.ExtensionResult(result_type, value) =>
-      @mcp.ExtensionResult(result_type, value)
+    }
+    None =>
+      match self.call_tool_raw(name~, arguments~, options~) {
+        @mcp.Complete(result) =>
+          @mcp.Complete(@mcp.CallToolResult::from_json(result))
+        @mcp.InputRequired(value) => @mcp.InputRequired(value)
+        @mcp.ExtensionResult(result_type, value) =>
+          @mcp.ExtensionResult(result_type, value)
+      }
   }
 }
 
 ///|
-pub async fn[R : FromJson] Client::call_tool_as(
-  self : Client,
-  name~ : String,
-  arguments? : Json = Json::object({}),
-  options? : @mcp.RequestOptions = @mcp.RequestOptions(),
-) -> @mcp.HandlerOutcome[R] raise @mcp.McpError {
-  match self.call_tool_raw(name~, arguments~, options~) {
-    @mcp.Complete(result) =>
-      @mcp.Complete(@mcp.CallToolResult::from_json(result).decode_structured())
-    @mcp.InputRequired(value) => @mcp.InputRequired(value)
-    @mcp.ExtensionResult(result_type, value) =>
-      @mcp.ExtensionResult(result_type, value)
-  }
-}
-
-///|
-pub async fn Client::list_resources_raw(
+async fn Client::list_resources_raw(
   self : Client,
   cursor? : String,
   options? : @mcp.RequestOptions = @mcp.RequestOptions(),
@@ -133,7 +137,7 @@ pub async fn Client::list_resources(
 }
 
 ///|
-pub async fn Client::list_resource_templates_raw(
+async fn Client::list_resource_templates_raw(
   self : Client,
   cursor? : String,
   options? : @mcp.RequestOptions = @mcp.RequestOptions(),
@@ -155,7 +159,7 @@ pub async fn Client::list_resource_templates(
 }
 
 ///|
-pub async fn Client::read_resource_raw(
+async fn Client::read_resource_raw(
   self : Client,
   uri~ : String,
   options? : @mcp.RequestOptions = @mcp.RequestOptions(),
@@ -168,18 +172,32 @@ pub async fn Client::read_resource(
   self : Client,
   uri~ : String,
   options? : @mcp.RequestOptions = @mcp.RequestOptions(),
+  max_rounds? : Int = 8,
+  resolve_input? : InputResolver,
 ) -> @mcp.HandlerOutcome[@mcp.ReadResourceResult] raise @mcp.McpError {
-  match self.read_resource_raw(uri~, options~) {
-    @mcp.Complete(result) =>
+  match resolve_input {
+    Some(resolve) => {
+      let result = self.resolve_mrtr(
+        request_builder=options => self.read_resource_request(uri~, options~),
+        resolve~,
+        options~,
+        max_rounds~,
+      )
       @mcp.Complete(@mcp.ReadResourceResult::from_json(result))
-    @mcp.InputRequired(value) => @mcp.InputRequired(value)
-    @mcp.ExtensionResult(result_type, value) =>
-      @mcp.ExtensionResult(result_type, value)
+    }
+    None =>
+      match self.read_resource_raw(uri~, options~) {
+        @mcp.Complete(result) =>
+          @mcp.Complete(@mcp.ReadResourceResult::from_json(result))
+        @mcp.InputRequired(value) => @mcp.InputRequired(value)
+        @mcp.ExtensionResult(result_type, value) =>
+          @mcp.ExtensionResult(result_type, value)
+      }
   }
 }
 
 ///|
-pub async fn Client::list_prompts_raw(
+async fn Client::list_prompts_raw(
   self : Client,
   cursor? : String,
   options? : @mcp.RequestOptions = @mcp.RequestOptions(),
@@ -199,7 +217,7 @@ pub async fn Client::list_prompts(
 }
 
 ///|
-pub async fn Client::get_prompt_raw(
+async fn Client::get_prompt_raw(
   self : Client,
   name~ : String,
   arguments? : Json = Json::object({}),
@@ -214,18 +232,34 @@ pub async fn Client::get_prompt(
   name~ : String,
   arguments? : Json = Json::object({}),
   options? : @mcp.RequestOptions = @mcp.RequestOptions(),
+  max_rounds? : Int = 8,
+  resolve_input? : InputResolver,
 ) -> @mcp.HandlerOutcome[@mcp.GetPromptResult] raise @mcp.McpError {
-  match self.get_prompt_raw(name~, arguments~, options~) {
-    @mcp.Complete(result) =>
+  match resolve_input {
+    Some(resolve) => {
+      let result = self.resolve_mrtr(
+        request_builder=options => {
+          self.get_prompt_request(name~, arguments~, options~)
+        },
+        resolve~,
+        options~,
+        max_rounds~,
+      )
       @mcp.Complete(@mcp.GetPromptResult::from_json(result))
-    @mcp.InputRequired(value) => @mcp.InputRequired(value)
-    @mcp.ExtensionResult(result_type, value) =>
-      @mcp.ExtensionResult(result_type, value)
+    }
+    None =>
+      match self.get_prompt_raw(name~, arguments~, options~) {
+        @mcp.Complete(result) =>
+          @mcp.Complete(@mcp.GetPromptResult::from_json(result))
+        @mcp.InputRequired(value) => @mcp.InputRequired(value)
+        @mcp.ExtensionResult(result_type, value) =>
+          @mcp.ExtensionResult(result_type, value)
+      }
   }
 }
 
 ///|
-pub async fn Client::complete_raw(
+async fn Client::complete_raw(
   self : Client,
   reference~ : @mcp.CompletionReference,
   argument_name~ : String,

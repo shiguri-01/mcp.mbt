@@ -446,10 +446,10 @@ test "client derives standard and tool parameter headers" {
     version="1.0.0",
     transport=@client.NoopTransport(),
   )
-  let request = core.call_tool_request(
-    name="echo",
-    arguments=Json::object({ "region": Json::string("東京") }),
-  )
+  let request = core.request_raw(method_name="tools/call", params={
+    "name": Json::string("echo"),
+    "arguments": Json::object({ "region": Json::string("東京") }),
+  })
   let schema = Json::object({
     "type": Json::string("object"),
     "properties": Json::object({
@@ -476,7 +476,7 @@ test "protocol negotiation rewrites metadata and uses a fresh request id" {
     version="1.0.0",
     transport=@client.NoopTransport(),
   )
-  let request = core.list_tools_request()
+  let request = core.request_raw(method_name="tools/list")
   let rewritten = try! request_with_protocol_version(
     request, "2026-01-01", true,
   )
@@ -695,9 +695,9 @@ test "subscription SSE starts with acknowledgement and ends with response" {
     version="0.1.0",
     transport=@client.NoopTransport(),
   )
-  let request = client.listen_request(
-    notifications=@mcp.SubscriptionFilter(tools_list_changed=true),
-  )
+  let request = client.request_raw(method_name="subscriptions/listen", params={
+    "notifications": @mcp.SubscriptionFilter(tools_list_changed=true).to_json(),
+  })
   let subscription = try! server.accept_subscription(request)
   let ack = sse_message(subscription.acknowledgement())
   let close = sse_message(subscription.close_response())
@@ -901,7 +901,9 @@ test "subscription client enforces acknowledgement and stream identity" {
     transport=@client.NoopTransport(),
   )
   let requested = @mcp.SubscriptionFilter(tools_list_changed=true)
-  let request = core.listen_request(notifications=requested)
+  let request = core.request_raw(method_name="subscriptions/listen", params={
+    "notifications": requested.to_json(),
+  })
   let expected_id = request_id(request).unwrap()
   let subscription = try! server.accept_subscription(request)
   let before_ack = @client.SubscriptionStreamState::new(expected_id, requested)
