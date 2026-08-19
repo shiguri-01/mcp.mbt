@@ -13,5 +13,5 @@ match try! @jsonrpc.decode(json) {
 }
 
 // Build response
-let res = @jsonrpc.response_success(id~, result~)
+let res = @jsonrpc.Response::Success(id~, result~)
 ```

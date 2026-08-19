@@ -21,8 +21,8 @@ pub fn decode_message(message : Json) -> @jsonrpc.Message raise McpError {
 
 ///|
 pub fn error_response(id? : @jsonrpc.RequestId, error : McpError) -> Json {
-  let response : @jsonrpc.Response[Json] = @jsonrpc.response_failure(
-    id?,
+  let response : @jsonrpc.Response[Json] = @jsonrpc.Response::Failure(
+    id~,
     error=error.to_error_object(),
   )
   response.to_json()
@@ -39,18 +39,7 @@ pub fn error_response_from_json_id(id? : Json, error : McpError) -> Json {
 
 ///|
 pub fn success_response(id : @jsonrpc.RequestId, result : Json) -> Json {
-  @jsonrpc.response_success(id~, result~).to_json()
-}
-
-///|
-pub fn success_response_from_json_id(
-  id : Json,
-  result : Json,
-) -> Json raise McpError {
-  let request_id : @jsonrpc.RequestId = @json.from_json(id) catch {
-    _ => raise InvalidRequest("invalid JSON-RPC id")
-  }
-  success_response(request_id, result)
+  @jsonrpc.Response::Success(id~, result~).to_json()
 }
 
 ///|

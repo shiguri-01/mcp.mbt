@@ -26,7 +26,7 @@ pub fn Subscription::close_response(self : Subscription) -> Json {
     meta~,
   )
   let request_id : @jsonrpc.RequestId = try! @json.from_json(self.id)
-  @jsonrpc.response_success(id=request_id, result~).to_json()
+  @jsonrpc.Response::Success(id=request_id, result~).to_json()
 }
 
 ///|

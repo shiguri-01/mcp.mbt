@@ -37,7 +37,7 @@ pub fn RequestId::number(
   value : Double,
   repr? : String,
 ) -> RequestId raise JsonRpcValidationError {
-  if value.is_nan() || value.is_inf() {
+  guard !(value.is_nan() || value.is_inf()) else {
     raise JsonRpcValidationError::InvalidEnvelope("JSON-RPC id must be finite")
   }
   Number(value~, repr=repr.unwrap_or(value.to_string()))
@@ -79,7 +79,7 @@ pub struct Request[Params] {
   id : RequestId
   method_name : String
   params : Params
-}
+} derive(Debug, Eq)
 
 ///|
 pub fn[Params] Request::Request(
@@ -87,7 +87,7 @@ pub fn[Params] Request::Request(
   method_name~ : String,
   params~ : Params,
 ) -> Request[Params] raise JsonRpcValidationError {
-  if method_name.is_empty() {
+  guard !method_name.is_empty() else {
     raise JsonRpcValidationError::InvalidEnvelope(
       "JSON-RPC request method must not be empty",
     )
@@ -110,14 +110,14 @@ pub impl[Params : ToJson] ToJson for Request[Params] with fn to_json(self) -> Js
 pub struct Notification[Params] {
   method_name : String
   params : Params
-}
+} derive(Debug, Eq)
 
 ///|
 pub fn[Params] Notification::Notification(
   method_name~ : String,
   params~ : Params,
 ) -> Notification[Params] raise JsonRpcValidationError {
-  if method_name.is_empty() {
+  guard !method_name.is_empty() else {
     raise JsonRpcValidationError::InvalidEnvelope(
       "JSON-RPC notification method must not be empty",
     )
@@ -139,7 +139,7 @@ pub struct ErrorObject {
   code : Int
   message : String
   data : Json?
-}
+} derive(Debug, Eq)
 
 ///|
 pub fn ErrorObject::ErrorObject(
@@ -151,16 +151,13 @@ pub fn ErrorObject::ErrorObject(
 }
 
 ///|
-
-///|
 pub impl ToJson for ErrorObject with fn to_json(self) -> Json {
   let fields : Map[String, Json] = {
     "code": Json::number(self.code.to_double(), repr="\{self.code}"),
     "message": Json::string(self.message),
   }
-  match self.data {
-    Some(data) => fields["data"] = data
-    None => ()
+  if self.data is Some(data) {
+    fields["data"] = data
   }
   Json::object(fields)
 }
@@ -170,46 +167,27 @@ pub impl FromJson for ErrorObject with fn from_json(value, path) -> ErrorObject 
   guard value is Json::Object(fields) else {
     raise @json.JsonDecodeError((path, "JSON-RPC error must be an object"))
   }
-  let code = match fields.get("code") {
-    Some(Json::Number(value, ..)) if value.to_int().to_double() == value =>
-      value.to_int()
-    _ =>
-      raise @json.JsonDecodeError(
-        (path.add_key("code"), "error code must be an integer"),
-      )
+  guard fields.get("code") is Some(Json::Number(code_num, ..)) &&
+    code_num.to_int().to_double() == code_num else {
+    raise @json.JsonDecodeError(
+      (path.add_key("code"), "error code must be an integer"),
+    )
   }
-  let message = match fields.get("message") {
-    Some(Json::String(value)) => value
-    _ =>
-      raise @json.JsonDecodeError(
-        (path.add_key("message"), "error message must be a string"),
-      )
+  guard fields.get("message") is Some(Json::String(message)) else {
+    raise @json.JsonDecodeError(
+      (path.add_key("message"), "error message must be a string"),
+    )
   }
+  let code = code_num.to_int()
   let data = fields.get("data")
   ErrorObject(code~, message~, data?)
 }
 
 ///|
-pub enum Response[Result] {
+pub(all) enum Response[Result] {
   Success(id~ : RequestId, result~ : Result)
   Failure(id~ : RequestId?, error~ : ErrorObject)
-}
-
-///|
-pub fn[Result] response_success(
-  id~ : RequestId,
-  result~ : Result,
-) -> Response[Result] {
-  Success(id~, result~)
-}
-
-///|
-pub fn[Result] response_failure(
-  id? : RequestId,
-  error~ : ErrorObject,
-) -> Response[Result] {
-  Failure(id~, error~)
-}
+} derive(Debug, Eq)
 
 ///|
 pub impl[Result : ToJson] ToJson for Response[Result] with fn to_json(self) -> Json {
@@ -223,10 +201,7 @@ pub impl[Result : ToJson] ToJson for Response[Result] with fn to_json(self) -> J
     Failure(id~, error~) =>
       Json::object({
         "jsonrpc": Json::string(JSON_RPC_VERSION),
-        "id": match id {
-          Some(id) => id.to_json()
-          None => Json::null()
-        },
+        "id": id.map(fn(i) { i.to_json() }).unwrap_or(Json::null()),
         "error": error.to_json(),
       })
   }
@@ -247,130 +222,94 @@ pub(all) suberror JsonRpcDecodeError {
 } derive(Debug, Eq)
 
 ///|
-fn decode_id(value : Json) -> RequestId raise JsonRpcDecodeError {
-  match value {
-    Json::String(value) => RequestId::String(value)
-    Json::Number(value, repr~) =>
-      RequestId::Number(value~, repr=repr.unwrap_or(value.to_string()))
-    _ =>
-      raise JsonRpcDecodeError::InvalidMessage("id must be a string or number")
-  }
-}
-
-///|
 pub fn decode(value : Json) -> Message raise JsonRpcDecodeError {
   guard value is Json::Object(fields) else {
     raise JsonRpcDecodeError::InvalidMessage(
       "JSON-RPC message must be an object",
     )
   }
-  guard fields is { "jsonrpc": Json::String(v), .. } && v == JSON_RPC_VERSION else {
+  guard fields.get("jsonrpc") is Some(Json::String(v)) && v == JSON_RPC_VERSION else {
     raise JsonRpcDecodeError::InvalidMessage("jsonrpc must be \"2.0\"")
   }
-  match fields {
-    { "method": Json::String(method_name), .. } => {
-      let params : Json = match fields {
-        { "params": Json::Object(params), .. } => Json::object(params)
-        { "params": Json::Array(params), .. } => Json::array(params)
-        { "params": _, .. } =>
+  match fields.get("method") {
+    Some(Json::String(method_name)) => {
+      let params : Json = match fields.get("params") {
+        Some(Json::Object(params)) => Json::object(params)
+        Some(Json::Array(params)) => Json::array(params)
+        Some(_) =>
           raise JsonRpcDecodeError::InvalidMessage(
             "params must be structured JSON",
           )
-        _ => Json::object({})
+        None => Json::object({})
       }
-      match fields {
-        { "id": id, .. } =>
-          Message::Request(
-            make_request(id=decode_id(id), method_name~, params~),
-          )
-        _ => Message::Notification(make_notification(method_name~, params~))
-      }
-    }
-    { "method": _, .. } =>
-      raise JsonRpcDecodeError::InvalidMessage("method must be a string")
-    _ => {
-      let id : RequestId? = match fields {
-        { "id": Null, .. } => None
-        { "id": id, .. } => Some(decode_id(id))
-        _ => None
-      }
-      match fields {
-        { "result": _, "error": _, .. } =>
-          raise JsonRpcDecodeError::InvalidMessage(
-            "response must contain result or error",
-          )
-        { "result": result, .. } =>
-          match id {
-            Some(id) => Message::Response(Success(id~, result~))
-            None =>
+      match fields.get("id") {
+        Some(id_val) => {
+          let id : RequestId = @json.from_json(id_val) catch {
+            _ =>
               raise JsonRpcDecodeError::InvalidMessage(
-                "success response id is required",
+                "id must be a string or number",
               )
           }
-        { "error": error, .. } =>
-          Message::Response(Failure(id~, error=decode_error(error)))
-        _ =>
+          let request = Request::Request(id~, method_name~, params~) catch {
+            InvalidEnvelope(msg) =>
+              raise JsonRpcDecodeError::InvalidMessage(msg)
+          }
+          Message::Request(request)
+        }
+        None => {
+          let notification = Notification::Notification(method_name~, params~) catch {
+            InvalidEnvelope(msg) =>
+              raise JsonRpcDecodeError::InvalidMessage(msg)
+          }
+          Message::Notification(notification)
+        }
+      }
+    }
+    Some(_) =>
+      raise JsonRpcDecodeError::InvalidMessage("method must be a string")
+    None => {
+      let id : RequestId? = match fields.get("id") {
+        Some(Json::Null) | None => None
+        Some(id_val) =>
+          Some(
+            @json.from_json(id_val) catch {
+              _ =>
+                raise JsonRpcDecodeError::InvalidMessage(
+                  "id must be a string or number",
+                )
+            },
+          )
+      }
+      match (fields.get("result"), fields.get("error")) {
+        (Some(_), Some(_)) | (None, None) =>
           raise JsonRpcDecodeError::InvalidMessage(
             "response must contain result or error",
           )
+        (Some(result), None) => {
+          guard id is Some(id) else {
+            raise JsonRpcDecodeError::InvalidMessage(
+              "success response id is required",
+            )
+          }
+          Message::Response(Success(id~, result~))
+        }
+        (None, Some(error_val)) => {
+          let error : ErrorObject = @json.from_json(error_val) catch {
+            @json.JsonDecodeError((_, msg)) =>
+              raise JsonRpcDecodeError::InvalidMessage(
+                if msg.contains("code") {
+                  "error code must be an integer"
+                } else if msg.contains("message") {
+                  "error message must be a string"
+                } else {
+                  "error must be an object"
+                },
+              )
+          }
+          Message::Response(Failure(id~, error~))
+        }
       }
     }
-  }
-}
-
-///|
-fn make_request(
-  id~ : RequestId,
-  method_name~ : String,
-  params~ : Json,
-) -> Request[Json] raise JsonRpcDecodeError {
-  Request(id~, method_name~, params~) catch {
-    _ =>
-      raise JsonRpcDecodeError::InvalidMessage(
-        "request method must not be empty",
-      )
-  }
-}
-
-///|
-fn make_notification(
-  method_name~ : String,
-  params~ : Json,
-) -> Notification[Json] raise JsonRpcDecodeError {
-  Notification(method_name~, params~) catch {
-    _ =>
-      raise JsonRpcDecodeError::InvalidMessage(
-        "notification method must not be empty",
-      )
-  }
-}
-
-///|
-fn decode_error(value : Json) -> ErrorObject raise JsonRpcDecodeError {
-  match value {
-    Json::Object(fields) => {
-      let code = match fields {
-        { "code": Json::Number(value, ..), .. } if value.to_int().to_double() ==
-          value => value.to_int()
-        _ =>
-          raise JsonRpcDecodeError::InvalidMessage(
-            "error code must be an integer",
-          )
-      }
-      let message = match fields {
-        { "message": Json::String(value), .. } => value
-        _ =>
-          raise JsonRpcDecodeError::InvalidMessage(
-            "error message must be a string",
-          )
-      }
-      let data = match fields {
-        { "data": data, .. } => Some(data)
-        _ => None
-      }
-      ErrorObject(code~, message~, data?)
-    }
-    _ => raise JsonRpcDecodeError::InvalidMessage("error must be an object")
   }
 }
 
