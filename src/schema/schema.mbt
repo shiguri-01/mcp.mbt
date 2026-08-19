@@ -86,27 +86,24 @@ pub fn[A : JsonSchema] schema_of(_witness : A?) -> Schema raise SchemaError {
 }
 
 ///|
-/// Validates a JSON instance against the schema associated with type `T`,
-/// and if valid, decodes it into `T`.
-pub fn[T : JsonSchema + @json.FromJson] decode_json(
+/// Validates a JSON instance against the schema associated with type `T`.
+/// Raises `ValidationIssues` if any validation constraints are violated.
+pub fn[T : JsonSchema] validate(
   json : Json,
-) -> Result[T, Array[ValidationError]] {
-  let witness : T? = None
-  let schema = schema_of(witness) catch {
-    e =>
-      return Err([
-        ValidationError::ValidationError(root_json_path(), e.to_string()),
-      ])
-  }
-  let result = schema.validate(json)
-  if !result.valid {
-    return Err(result.errors)
-  }
-  let decoded : T = @json.from_json(json) catch {
-    e =>
-      return Err([
-        ValidationError::ValidationError(root_json_path(), e.to_string()),
-      ])
-  }
-  Ok(decoded)
+  max_depth? : Int = 128,
+) -> Unit raise Error {
+  let schema = schema_of((None : T?))
+  schema.validate(json, max_depth~)
+}
+
+///|
+/// Validates a JSON instance against the schema associated with type `T`,
+/// and decodes it into `T`.
+pub fn[T : JsonSchema + @json.FromJson] decode(
+  json : Json,
+  max_depth? : Int = 128,
+) -> T raise Error {
+  let schema = schema_of((None : T?))
+  schema.validate(json, max_depth~)
+  @json.from_json(json)
 }

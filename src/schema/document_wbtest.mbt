@@ -10,11 +10,12 @@ test "schema parses 2020-12 default and validates required fields" {
       "additionalProperties": Json::boolean(false),
     }),
   )
-  let valid = schema.validate(Json::object({ "name": Json::string("MoonBit") }))
-  assert_true(valid.valid)
-  let invalid = schema.validate(Json::object({ "extra": Json::number(1.0) }))
-  assert_false(invalid.valid)
-  assert_true(invalid.errors.length() >= 2)
+  schema.validate(Json::object({ "name": Json::string("MoonBit") }))
+  try schema.validate(Json::object({ "extra": Json::number(1.0) })) catch {
+    ValidationIssues(issues) => assert_true(issues.length() >= 2)
+  } noraise {
+    _ => fail("expected validation failure")
+  }
 }
 
 ///|
@@ -67,8 +68,12 @@ test "schema from_json resolves local JSON Pointer references" {
       "$ref": Json::string("#/$defs/name"),
     }),
   )
-  assert_true(schema.validate(Json::string("MoonBit")).valid)
-  assert_false(schema.validate(Json::number(1.0)).valid)
+  schema.validate(Json::string("MoonBit"))
+  try schema.validate(Json::number(1.0)) catch {
+    ValidationIssues(_) => ()
+  } noraise {
+    _ => fail("expected validation failure")
+  }
 }
 
 ///|
@@ -91,8 +96,12 @@ test "network references are rejected during schema from_json" {
 test "boolean schemas retain JSON Schema semantics" {
   let always_valid = Schema::from_json(Json::boolean(true))
   let never_valid = Schema::from_json(Json::boolean(false))
-  assert_true(always_valid.validate(Json::string("ok")).valid)
-  assert_false(never_valid.validate(Json::string("ok")).valid)
+  always_valid.validate(Json::string("ok"))
+  try never_valid.validate(Json::string("ok")) catch {
+    ValidationIssues(_) => ()
+  } noraise {
+    _ => fail("expected validation failure")
+  }
 }
 
 ///|
@@ -106,17 +115,14 @@ test "typed Schema constructors produce a validated document" {
     required=["name"],
     additional_properties=false,
   )
-  assert_true(
-    schema.validate(
-      Json::object({
-        "name": Json::string("MoonBit"),
-        "count": Json::number(1.0),
-      }),
-    ).valid,
+  schema.validate(
+    Json::object({ "name": Json::string("MoonBit"), "count": Json::number(1.0) }),
   )
-  assert_false(
-    schema.validate(Json::object({ "name": Json::number(1.0) })).valid,
-  )
+  try schema.validate(Json::object({ "name": Json::number(1.0) })) catch {
+    ValidationIssues(_) => ()
+  } noraise {
+    _ => fail("expected validation failure")
+  }
 }
 
 ///|
@@ -130,8 +136,12 @@ test "string constraints are constructed and validated as typed schemas" {
       "maxLength": Json::number(4.0, repr="4"),
     }),
   )
-  assert_true(schema.validate(Json::string("moon")).valid)
-  assert_false(schema.validate(Json::string("m")).valid)
+  schema.validate(Json::string("moon"))
+  try schema.validate(Json::string("m")) catch {
+    ValidationIssues(_) => ()
+  } noraise {
+    _ => fail("expected validation failure")
+  }
   try ignore(Schema::string(min_length=5, max_length=2)) catch {
     InvalidSchema(_) => ()
     _ => fail("invalid bounds must be rejected")
@@ -209,9 +219,7 @@ test "instance data is not mistaken for a schema" {
       "const": Json::object({ "pattern": Json::string("literal") }),
     }),
   )
-  assert_true(
-    schema.validate(Json::object({ "pattern": Json::string("literal") })).valid,
-  )
+  schema.validate(Json::object({ "pattern": Json::string("literal") }))
 }
 
 ///|
@@ -234,12 +242,12 @@ test "array, object, and multipleOf constraints are evaluated" {
       }),
     }),
   )
-  assert_true(
-    schema.validate(Json::object({ "values": [2.0, 4.0].to_json() })).valid,
-  )
-  assert_false(
-    schema.validate(Json::object({ "values": [2.0, 3.0].to_json() })).valid,
-  )
+  schema.validate(Json::object({ "values": [2.0, 4.0].to_json() }))
+  try schema.validate(Json::object({ "values": [2.0, 3.0].to_json() })) catch {
+    ValidationIssues(_) => ()
+  } noraise {
+    _ => fail("expected validation failure")
+  }
 }
 
 ///|
@@ -277,6 +285,10 @@ test "typed combinators preserve JSON Schema assertion semantics" {
   let exact = Schema::constant("yes")
   let not_exact = Schema::not(exact)
   let schema = Schema::all_of([positive, not_exact])
-  assert_false(schema.validate(Json::string("yes")).valid)
-  assert_true(schema.validate(Json::string("ok")).valid)
+  try schema.validate(Json::string("yes")) catch {
+    ValidationIssues(_) => ()
+  } noraise {
+    _ => fail("expected validation failure")
+  }
+  schema.validate(Json::string("ok"))
 }

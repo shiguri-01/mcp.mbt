@@ -1,28 +1,28 @@
 ///|
-/// A validation failure describing the path in the JSON instance and the reason.
-pub struct ValidationError {
+/// An individual issue found during JSON Schema validation.
+pub struct ValidationIssue {
   path : @json.JsonPath
   message : String
 } derive(Debug, Eq)
 
 ///|
-pub fn ValidationError::ValidationError(
+pub fn ValidationIssue::ValidationIssue(
   path : @json.JsonPath,
   message : String,
-) -> ValidationError {
+) -> ValidationIssue {
   { path, message }
 }
 
 ///|
-pub impl Show for ValidationError with fn output(
-  self : ValidationError,
+pub impl Show for ValidationIssue with fn output(
+  self : ValidationIssue,
   logger : &Logger,
 ) -> Unit {
   logger.write_string("\{self.path}: \{self.message}")
 }
 
 ///|
-pub impl ToJson for ValidationError with fn to_json(self : ValidationError) -> Json {
+pub impl ToJson for ValidationIssue with fn to_json(self : ValidationIssue) -> Json {
   Json::object({
     "path": Json::string(self.path.to_string()),
     "message": Json::string(self.message),
@@ -30,25 +30,48 @@ pub impl ToJson for ValidationError with fn to_json(self : ValidationError) -> J
 }
 
 ///|
-pub struct ValidationResult {
-  valid : Bool
-  errors : Array[ValidationError]
+/// Validation failure holding one or more validation issues.
+pub suberror ValidationIssues {
+  ValidationIssues(Array[ValidationIssue])
 } derive(Debug, Eq)
+
+///|
+pub impl Show for ValidationIssues with fn output(
+  self : ValidationIssues,
+  logger : &Logger,
+) -> Unit {
+  match self {
+    ValidationIssues(issues) =>
+      for i, issue in issues {
+        if i > 0 {
+          logger.write_string("\n")
+        }
+        logger.write_string(issue.to_string())
+      }
+  }
+}
+
+///|
+pub impl ToJson for ValidationIssues with fn to_json(self : ValidationIssues) -> Json {
+  match self {
+    ValidationIssues(issues) => issues.map(fn(i) { i.to_json() }).to_json()
+  }
+}
 
 ///|
 priv struct ValidationContext {
   defs : Map[String, Schema]
   max_depth : Int
-  errors : Array[ValidationError]
+  issues : Array[ValidationIssue]
 }
 
 ///|
-fn ValidationContext::push_error(
+fn ValidationContext::push_issue(
   self : ValidationContext,
   path : @json.JsonPath,
   message : String,
 ) -> Unit {
-  self.errors.push(ValidationError(path, message))
+  self.issues.push(ValidationIssue(path, message))
 }
 
 ///|

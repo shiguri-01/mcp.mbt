@@ -518,12 +518,13 @@ pub fn ElicitationCreateResult::from_json(
         raise InvalidParams("elicitation request.requestedSchema is required")
       }
       let validator = compile_mrtr_schema(request_schema)
-      let validation = validator.validate(content_val)
-      if !validation.valid {
-        let error = validation.errors.to_json().stringify()
-        raise InvalidParams(
-          "elicitation response.content does not match requestedSchema: \{error}",
-        )
+      validator.validate(content_val) catch {
+        ValidationIssues(issues) => {
+          let error = issues.to_json().stringify()
+          raise InvalidParams(
+            "elicitation response.content does not match requestedSchema: \{error}",
+          )
+        }
       }
     }
   }

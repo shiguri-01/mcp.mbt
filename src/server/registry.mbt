@@ -38,11 +38,11 @@ fn compile_tool_schema(value : Json) -> @schema.Schema raise @mcp.McpError {
 
 ///|
 fn schema_validation_error(validator : @schema.Schema, value : Json) -> String? {
-  let result = validator.validate(value)
-  if result.valid {
+  try {
+    validator.validate(value)
     None
-  } else {
-    Some(result.errors.to_json().stringify())
+  } catch {
+    ValidationIssues(issues) => Some(issues.to_json().stringify())
   }
 }
 

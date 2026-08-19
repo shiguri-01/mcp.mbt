@@ -9,9 +9,11 @@ import {
 // Values
 pub const DRAFT_2020_12 : String = "https://json-schema.org/draft/2020-12/schema"
 
-pub fn[T : JsonSchema + @json.FromJson] decode_json(Json) -> Result[T, Array[ValidationError]]
+pub fn[T : JsonSchema + @json.FromJson] decode(Json, max_depth? : Int) -> T raise
 
 pub fn[A : JsonSchema] schema_of(A?) -> Schema raise SchemaError
+
+pub fn[T : JsonSchema] validate(Json, max_depth? : Int) -> Unit raise
 
 // Errors
 pub suberror SchemaError {
@@ -21,6 +23,12 @@ pub suberror SchemaError {
   InvalidSchema(String)
 } derive(Eq, @debug.Debug)
 pub impl Show for SchemaError
+
+pub suberror ValidationIssues {
+  ValidationIssues(Array[ValidationIssue])
+} derive(Eq, @debug.Debug)
+pub impl Show for ValidationIssues
+pub impl ToJson for ValidationIssues
 
 // Types and methods
 pub struct Schema {
@@ -46,24 +54,19 @@ pub fn Schema::raw(Json) -> Self raise SchemaError
 pub fn Schema::ref_(String, description? : String) -> Self raise SchemaError
 pub fn Schema::string(min_length? : Int, max_length? : Int, description? : String) -> Self raise SchemaError
 pub fn Schema::to_json(Self) -> Json
-pub fn Schema::validate(Self, Json, max_depth? : Int) -> ValidationResult
+pub fn Schema::validate(Self, Json, max_depth? : Int) -> Unit raise ValidationIssues
 pub impl Eq for Schema
 pub impl Show for Schema
 pub impl ToJson for Schema
 pub impl @debug.Debug for Schema
 
-pub struct ValidationError {
+pub struct ValidationIssue {
   path : @json.JsonPath
   message : String
 } derive(Eq, @debug.Debug)
-pub fn ValidationError::ValidationError(@json.JsonPath, String) -> Self
-pub impl Show for ValidationError
-pub impl ToJson for ValidationError
-
-pub struct ValidationResult {
-  valid : Bool
-  errors : Array[ValidationError]
-} derive(Eq, @debug.Debug)
+pub fn ValidationIssue::ValidationIssue(@json.JsonPath, String) -> Self
+pub impl Show for ValidationIssue
+pub impl ToJson for ValidationIssue
 
 // Type aliases
 

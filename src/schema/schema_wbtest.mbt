@@ -36,34 +36,50 @@ test "typed constructors reject an undeclared required property" {
 test "primitive JsonSchema implementations produce typed documents" {
   let string_schema = schema_of((None : String?))
   let int_schema = schema_of((None : Int?))
-  assert_true(string_schema.validate(Json::string("ok")).valid)
-  assert_false(int_schema.validate(Json::string("no")).valid)
+  string_schema.validate(Json::string("ok"))
+  try int_schema.validate(Json::string("no")) catch {
+    ValidationIssues(_) => ()
+  } noraise {
+    _ => fail("expected validation failure")
+  }
 }
 
 ///|
 test "container JsonSchema implementations are built without JSON literals" {
   let strings = schema_of((None : Array[String]?))
-  assert_true(strings.validate(Json::array([Json::string("ok")])).valid)
-  assert_false(strings.validate(Json::array([Json::number(1.0)])).valid)
+  strings.validate(Json::array([Json::string("ok")]))
+  try strings.validate(Json::array([Json::number(1.0)])) catch {
+    ValidationIssues(_) => ()
+  } noraise {
+    _ => fail("expected validation failure")
+  }
   let optional = schema_of((None : Int??))
-  assert_true(optional.validate(Json::null()).valid)
-  assert_true(optional.validate(Json::number(1.0)).valid)
+  optional.validate(Json::null())
+  optional.validate(Json::number(1.0))
 }
 
 ///|
 test "raw Json has an explicit unconstrained schema" {
   let schema = schema_of((None : Json?))
-  assert_true(schema.validate(Json::object({ "any": Json::number(1.0) })).valid)
+  schema.validate(Json::object({ "any": Json::number(1.0) }))
 }
 
 ///|
 test "const and enum assertions accept MoonBit values" {
   let constant = Schema::constant(42)
   let enumeration = Schema::enumeration(["draft", "published"])
-  assert_true(constant.validate(Json::number(42.0)).valid)
-  assert_false(constant.validate(Json::number(41.0)).valid)
-  assert_true(enumeration.validate(Json::string("draft")).valid)
-  assert_false(enumeration.validate(Json::string("other")).valid)
+  constant.validate(Json::number(42.0))
+  try constant.validate(Json::number(41.0)) catch {
+    ValidationIssues(_) => ()
+  } noraise {
+    _ => fail("expected validation failure")
+  }
+  enumeration.validate(Json::string("draft"))
+  try enumeration.validate(Json::string("other")) catch {
+    ValidationIssues(_) => ()
+  } noraise {
+    _ => fail("expected validation failure")
+  }
 }
 
 ///|
@@ -77,8 +93,12 @@ test "typed schema string constraints support serialization and validation" {
       "maxLength": Json::number(10.0, repr="10"),
     }),
   )
-  assert_true(schema.validate(Json::string("hello")).valid)
-  assert_false(schema.validate(Json::string("hi")).valid)
+  schema.validate(Json::string("hello"))
+  try schema.validate(Json::string("hi")) catch {
+    ValidationIssues(_) => ()
+  } noraise {
+    _ => fail("expected validation failure")
+  }
 }
 
 ///|
@@ -103,16 +123,16 @@ impl JsonSchema for UserInput with fn json_schema() -> Schema {
 }
 
 ///|
-test "decode_json validates and parses typed struct" {
+test "decode validates and parses typed struct" {
   let valid_json = Json::object({ "name": Json::string("Alice") })
-  let valid_result : Result[UserInput, Array[ValidationError]] = decode_json(
-    valid_json,
-  )
-  assert_true(valid_result is Ok({ name: "Alice" }))
+  let user : UserInput = decode(valid_json)
+  assert_eq(user, { name: "Alice" })
 
   let invalid_json = Json::object({ "name": Json::string("A") })
-  let invalid_result : Result[UserInput, Array[ValidationError]] = decode_json(
-    invalid_json,
-  )
-  assert_true(invalid_result is Err(_))
+  try ignore((decode(invalid_json) : UserInput)) catch {
+    ValidationIssues(_) => ()
+    _ => fail("expected validation issues")
+  } noraise {
+    _ => fail("expected validation failure")
+  }
 }

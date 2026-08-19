@@ -31,17 +31,21 @@ Validate raw JSON directly or decode it into a typed struct in a single step:
 ```mbt nocheck
 // 1. Direct schema validation
 let schema = @schema.Schema::string(min_length=3)
-let result = schema.validate(Json::string("hello"))
-if result.valid {
+try {
+  schema.validate(Json::string("hello"))
   println("Valid JSON!")
+} catch {
+  ValidationIssues(issues) => println("Validation failed: \{issues}")
 }
 
 // 2. Typed validation & decoding
 let input_json = Json::object({ "name": Json::string("Alice") })
-let decoded : Result[HelloInput, Array[@schema.ValidationError]] = @schema.decode_json(input_json)
-match decoded {
-  Ok(input) => println("Hello, \{input.name}!")
-  Err(errors) => println("Validation failed: \{errors}")
+try {
+  let input : HelloInput = @schema.decode(input_json)
+  println("Hello, \{input.name}!")
+} catch {
+  ValidationIssues(issues) => println("Validation failed: \{issues}")
+  _ => println("Other error")
 }
 
 // 3. Parsing schema from JSON Schema JSON

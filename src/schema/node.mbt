@@ -62,14 +62,17 @@ pub fn Schema::from_json(
 
 ///|
 /// Validate a JSON instance against this schema.
+/// Raises `ValidationIssues` if any validation constraints are violated.
 pub fn Schema::validate(
   self : Schema,
   instance : Json,
   max_depth? : Int = 128,
-) -> ValidationResult {
-  let ctx : ValidationContext = { defs: self.defs, max_depth, errors: [] }
+) -> Unit raise ValidationIssues {
+  let ctx : ValidationContext = { defs: self.defs, max_depth, issues: [] }
   self.node.validate(instance, path=root_json_path(), depth=0, ctx~)
-  { valid: ctx.errors.is_empty(), errors: ctx.errors }
+  if !ctx.issues.is_empty() {
+    raise ValidationIssues(ctx.issues)
+  }
 }
 
 ///|

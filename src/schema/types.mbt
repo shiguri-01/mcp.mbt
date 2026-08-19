@@ -54,7 +54,7 @@ impl SchemaNode for BooleanSchema with fn validate(
 ) -> Unit {
   ignore(depth)
   if !self.value {
-    ctx.push_error(path, "boolean schema is false")
+    ctx.push_issue(path, "boolean schema is false")
   }
 }
 
@@ -86,7 +86,7 @@ impl SchemaNode for NullSchema with fn validate(
 ) -> Unit {
   ignore(depth)
   if !(instance is Null) {
-    ctx.push_error(path, "expected null")
+    ctx.push_issue(path, "expected null")
   }
 }
 
@@ -118,7 +118,7 @@ impl SchemaNode for BoolTypeSchema with fn validate(
 ) -> Unit {
   ignore(depth)
   if !(instance is (True | False)) {
-    ctx.push_error(path, "expected boolean")
+    ctx.push_issue(path, "expected boolean")
   }
 }
 
@@ -170,13 +170,13 @@ impl SchemaNode for StringSchema with fn validate(
   ignore(depth)
   if instance is String(s) {
     if self.min_length is Some(min) && s.length() < min {
-      ctx.push_error(path, "string is shorter than minLength")
+      ctx.push_issue(path, "string is shorter than minLength")
     }
     if self.max_length is Some(max) && s.length() > max {
-      ctx.push_error(path, "string is longer than maxLength")
+      ctx.push_issue(path, "string is longer than maxLength")
     }
   } else {
-    ctx.push_error(path, "value does not match type string")
+    ctx.push_issue(path, "value does not match type string")
   }
 }
 
@@ -224,13 +224,13 @@ impl SchemaNode for IntegerSchema with fn validate(
   ignore(depth)
   if instance is Number(value, ..) && value == value.to_int().to_double() {
     if self.minimum is Some(min) && value.to_int() < min {
-      ctx.push_error(path, "number is less than minimum")
+      ctx.push_issue(path, "number is less than minimum")
     }
     if self.maximum is Some(max) && value.to_int() > max {
-      ctx.push_error(path, "number is greater than maximum")
+      ctx.push_issue(path, "number is greater than maximum")
     }
   } else {
-    ctx.push_error(path, "value does not match type integer")
+    ctx.push_issue(path, "value does not match type integer")
   }
 }
 
@@ -303,25 +303,25 @@ impl SchemaNode for NumberSchema with fn validate(
   ignore(depth)
   if instance is Number(value, ..) {
     if self.minimum is Some(min) && value < min {
-      ctx.push_error(path, "number is less than minimum")
+      ctx.push_issue(path, "number is less than minimum")
     }
     if self.maximum is Some(max) && value > max {
-      ctx.push_error(path, "number is greater than maximum")
+      ctx.push_issue(path, "number is greater than maximum")
     }
     if self.exclusive_minimum is Some(min) && value <= min {
-      ctx.push_error(path, "number is not greater than exclusiveMinimum")
+      ctx.push_issue(path, "number is not greater than exclusiveMinimum")
     }
     if self.exclusive_maximum is Some(max) && value >= max {
-      ctx.push_error(path, "number is not less than exclusiveMaximum")
+      ctx.push_issue(path, "number is not less than exclusiveMaximum")
     }
     if self.multiple_of is Some(divisor) && divisor > 0.0 {
       let quotient = value / divisor
       if quotient != quotient.to_int().to_double() {
-        ctx.push_error(path, "number is not a multipleOf value")
+        ctx.push_issue(path, "number is not a multipleOf value")
       }
     }
   } else {
-    ctx.push_error(path, "value does not match type number")
+    ctx.push_issue(path, "value does not match type number")
   }
 }
 
@@ -375,21 +375,21 @@ impl SchemaNode for ArraySchema with fn validate(
   ctx~ : ValidationContext,
 ) -> Unit {
   if depth > ctx.max_depth {
-    ctx.push_error(path, "validation exceeded max_depth")
+    ctx.push_issue(path, "validation exceeded max_depth")
     return
   }
   if instance is Array(values) {
     if self.min_items is Some(min) && values.length() < min {
-      ctx.push_error(path, "array is shorter than minItems")
+      ctx.push_issue(path, "array is shorter than minItems")
     }
     if self.max_items is Some(max) && values.length() > max {
-      ctx.push_error(path, "array is longer than maxItems")
+      ctx.push_issue(path, "array is longer than maxItems")
     }
     if self.unique_items {
       let seen : Array[Json] = []
       for value in values {
         if seen.contains(value) {
-          ctx.push_error(path, "array items must be unique")
+          ctx.push_issue(path, "array items must be unique")
         }
         seen.push(value)
       }
@@ -405,7 +405,7 @@ impl SchemaNode for ArraySchema with fn validate(
       }
     }
   } else {
-    ctx.push_error(path, "value does not match type array")
+    ctx.push_issue(path, "value does not match type array")
   }
 }
 
@@ -481,19 +481,19 @@ impl SchemaNode for ObjectSchema with fn validate(
   ctx~ : ValidationContext,
 ) -> Unit {
   if depth > ctx.max_depth {
-    ctx.push_error(path, "validation exceeded max_depth")
+    ctx.push_issue(path, "validation exceeded max_depth")
     return
   }
   if instance is Object(fields) {
     if self.min_properties is Some(min) && fields.length() < min {
-      ctx.push_error(path, "object has fewer than minProperties")
+      ctx.push_issue(path, "object has fewer than minProperties")
     }
     if self.max_properties is Some(max) && fields.length() > max {
-      ctx.push_error(path, "object has more than maxProperties")
+      ctx.push_issue(path, "object has more than maxProperties")
     }
     for name in self.required {
       if fields.get(name) is None {
-        ctx.push_error(
+        ctx.push_issue(
           path.add_key(name),
           "required property is missing: \{name}",
         )
@@ -512,7 +512,7 @@ impl SchemaNode for ObjectSchema with fn validate(
     if !self.additional_properties {
       for name, _ in fields {
         if !self.properties.contains(name) {
-          ctx.push_error(
+          ctx.push_issue(
             path.add_key(name),
             "additional property is not allowed: \{name}",
           )
@@ -520,7 +520,7 @@ impl SchemaNode for ObjectSchema with fn validate(
       }
     }
   } else {
-    ctx.push_error(path, "value does not match type object")
+    ctx.push_issue(path, "value does not match type object")
   }
 }
 
@@ -556,7 +556,7 @@ impl SchemaNode for ConstSchema with fn validate(
 ) -> Unit {
   ignore(depth)
   if instance != self.value {
-    ctx.push_error(path, "value does not match const")
+    ctx.push_issue(path, "value does not match const")
   }
 }
 
@@ -611,7 +611,7 @@ impl SchemaNode for EnumSchema with fn validate(
 ) -> Unit {
   ignore(depth)
   if !self.values.contains(instance) {
-    ctx.push_error(path, "value is not in enum")
+    ctx.push_issue(path, "value is not in enum")
   }
 }
 
@@ -692,15 +692,15 @@ impl SchemaNode for AnyOfSchema with fn validate(
     let sub_ctx : ValidationContext = {
       defs: ctx.defs,
       max_depth: ctx.max_depth,
-      errors: [],
+      issues: [],
     }
     child.node.validate(instance, path~, depth=depth + 1, ctx=sub_ctx)
-    if sub_ctx.errors.is_empty() {
+    if sub_ctx.issues.is_empty() {
       matched = true
     }
   }
   if !matched {
-    ctx.push_error(path, "value does not match anyOf")
+    ctx.push_issue(path, "value does not match anyOf")
   }
 }
 
@@ -744,15 +744,15 @@ impl SchemaNode for OneOfSchema with fn validate(
     let sub_ctx : ValidationContext = {
       defs: ctx.defs,
       max_depth: ctx.max_depth,
-      errors: [],
+      issues: [],
     }
     child.node.validate(instance, path~, depth=depth + 1, ctx=sub_ctx)
-    if sub_ctx.errors.is_empty() {
+    if sub_ctx.issues.is_empty() {
       matches += 1
     }
   }
   if matches != 1 {
-    ctx.push_error(path, "value must match exactly one oneOf branch")
+    ctx.push_issue(path, "value must match exactly one oneOf branch")
   }
 }
 
@@ -786,11 +786,11 @@ impl SchemaNode for NotSchema with fn validate(
   let sub_ctx : ValidationContext = {
     defs: ctx.defs,
     max_depth: ctx.max_depth,
-    errors: [],
+    issues: [],
   }
   self.value.node.validate(instance, path~, depth=depth + 1, ctx=sub_ctx)
-  if sub_ctx.errors.is_empty() {
-    ctx.push_error(path, "value matches a not schema")
+  if sub_ctx.issues.is_empty() {
+    ctx.push_issue(path, "value matches a not schema")
   }
 }
 
@@ -828,12 +828,12 @@ impl SchemaNode for RefSchema with fn validate(
   ctx~ : ValidationContext,
 ) -> Unit {
   if depth > ctx.max_depth {
-    ctx.push_error(path, "validation exceeded max_depth")
+    ctx.push_issue(path, "validation exceeded max_depth")
     return
   }
   match ctx.defs.get(self.reference) {
     Some(target) => target.node.validate(instance, path~, depth=depth + 1, ctx~)
-    None => ctx.push_error(path, "unresolved reference: \{self.reference}")
+    None => ctx.push_issue(path, "unresolved reference: \{self.reference}")
   }
 }
 
