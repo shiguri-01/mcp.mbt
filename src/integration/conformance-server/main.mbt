@@ -12,17 +12,17 @@ async fn main {
 
 ///|
 fn make_conformance_server() -> @mcp_server.Server {
-  let server = try! @mcp_server.Server(
+  let builder = try! @mcp_server.ServerBuilder(
     name="moonbit-mcp-conformance-fixture",
     version="2026.7.28",
     instructions="Deterministic fixture for the frozen MCP 2026-07-28 server conformance requirements.",
     cache_policy=@mcp.CachePolicy(ttl_ms=0L),
   )
-  register_tool_fixtures(server)
-  register_resource_fixtures(server)
-  register_prompt_fixtures(server)
-  register_completion_fixture(server)
-  register_stateless_diagnostics(server)
-  register_mrtr_fixtures(server)
-  server
+  register_tool_fixtures(builder)
+  register_resource_fixtures(builder)
+  register_prompt_fixtures(builder)
+  register_completion_fixture(builder)
+  register_stateless_diagnostics(builder)
+  register_mrtr_fixtures(builder)
+  builder.build()
 }

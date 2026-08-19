@@ -1,7 +1,10 @@
 ///|
 async fn run_server() -> Unit {
-  let server = try! @mcp_server.Server(name="integration-server", version="1")
-  try! server.tool_raw(
+  let builder = try! @mcp_server.ServerBuilder(
+    name="integration-server",
+    version="1",
+  )
+  try! builder.tool_raw(
     name="echo",
     input_schema=Json::object({
       "type": Json::string("object"),
@@ -15,7 +18,7 @@ async fn run_server() -> Unit {
       @mcp.Complete(@mcp.CallToolResult::text(arguments.stringify()))
     },
   )
-  try! server.tool_raw(
+  try! builder.tool_raw(
     name="wait",
     input_schema=Json::object({
       "type": Json::string("object"),
@@ -31,6 +34,7 @@ async fn run_server() -> Unit {
       @mcp.Complete(@mcp.CallToolResult::text("done"))
     },
   )
+  let server = builder.build()
   @mcp_stdio.serve(server)
 }
 

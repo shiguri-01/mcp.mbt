@@ -1,5 +1,5 @@
 ///|
-fn register_prompt_fixtures(server : @mcp_server.Server) -> Unit {
+fn register_prompt_fixtures(server : @mcp_server.ServerBuilder) -> Unit {
   try! server.prompt(
     name="test_simple_prompt",
     description="Return one user text message.",
@@ -69,7 +69,7 @@ fn register_prompt_fixtures(server : @mcp_server.Server) -> Unit {
 }
 
 ///|
-fn register_completion_fixture(server : @mcp_server.Server) -> Unit {
+fn register_completion_fixture(server : @mcp_server.ServerBuilder) -> Unit {
   try! server.completion(
     reference=@mcp.CompletionReference::prompt(
       name="test_prompt_with_arguments",

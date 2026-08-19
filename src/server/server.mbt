@@ -34,16 +34,12 @@ fn[K : Eq + Hash, V] Map::set_opt(
 }
 
 ///|
-/// A transport-neutral, stateless MCP 2026-07-28 server registry.
-///
-/// Registration is sealed by the first request. Per-client protocol state is
-/// carried exclusively by `RequestContext` and is never stored on this value.
-pub struct Server {
+/// A transport-neutral, stateless MCP 2026-07-28 server builder.
+pub struct ServerBuilder {
   priv info : @mcp.Implementation
   priv instructions : String?
   priv cache_policy : @mcp.CachePolicy
   priv supported_versions : Array[String]
-  priv mut registry_frozen : Bool
   priv tools : Map[String, RegisteredTool]
   priv tool_schemas : Map[String, @mcp.Tool]
   priv resources : Map[String, RegisteredResource]
@@ -61,7 +57,7 @@ pub struct Server {
 }
 
 ///|
-pub fn Server::Server(
+pub fn ServerBuilder::ServerBuilder(
   name~ : String,
   version~ : String,
   title? : String,
@@ -78,7 +74,7 @@ pub fn Server::Server(
   extensions? : Map[String, Json] = Map([]),
   extension_result_types? : Map[String, String] = Map([]),
   experimental? : Map[String, Json] = Map([]),
-) -> Server raise @mcp.McpError {
+) -> ServerBuilder raise @mcp.McpError {
   if name.is_empty() || version.is_empty() {
     raise @mcp.InvalidParams("server name and version must not be empty")
   }
@@ -102,7 +98,6 @@ pub fn Server::Server(
       @mcp.CachePolicy(ttl_ms=0L, scope=@mcp.Private),
     ),
     supported_versions: supported_versions.copy(),
-    registry_frozen: false,
     tools: Map([]),
     tool_schemas: Map([]),
     resources: Map([]),
@@ -121,19 +116,54 @@ pub fn Server::Server(
 }
 
 ///|
-/// Explicitly seal the server registry, preventing any further tool, resource,
-/// prompt, or completion registrations.
-pub fn Server::seal(self : Server) -> Unit {
-  self.registry_frozen = true
+/// Finalize configuration and construct an immutable Server.
+pub fn ServerBuilder::build(self : ServerBuilder) -> Server {
+  {
+    info: self.info,
+    instructions: self.instructions,
+    cache_policy: self.cache_policy,
+    supported_versions: self.supported_versions.copy(),
+    tools: self.tools,
+    tool_schemas: self.tool_schemas,
+    resources: self.resources,
+    resource_templates: self.resource_templates,
+    prompts: self.prompts,
+    completions: self.completions,
+    raw_handlers: self.raw_handlers,
+    tool_list_changed: self.tool_list_changed,
+    resource_list_changed: self.resource_list_changed,
+    prompt_list_changed: self.prompt_list_changed,
+    resource_subscriptions: self.resource_subscriptions,
+    extensions: self.extensions.copy_json(),
+    extension_result_types: self.extension_result_types.copy(),
+    experimental: self.experimental.copy_json(),
+  }
 }
 
 ///|
-fn Server::ensure_registering(self : Server) -> Unit raise @mcp.McpError {
-  if self.registry_frozen {
-    raise @mcp.InvalidRequest(
-      "server registry is sealed after its first request",
-    )
-  }
+/// A transport-neutral, stateless MCP 2026-07-28 server.
+///
+/// Per-client protocol state is carried exclusively by `RequestContext`
+/// and is never stored on this value.
+pub struct Server {
+  priv info : @mcp.Implementation
+  priv instructions : String?
+  priv cache_policy : @mcp.CachePolicy
+  priv supported_versions : Array[String]
+  priv tools : Map[String, RegisteredTool]
+  priv tool_schemas : Map[String, @mcp.Tool]
+  priv resources : Map[String, RegisteredResource]
+  priv resource_templates : Map[String, RegisteredResourceTemplate]
+  priv prompts : Map[String, RegisteredPrompt]
+  priv completions : Map[String, CompletionHandler]
+  priv raw_handlers : Map[String, RawHandler]
+  priv tool_list_changed : Bool
+  priv resource_list_changed : Bool
+  priv prompt_list_changed : Bool
+  priv resource_subscriptions : Bool
+  priv extensions : Map[String, Json]
+  priv extension_result_types : Map[String, String]
+  priv experimental : Map[String, Json]
 }
 
 ///|

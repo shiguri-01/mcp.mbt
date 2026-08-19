@@ -1,5 +1,5 @@
 ///|
-fn register_resource_fixtures(server : @mcp_server.Server) -> Unit {
+fn register_resource_fixtures(server : @mcp_server.ServerBuilder) -> Unit {
   try! server.resource(
     uri="test://static-text",
     name="Static text resource",

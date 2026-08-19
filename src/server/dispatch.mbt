@@ -453,7 +453,6 @@ async fn Server::dispatch_request(
   request : @jsonrpc.Request[Json],
   hooks? : @mcp.RequestHooks = @mcp.RequestHooks(),
 ) -> Json raise @mcp.McpError {
-  self.registry_frozen = true
   let context = decode_request_context(request, hooks~)
   self.ensure_supported_version(context)
   match request.method_name {

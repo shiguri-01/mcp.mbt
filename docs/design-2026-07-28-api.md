@@ -48,20 +48,21 @@ depend on `mcp` or `jsonrpc`. `http` and `stdio` may depend on `mcp` and
 
 ## Typed server API
 
-The server registry is built through one constructor and is sealed before the
-first dispatch. Registration names use MCP concepts directly:
+The server registry is built through `ServerBuilder` and converted to an
+immutable `Server` before dispatch. Registration names use MCP concepts directly:
 
 ```moonbit
-let server = try! @mcp.Server(
+let builder = try! @server.ServerBuilder(
   name="greeter", version="1.0.0",
 )
-try! server.tool(
+try! builder.tool(
   name="greet",
   description="Greet a person",
   fn(context : RequestContext, input : GreetInput) {
     Complete(CallToolResult::text("Hello, \\{input.name}!"))
   },
 )
+let server = builder.build()
 ```
 
 There is one high-level registration method per MCP feature (`tool`,

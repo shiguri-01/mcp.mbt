@@ -301,7 +301,7 @@ test "annotated integer enforces JavaScript safe range" {
 
 ///|
 test "POST requests require both JSON and SSE response media types" {
-  let server = try! @server.Server(name="test", version="0.1.0")
+  let server = (try! @server.ServerBuilder(name="test", version="0.1.0")).build()
   let message = metadata_request("server/discover")
   let accepted_headers = standard_request_headers(
     message,
@@ -336,10 +336,14 @@ test "POST requests require both JSON and SSE response media types" {
 
 ///|
 test "Mcp-Param headers match annotated tool arguments" {
-  let server = try! @server.Server(name="tool-header-test", version="0.1.0")
-  try! server.tool_raw(name="regional", input_schema=annotated_schema(), (_, _) => {
+  let builder = try! @server.ServerBuilder(
+    name="tool-header-test",
+    version="0.1.0",
+  )
+  try! builder.tool_raw(name="regional", input_schema=annotated_schema(), (_, _) => {
     @mcp.Complete(@mcp.CallToolResult::text("ok"))
   })
+  let server = builder.build()
   let arguments = Json::object({
     "region": Json::string("東京"),
     "options": Json::object({
@@ -419,7 +423,7 @@ test "invalid request metadata is reported before header mismatch" {
     "method": Json::string("tools/list"),
     "params": Json::object({}),
   })
-  let server = try! @server.Server(name="server", version="1")
+  let server = (try! @server.ServerBuilder(name="server", version="1")).build()
   let headers : Map[String, String] = {
     "Accept": "application/json, text/event-stream",
     "Content-Type": "application/json",
@@ -681,11 +685,11 @@ test "method-not-found responses map to HTTP 404" {
 
 ///|
 test "subscription SSE starts with acknowledgement and ends with response" {
-  let server = try! @server.Server(
+  let server = (try! @server.ServerBuilder(
     name="subscription-test",
     version="0.1.0",
     tool_list_changed=true,
-  )
+  )).build()
   let client = try! @client.Client(
     name="test",
     version="0.1.0",
@@ -820,7 +824,10 @@ async test "SSE limit applies independently to every event" {
 
 ///|
 test "accepted notifications still require every standard header" {
-  let server = try! @server.Server(name="notification-test", version="0.1.0")
+  let server = (try! @server.ServerBuilder(
+    name="notification-test",
+    version="0.1.0",
+  )).build()
   let message = Json::object({
     "jsonrpc": Json::string("2.0"),
     "method": Json::string("notifications/cancelled"),
@@ -883,11 +890,11 @@ test "response ids are checked before decoding results" {
 
 ///|
 test "subscription client enforces acknowledgement and stream identity" {
-  let server = try! @server.Server(
+  let server = (try! @server.ServerBuilder(
     name="subscription-state-test",
     version="0.1.0",
     tool_list_changed=true,
-  )
+  )).build()
   let core = try! @client.Client(
     name="test",
     version="0.1.0",

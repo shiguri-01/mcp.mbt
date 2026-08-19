@@ -57,7 +57,7 @@ fn complete_text(text : String) -> @mcp.HandlerOutcome[@mcp.CallToolResult] {
 }
 
 ///|
-fn register_mrtr_fixtures(server : @mcp_server.Server) -> Unit {
+fn register_mrtr_fixtures(server : @mcp_server.ServerBuilder) -> Unit {
   try! server.tool_raw(
     name="test_input_required_result_elicitation",
     description="Request one elicitation response and complete when it is supplied.",
@@ -136,7 +136,7 @@ fn register_mrtr_fixtures(server : @mcp_server.Server) -> Unit {
 }
 
 ///|
-fn register_multiple_and_round_mrtr(server : @mcp_server.Server) -> Unit {
+fn register_multiple_and_round_mrtr(server : @mcp_server.ServerBuilder) -> Unit {
   try! server.tool_raw(
     name="test_input_required_result_multiple_inputs",
     description="Request elicitation, sampling, and roots in one result.",
@@ -212,7 +212,9 @@ fn register_multiple_and_round_mrtr(server : @mcp_server.Server) -> Unit {
 }
 
 ///|
-fn register_capability_and_tamper_mrtr(server : @mcp_server.Server) -> Unit {
+fn register_capability_and_tamper_mrtr(
+  server : @mcp_server.ServerBuilder,
+) -> Unit {
   try! server.tool_raw(
     name="test_input_required_result_tampered_state",
     description="Reject any requestState other than the issued opaque value.",
@@ -261,7 +263,7 @@ fn register_capability_and_tamper_mrtr(server : @mcp_server.Server) -> Unit {
 }
 
 ///|
-fn register_prompt_mrtr(server : @mcp_server.Server) -> Unit {
+fn register_prompt_mrtr(server : @mcp_server.ServerBuilder) -> Unit {
   try! server.prompt(
     name="test_input_required_result_prompt",
     description="Request elicitation before constructing a prompt.",

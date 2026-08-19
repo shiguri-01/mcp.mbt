@@ -77,7 +77,6 @@ pub fn Server::accept_subscription(
   self : Server,
   message : Json,
 ) -> Subscription raise @mcp.McpError {
-  self.registry_frozen = true
   let decoded = @mcp.decode_message(message)
   let request = match decoded {
     @jsonrpc.Message::Request(request) => request

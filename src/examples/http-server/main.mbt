@@ -15,18 +15,18 @@ impl @schema.JsonSchema for GreetInput with fn json_schema() -> @schema.Schema {
 
 ///|
 fn make_server() -> @mcp_server.Server {
-  let server = try! @mcp_server.Server(
+  let builder = try! @mcp_server.ServerBuilder(
     name="http-greeter",
     version="1.0.0",
     instructions="Call greet with a name to receive a greeting.",
   )
-  try! server.tool(name="greet", description="Greet someone by name", fn(
+  try! builder.tool(name="greet", description="Greet someone by name", fn(
     _context,
     input : GreetInput,
   ) -> @mcp.HandlerOutcome[@mcp.CallToolResult] {
     @mcp.Complete(@mcp.CallToolResult::text("Hello, \{input.name}!"))
   })
-  server
+  builder.build()
 }
 
 ///|

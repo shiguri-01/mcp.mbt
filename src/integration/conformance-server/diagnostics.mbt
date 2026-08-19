@@ -4,7 +4,7 @@ fn sampling_capability() -> @mcp.ClientCapabilities {
 }
 
 ///|
-fn register_stateless_diagnostics(server : @mcp_server.Server) -> Unit {
+fn register_stateless_diagnostics(server : @mcp_server.ServerBuilder) -> Unit {
   try! server.tool_raw(
     name="test_missing_capability",
     description="Require the client sampling capability.",

@@ -134,12 +134,13 @@ fn[A : @schema.JsonSchema] schema_for(
 }
 
 ///|
-fn Server::install_tool(
-  self : Server,
+
+///|
+fn ServerBuilder::install_tool(
+  self : ServerBuilder,
   tool : @mcp.Tool,
   handler : ToolHandler,
 ) -> Unit raise @mcp.McpError {
-  self.ensure_registering()
   if self.tools.contains(tool.name) {
     raise @mcp.InvalidParams("tool already registered: \{tool.name}")
   }
@@ -163,8 +164,8 @@ pub fn Server::tool_descriptor(self : Server, name : String) -> @mcp.Tool? {
 
 ///|
 /// Register a typed async tool handler with request context and MRTR support.
-pub fn[A : FromJson + @schema.JsonSchema] Server::tool(
-  self : Server,
+pub fn[A : FromJson + @schema.JsonSchema] ServerBuilder::tool(
+  self : ServerBuilder,
   name~ : String,
   title? : String,
   description? : String,
@@ -208,8 +209,8 @@ pub fn[A : FromJson + @schema.JsonSchema] Server::tool(
 ///|
 /// Register a tool whose arguments and result are handled as raw JSON.
 /// This is the explicit escape hatch; typed tools should use `tool`.
-pub fn Server::tool_raw(
-  self : Server,
+pub fn ServerBuilder::tool_raw(
+  self : ServerBuilder,
   name~ : String,
   title? : String,
   description? : String,
@@ -236,8 +237,8 @@ pub fn Server::tool_raw(
 }
 
 ///|
-pub fn Server::resource(
-  self : Server,
+pub fn ServerBuilder::resource(
+  self : ServerBuilder,
   uri~ : String,
   name? : String,
   title? : String,
@@ -251,7 +252,6 @@ pub fn Server::resource(
     @mcp.ReadResourceResult,
   ] raise @mcp.McpError,
 ) -> Unit raise @mcp.McpError {
-  self.ensure_registering()
   if self.resources.contains(uri) {
     raise @mcp.InvalidParams("resource already registered: \{uri}")
   }
@@ -272,8 +272,8 @@ pub fn Server::resource(
 }
 
 ///|
-pub fn Server::resource_template(
-  self : Server,
+pub fn ServerBuilder::resource_template(
+  self : ServerBuilder,
   uri_template~ : String,
   name? : String,
   title? : String,
@@ -286,7 +286,6 @@ pub fn Server::resource_template(
     @mcp.ReadResourceResult,
   ] raise @mcp.McpError,
 ) -> Unit raise @mcp.McpError {
-  self.ensure_registering()
   if self.resource_templates.contains(uri_template) {
     raise @mcp.InvalidParams(
       "resource template already registered: \{uri_template}",
@@ -311,8 +310,8 @@ pub fn Server::resource_template(
 }
 
 ///|
-pub fn Server::prompt(
-  self : Server,
+pub fn ServerBuilder::prompt(
+  self : ServerBuilder,
   name~ : String,
   title? : String,
   description? : String,
@@ -323,7 +322,6 @@ pub fn Server::prompt(
     @mcp.GetPromptResult,
   ] raise @mcp.McpError,
 ) -> Unit raise @mcp.McpError {
-  self.ensure_registering()
   if self.prompts.contains(name) {
     raise @mcp.InvalidParams("prompt already registered: \{name}")
   }
@@ -342,12 +340,11 @@ fn completion_key(reference : @mcp.CompletionReference) -> String {
 }
 
 ///|
-pub fn Server::completion(
-  self : Server,
+pub fn ServerBuilder::completion(
+  self : ServerBuilder,
   reference~ : @mcp.CompletionReference,
   handler : CompletionHandler,
 ) -> Unit raise @mcp.McpError {
-  self.ensure_registering()
   let key = completion_key(reference)
   if self.completions.contains(key) {
     raise @mcp.InvalidParams("completion already registered: \{key}")
@@ -357,12 +354,11 @@ pub fn Server::completion(
 
 ///|
 /// Register a negotiated extension method.
-pub fn Server::on(
-  self : Server,
+pub fn ServerBuilder::on(
+  self : ServerBuilder,
   method_name~ : String,
   handler : RawHandler,
 ) -> Unit raise @mcp.McpError {
-  self.ensure_registering()
   if self.raw_handlers.contains(method_name) {
     raise @mcp.InvalidParams("method already registered: \{method_name}")
   }

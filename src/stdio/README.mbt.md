@@ -37,13 +37,14 @@ impl @schema.JsonSchema for GreetInput with fn json_schema() -> @schema.Schema {
 
 ///|
 async fn main {
-  let server = try! @server.Server(name="greeter", version="1.0.0")
-  try! server.tool(name="greet", fn(
+  let builder = try! @server.ServerBuilder(name="greeter", version="1.0.0")
+  try! builder.tool(name="greet", fn(
     _context,
     input : GreetInput,
   ) -> @mcp.HandlerOutcome[@mcp.CallToolResult] {
     @mcp.Complete(@mcp.CallToolResult::text("Hello, \{input.name}!"))
   })
+  let server = builder.build()
   @mcp_stdio.serve(server)
 }
 ```

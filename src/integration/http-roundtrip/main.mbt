@@ -1,11 +1,11 @@
 ///|
 async fn run_server() -> Unit {
-  let server = try! @mcp_server.Server(
+  let builder = try! @mcp_server.ServerBuilder(
     name="integration-server",
     version="1",
     tool_list_changed=true,
   )
-  try! server.tool_raw(
+  try! builder.tool_raw(
     name="echo",
     input_schema=Json::object({
       "type": Json::string("object"),
@@ -19,7 +19,7 @@ async fn run_server() -> Unit {
       @mcp.Complete(@mcp.CallToolResult::text(arguments.stringify()))
     },
   )
-  try! server.tool_raw(
+  try! builder.tool_raw(
     name="progress",
     input_schema=Json::object({
       "type": Json::string("object"),
@@ -36,6 +36,7 @@ async fn run_server() -> Unit {
       @mcp.Complete(@mcp.CallToolResult::text("done"))
     },
   )
+  let server = builder.build()
   let http_server = @async_http.Server(@socket.Addr::parse("127.0.0.1:18088"))
   @mcp_http.serve(
     http_server,
