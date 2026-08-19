@@ -1,6 +1,6 @@
 ///|
-test "document uses MCP's 2020-12 default and validates required fields" {
-  let document = Document::Document(
+test "schema parses 2020-12 default and validates required fields" {
+  let schema = Schema::from_json(
     Json::object({
       "type": Json::string("object"),
       "properties": Json::object({
@@ -10,7 +10,6 @@ test "document uses MCP's 2020-12 default and validates required fields" {
       "additionalProperties": Json::boolean(false),
     }),
   )
-  let schema = document.compile()
   let valid = schema.validate(Json::object({ "name": Json::string("MoonBit") }))
   assert_true(valid.valid)
   let invalid = schema.validate(Json::object({ "extra": Json::number(1.0) }))
@@ -19,10 +18,10 @@ test "document uses MCP's 2020-12 default and validates required fields" {
 }
 
 ///|
-test "document rejects an unsupported dialect before compilation" {
+test "schema from_json rejects an unsupported dialect" {
   try
     ignore(
-      Document::Document(
+      Schema::from_json(
         Json::object({
           "$schema": Json::string("https://example.com/unknown-schema"),
         }),
@@ -37,17 +36,18 @@ test "document rejects an unsupported dialect before compilation" {
 }
 
 ///|
-test "document compilation has explicit resource limits" {
-  let options = CompileOptions::CompileOptions(max_depth=2, max_nodes=3)
+test "schema from_json has explicit resource limits" {
   try
     ignore(
-      Document::Document(
+      Schema::from_json(
         Json::object({
           "properties": Json::object({
             "nested": Json::object({ "type": Json::string("object") }),
           }),
         }),
-      ).compile(options~),
+        max_depth=2,
+        max_nodes=3,
+      ),
     )
   catch {
     InvalidSchema(_) => ()
@@ -58,8 +58,8 @@ test "document compilation has explicit resource limits" {
 }
 
 ///|
-test "compiled schemas resolve local JSON Pointer references" {
-  let document = Document::Document(
+test "schema from_json resolves local JSON Pointer references" {
+  let schema = Schema::from_json(
     Json::object({
       "$defs": Json::object({
         "name": Json::object({ "type": Json::string("string") }),
@@ -67,18 +67,17 @@ test "compiled schemas resolve local JSON Pointer references" {
       "$ref": Json::string("#/$defs/name"),
     }),
   )
-  let schema = document.compile()
   assert_true(schema.validate(Json::string("MoonBit")).valid)
   assert_false(schema.validate(Json::number(1.0)).valid)
 }
 
 ///|
-test "network references are rejected during compilation" {
+test "network references are rejected during schema from_json" {
   try
     ignore(
-      Document::Document(
+      Schema::from_json(
         Json::object({ "$ref": Json::string("https://example.com/schema.json") }),
-      ).compile(),
+      ),
     )
   catch {
     InvalidSchema(_) => ()
@@ -90,8 +89,8 @@ test "network references are rejected during compilation" {
 
 ///|
 test "boolean schemas retain JSON Schema semantics" {
-  let always_valid = Document::Document(Json::boolean(true)).compile()
-  let never_valid = Document::Document(Json::boolean(false)).compile()
+  let always_valid = Schema::from_json(Json::boolean(true))
+  let never_valid = Schema::from_json(Json::boolean(false))
   assert_true(always_valid.validate(Json::string("ok")).valid)
   assert_false(never_valid.validate(Json::string("ok")).valid)
 }
@@ -143,13 +142,16 @@ test "string constraints are constructed and validated as typed schemas" {
 
 ///|
 test "unsupported keywords are rejected at compile time" {
-  let document = Document::Document(
-    Json::object({
-      "type": Json::string("string"),
-      "pattern": Json::string("^[a-z]+$"),
-    }),
-  )
-  try ignore(document.compile()) catch {
+  try
+    ignore(
+      Schema::from_json(
+        Json::object({
+          "type": Json::string("string"),
+          "pattern": Json::string("^[a-z]+$"),
+        }),
+      ),
+    )
+  catch {
     UnsupportedKeyword("pattern") => ()
     _ => fail("pattern must be reported as unsupported")
   } noraise {
@@ -191,8 +193,7 @@ test "document compilation rejects malformed supported keywords" {
     Json::object({ "$dynamicRef": Json::string("#/$defs/value") }),
   ]
   for value in invalid_schemas {
-    let document = Document::Document(value)
-    try ignore(document.compile()) catch {
+    try ignore(Schema::from_json(value)) catch {
       InvalidSchema(_) | UnsupportedKeyword(_) => ()
       _ => fail("malformed schema keyword must be rejected")
     } noraise {
@@ -203,20 +204,19 @@ test "document compilation rejects malformed supported keywords" {
 
 ///|
 test "instance data is not mistaken for a schema" {
-  let document = Document::Document(
+  let schema = Schema::from_json(
     Json::object({
       "const": Json::object({ "pattern": Json::string("literal") }),
     }),
   )
-  let compiled = document.compile()
   assert_true(
-    compiled.validate(Json::object({ "pattern": Json::string("literal") })).valid,
+    schema.validate(Json::object({ "pattern": Json::string("literal") })).valid,
   )
 }
 
 ///|
 test "array, object, and multipleOf constraints are evaluated" {
-  let document = Document::Document(
+  let schema = Schema::from_json(
     Json::object({
       "type": Json::string("object"),
       "minProperties": Json::number(1.0),
@@ -234,12 +234,11 @@ test "array, object, and multipleOf constraints are evaluated" {
       }),
     }),
   )
-  let compiled = document.compile()
   assert_true(
-    compiled.validate(Json::object({ "values": [2.0, 4.0].to_json() })).valid,
+    schema.validate(Json::object({ "values": [2.0, 4.0].to_json() })).valid,
   )
   assert_false(
-    compiled.validate(Json::object({ "values": [2.0, 3.0].to_json() })).valid,
+    schema.validate(Json::object({ "values": [2.0, 3.0].to_json() })).valid,
   )
 }
 

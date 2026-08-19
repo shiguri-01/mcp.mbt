@@ -245,7 +245,7 @@ pub fn ElicitationCreateResult::from_json(Map[String, Json], Json) -> Self raise
 
 pub(all) enum ElicitationMode {
   Url(String)
-  Form(requested_schema~ : Json, properties~ : Map[String, ElicitationPrimitiveSchema], compiled_schema~ : @schema.CompiledSchema)
+  Form(requested_schema~ : Json, properties~ : Map[String, ElicitationPrimitiveSchema], compiled_schema~ : @schema.Schema)
 } derive(@debug.Debug)
 
 pub struct ElicitationPrimitiveSchema {

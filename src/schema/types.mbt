@@ -374,7 +374,7 @@ impl SchemaNode for ArraySchema with fn validate(
   depth~ : Int,
   ctx~ : ValidationContext,
 ) -> Unit {
-  if depth > ctx.options.max_depth {
+  if depth > ctx.max_depth {
     ctx.push_error(path, "validation exceeded max_depth")
     return
   }
@@ -480,7 +480,7 @@ impl SchemaNode for ObjectSchema with fn validate(
   depth~ : Int,
   ctx~ : ValidationContext,
 ) -> Unit {
-  if depth > ctx.options.max_depth {
+  if depth > ctx.max_depth {
     ctx.push_error(path, "validation exceeded max_depth")
     return
   }
@@ -691,7 +691,7 @@ impl SchemaNode for AnyOfSchema with fn validate(
   for child in self.values {
     let sub_ctx : ValidationContext = {
       defs: ctx.defs,
-      options: ctx.options,
+      max_depth: ctx.max_depth,
       errors: [],
     }
     child.node.validate(instance, path~, depth=depth + 1, ctx=sub_ctx)
@@ -743,7 +743,7 @@ impl SchemaNode for OneOfSchema with fn validate(
   for child in self.values {
     let sub_ctx : ValidationContext = {
       defs: ctx.defs,
-      options: ctx.options,
+      max_depth: ctx.max_depth,
       errors: [],
     }
     child.node.validate(instance, path~, depth=depth + 1, ctx=sub_ctx)
@@ -785,7 +785,7 @@ impl SchemaNode for NotSchema with fn validate(
 ) -> Unit {
   let sub_ctx : ValidationContext = {
     defs: ctx.defs,
-    options: ctx.options,
+    max_depth: ctx.max_depth,
     errors: [],
   }
   self.value.node.validate(instance, path~, depth=depth + 1, ctx=sub_ctx)
@@ -827,7 +827,7 @@ impl SchemaNode for RefSchema with fn validate(
   depth~ : Int,
   ctx~ : ValidationContext,
 ) -> Unit {
-  if depth > ctx.options.max_depth {
+  if depth > ctx.max_depth {
     ctx.push_error(path, "validation exceeded max_depth")
     return
   }
@@ -846,8 +846,8 @@ priv struct RawSchema {
 
 ///|
 fn RawSchema::RawSchema(value : Json) -> RawSchema raise SchemaError {
-  ignore(Document::Document(value))
-  let parsed = parse_schema_json(value)
+  validate_document_syntax(value)
+  let parsed = parse_schema_json(value) catch { _ => Schema::always() }
   { value, parsed }
 }
 

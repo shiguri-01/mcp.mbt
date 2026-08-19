@@ -109,7 +109,7 @@ pub fn Tool::Tool(
   icons? : Array[Icon] = [],
   meta? : Map[String, Json] = {},
 ) -> Tool raise McpError {
-  let _ = @schema.Document(input_schema) catch {
+  let _ = @schema.Schema::raw(input_schema) catch {
     _ =>
       raise InvalidParams(
         "tool inputSchema is not a valid JSON Schema document",
@@ -122,7 +122,7 @@ pub fn Tool::Tool(
     raise InvalidParams("tool inputSchema root type must be \"object\"")
   }
   if output_schema is Some(schema) {
-    let _ = @schema.Document(schema) catch {
+    let _ = @schema.Schema::raw(schema) catch {
       _ =>
         raise InvalidParams(
           "tool outputSchema is not a valid JSON Schema document",

@@ -25,27 +25,19 @@ pub type RawHandler = async (@mcp.RequestContext, Json) -> @mcp.HandlerOutcome[
 priv struct RegisteredTool {
   tool : @mcp.Tool
   handler : ToolHandler
-  input_validator : @schema.CompiledSchema
-  output_validator : @schema.CompiledSchema?
+  input_validator : @schema.Schema
+  output_validator : @schema.Schema?
 }
 
 ///|
-fn compile_tool_schema(
-  value : Json,
-) -> @schema.CompiledSchema raise @mcp.McpError {
-  let document = @schema.Document(value) catch {
-    _ => raise @mcp.InvalidParams("invalid JSON Schema document")
-  }
-  document.compile() catch {
+fn compile_tool_schema(value : Json) -> @schema.Schema raise @mcp.McpError {
+  @schema.Schema::from_json(value) catch {
     _ => raise @mcp.InvalidParams("invalid JSON Schema document")
   }
 }
 
 ///|
-fn schema_validation_error(
-  validator : @schema.CompiledSchema,
-  value : Json,
-) -> String? {
+fn schema_validation_error(validator : @schema.Schema, value : Json) -> String? {
   let result = validator.validate(value)
   if result.valid {
     None

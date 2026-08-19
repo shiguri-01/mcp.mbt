@@ -25,31 +25,9 @@ pub suberror SchemaError {
 pub impl Show for SchemaError
 
 // Types and methods
-pub struct CompileOptions {
-  max_depth : Int
-  max_nodes : Int
-} derive(Eq, @debug.Debug)
-pub fn CompileOptions::CompileOptions(max_depth? : Int, max_nodes? : Int) -> Self raise SchemaError
-pub fn CompileOptions::default() -> Self
-
-pub struct CompiledSchema {
-  document : Document
-  options : CompileOptions
-  root : Schema
-  defs : Map[String, Schema]
-} derive(Eq, @debug.Debug)
-pub fn CompiledSchema::validate(Self, Json) -> ValidationResult
-
-pub struct Document {
-  value : Json
-  dialect : String
-} derive(Eq, @debug.Debug)
-pub fn Document::Document(Json) -> Self raise SchemaError
-pub fn Document::compile(Self, options? : CompileOptions) -> CompiledSchema raise SchemaError
-pub impl ToJson for Document
-
 pub struct Schema {
   node : &SchemaNode
+  defs : Map[String, Schema]
 }
 pub fn Schema::all_of(Array[Self], description? : String) -> Self
 pub fn Schema::always() -> Self
@@ -58,9 +36,8 @@ pub fn Schema::array(items? : Self, min_items? : Int, max_items? : Int, unique_i
 pub fn Schema::bool_type(description? : String) -> Self
 pub fn Schema::boolean(Bool) -> Self
 pub fn[T : ToJson] Schema::constant(T, description? : String) -> Self
-pub fn Schema::document(Self) -> Document raise SchemaError
 pub fn[T : ToJson] Schema::enumeration(Array[T], description? : String) -> Self raise SchemaError
-pub fn Schema::from_json(Json, options? : CompileOptions) -> Self raise SchemaError
+pub fn Schema::from_json(Json, max_depth? : Int, max_nodes? : Int) -> Self raise SchemaError
 pub fn Schema::integer(minimum? : Int, maximum? : Int, description? : String) -> Self raise SchemaError
 pub fn Schema::never() -> Self
 pub fn Schema::not(Self, description? : String) -> Self
@@ -72,7 +49,7 @@ pub fn Schema::raw(Json) -> Self raise SchemaError
 pub fn Schema::ref_(String, description? : String) -> Self raise SchemaError
 pub fn Schema::string(min_length? : Int, max_length? : Int, description? : String) -> Self raise SchemaError
 pub fn Schema::to_json(Self) -> Json
-pub fn Schema::validate(Self, Json, options? : CompileOptions) -> ValidationResult
+pub fn Schema::validate(Self, Json, max_depth? : Int) -> ValidationResult
 pub impl Eq for Schema
 pub impl Show for Schema
 pub impl ToJson for Schema
@@ -80,7 +57,7 @@ pub impl @debug.Debug for Schema
 
 pub struct ValidationContext {
   defs : Map[String, Schema]
-  options : CompileOptions
+  max_depth : Int
   errors : Array[ValidationError]
 }
 pub fn ValidationContext::push_error(Self, @json.JsonPath, String) -> Unit

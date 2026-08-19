@@ -1,93 +1,4 @@
 ///|
-/// A JSON Schema document owned by the schema package.
-///
-/// `Document` performs document-level checks only. It does not validate an
-/// instance and it never resolves a network reference. The JSON value is
-/// retained so `$id`, `$ref`, `$defs`, and extension vocabularies are not
-/// silently discarded.
-pub struct Document {
-  value : Json
-  dialect : String
-} derive(Debug, Eq)
-
-///|
-pub impl ToJson for Document with fn to_json(self) -> Json {
-  self.value
-}
-
-///|
-pub fn Document::Document(value : Json) -> Document raise SchemaError {
-  if value is (True | False) {
-    return { value, dialect: draft_2020_12 }
-  }
-  guard value is Object(fields) else {
-    raise InvalidDocument("a JSON Schema document must be an object or boolean")
-  }
-  let dialect = match fields.get("$schema") {
-    Some(String(value)) if value == draft_2020_12 => value
-    Some(String(value)) => raise UnsupportedDialect(value)
-    Some(_) => raise InvalidDocument("$schema must be a string")
-    None => draft_2020_12
-  }
-  if fields.get("$id") is Some(id) && !(id is String(_)) {
-    raise InvalidDocument("$id must be a string")
-  }
-  if fields.get("$ref") is Some(reference) && !(reference is String(_)) {
-    raise InvalidDocument("$ref must be a string")
-  }
-  validate_references(value, 0, 128)
-  { value, dialect }
-}
-
-///|
-pub struct CompileOptions {
-  max_depth : Int
-  max_nodes : Int
-} derive(Debug, Eq)
-
-///|
-pub fn CompileOptions::CompileOptions(
-  max_depth? : Int = 128,
-  max_nodes? : Int = 10000,
-) -> CompileOptions raise SchemaError {
-  if max_depth <= 0 || max_nodes <= 0 {
-    raise InvalidSchema("schema compilation limits must be positive")
-  }
-  { max_depth, max_nodes }
-}
-
-///|
-pub fn CompileOptions::default() -> CompileOptions {
-  try! CompileOptions()
-}
-
-///|
-pub struct CompiledSchema {
-  document : Document
-  options : CompileOptions
-  root : Schema
-  defs : Map[String, Schema]
-} derive(Debug, Eq)
-
-///|
-pub fn Document::compile(
-  self : Document,
-  options? : CompileOptions = CompileOptions::default(),
-) -> CompiledSchema raise SchemaError {
-  let nodes = count_schema_nodes(self.value, 0, options.max_depth)
-  if nodes > options.max_nodes {
-    raise InvalidSchema("schema exceeds max_nodes")
-  }
-  validate_references(self.value, 0, options.max_depth)
-  validate_supported_keywords(self.value, 0, options.max_depth)
-  validate_keyword_shapes(self.value, 0, options.max_depth)
-  let defs : Map[String, Schema] = Map([])
-  collect_definitions(self.value, defs, "#", 0, options.max_depth)
-  let root = parse_schema_json(self.value)
-  { document: self, options, root, defs }
-}
-
-///|
 /// A validation failure describing the path in the JSON instance and the reason.
 pub struct ValidationError {
   path : @json.JsonPath
@@ -127,7 +38,7 @@ pub struct ValidationResult {
 ///|
 pub struct ValidationContext {
   defs : Map[String, Schema]
-  options : CompileOptions
+  max_depth : Int
   errors : Array[ValidationError]
 }
 
@@ -160,17 +71,42 @@ fn root_json_path() -> @json.JsonPath {
 }
 
 ///|
-pub fn CompiledSchema::validate(
-  self : CompiledSchema,
-  instance : Json,
-) -> ValidationResult {
-  let ctx : ValidationContext = {
-    defs: self.defs,
-    options: self.options,
-    errors: [],
+fn validate_document_syntax(value : Json) -> Unit raise SchemaError {
+  if value is (True | False) {
+    return
   }
-  self.root.node.validate(instance, path=root_json_path(), depth=0, ctx~)
-  { valid: ctx.errors.is_empty(), errors: ctx.errors }
+  guard value is Object(fields) else {
+    raise InvalidDocument("a JSON Schema document must be an object or boolean")
+  }
+  match fields.get("$schema") {
+    Some(String(dialect)) if dialect == DRAFT_2020_12 => ()
+    Some(String(dialect)) => raise UnsupportedDialect(dialect)
+    Some(_) => raise InvalidDocument("$schema must be a string")
+    None => ()
+  }
+  if fields.get("$id") is Some(id) && !(id is String(_)) {
+    raise InvalidDocument("$id must be a string")
+  }
+  if fields.get("$ref") is Some(reference) && !(reference is String(_)) {
+    raise InvalidDocument("$ref must be a string")
+  }
+  validate_references(value, 0, 128)
+}
+
+///|
+fn validate_document_compilation(
+  value : Json,
+  max_depth : Int,
+  max_nodes : Int,
+) -> Unit raise SchemaError {
+  validate_document_syntax(value)
+  let nodes = count_schema_nodes(value, 0, max_depth)
+  if nodes > max_nodes {
+    raise InvalidSchema("schema exceeds max_nodes")
+  }
+  validate_references(value, 0, max_depth)
+  validate_supported_keywords(value, 0, max_depth)
+  validate_keyword_shapes(value, 0, max_depth)
 }
 
 ///|

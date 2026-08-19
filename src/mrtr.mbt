@@ -419,7 +419,7 @@ pub(all) enum ElicitationMode {
   Form(
     requested_schema~ : Json,
     properties~ : Map[String, ElicitationPrimitiveSchema],
-    compiled_schema~ : @schema.CompiledSchema
+    compiled_schema~ : @schema.Schema
   )
 } derive(Debug)
 
@@ -780,12 +780,9 @@ pub fn InputRequiredResult::retry_options(
 
 ///|
 /// Compile an MRTR request schema through the independent JSON Schema package.
-fn compile_mrtr_schema(value : Json) -> @schema.CompiledSchema raise McpError {
-  let document = @schema.Document(value) catch {
+fn compile_mrtr_schema(value : Json) -> @schema.Schema raise McpError {
+  @schema.Schema::from_json(value) catch {
     _ => raise InvalidParams("MRTR requestedSchema is not a valid JSON Schema")
-  }
-  document.compile() catch {
-    _ => raise InvalidParams("MRTR requestedSchema is not compilable")
   }
 }
 

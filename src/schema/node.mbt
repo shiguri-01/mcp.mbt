@@ -15,6 +15,7 @@ pub trait SchemaNode: ToJson + @debug.Debug {
 /// A first-class JSON Schema value wrapping any JSON Schema construct.
 pub struct Schema {
   node : &SchemaNode
+  defs : Map[String, Schema]
 }
 
 ///|
@@ -43,39 +44,40 @@ pub fn Schema::to_json(self : Schema) -> Json {
 }
 
 ///|
-pub fn Schema::document(self : Schema) -> Document raise SchemaError {
-  Document::Document(self.to_json())
-}
-
-///|
+/// Parse a JSON value as a JSON Schema document (Draft 2020-12).
 pub fn Schema::from_json(
   value : Json,
-  options? : CompileOptions = CompileOptions::default(),
+  max_depth? : Int = 128,
+  max_nodes? : Int = 10000,
 ) -> Schema raise SchemaError {
-  let doc = Document::Document(value)
-  let compiled = doc.compile(options~)
-  compiled.root
+  if max_depth <= 0 || max_nodes <= 0 {
+    raise InvalidSchema("schema compilation limits must be positive")
+  }
+  validate_document_compilation(value, max_depth, max_nodes)
+  let defs : Map[String, Schema] = Map([])
+  collect_definitions(value, defs, "#", 0, max_depth)
+  let parsed = parse_schema_json(value)
+  { node: parsed.node, defs }
 }
 
 ///|
+/// Validate a JSON instance against this schema.
 pub fn Schema::validate(
   self : Schema,
   instance : Json,
-  options? : CompileOptions = CompileOptions::default(),
+  max_depth? : Int = 128,
 ) -> ValidationResult {
-  let doc_val = self.to_json()
-  let defs : Map[String, Schema] = Map([])
-  let _ = collect_definitions(doc_val, defs, "#", 0, options.max_depth) catch {
-    _ => ()
-  }
-  let ctx : ValidationContext = { defs, options, errors: [] }
+  let ctx : ValidationContext = { defs: self.defs, max_depth, errors: [] }
   self.node.validate(instance, path=root_json_path(), depth=0, ctx~)
   { valid: ctx.errors.is_empty(), errors: ctx.errors }
 }
 
 ///|
-fn[T : SchemaNode] Schema::from_node(node : T) -> Schema {
-  { node, }
+fn[T : SchemaNode] Schema::from_node(
+  node : T,
+  defs? : Map[String, Schema] = {},
+) -> Schema {
+  { node, defs }
 }
 
 ///|
