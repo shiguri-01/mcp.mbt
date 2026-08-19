@@ -36,8 +36,7 @@ pub fn Schema::all_of(Array[Self], description? : String) -> Self
 pub fn Schema::always() -> Self
 pub fn Schema::any_of(Array[Self], description? : String) -> Self raise SchemaError
 pub fn Schema::array(items? : Self, min_items? : Int, max_items? : Int, unique_items? : Bool, description? : String) -> Self raise SchemaError
-pub fn Schema::bool_type(description? : String) -> Self
-pub fn Schema::boolean(Bool) -> Self
+pub fn Schema::boolean(description? : String) -> Self
 pub fn[T : ToJson] Schema::constant(T, description? : String) -> Self
 pub fn[T : ToJson] Schema::enumeration(Array[T], description? : String) -> Self raise SchemaError
 pub fn Schema::from_json(Json, max_depth? : Int, max_nodes? : Int) -> Self raise SchemaError

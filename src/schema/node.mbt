@@ -84,36 +84,26 @@ fn[T : SchemaNode] Schema::from_node(
 }
 
 ///|
-/// Create a boolean schema (`true` or `false`).
-pub fn Schema::boolean(value : Bool) -> Schema {
-  if value {
-    Schema::from_node(BooleanSchema::always())
-  } else {
-    Schema::from_node(BooleanSchema::never())
-  }
-}
-
-///|
-/// A boolean schema that always passes validation (`true`).
+/// A boolean JSON schema that always passes validation (`true`).
 pub fn Schema::always() -> Schema {
   Schema::from_node(BooleanSchema::always())
 }
 
 ///|
-/// A boolean schema that always fails validation (`false`).
+/// A boolean JSON schema that always fails validation (`false`).
 pub fn Schema::never() -> Schema {
   Schema::from_node(BooleanSchema::never())
 }
 
 ///|
-/// A `null` type schema.
+/// A `null` type schema (`type: "null"`).
 pub fn Schema::null(description? : String) -> Schema {
   Schema::from_node(NullSchema(description?))
 }
 
 ///|
-/// A `boolean` type schema (`type: "boolean"`).
-pub fn Schema::bool_type(description? : String) -> Schema {
+/// A `boolean` primitive type schema (`type: "boolean"`).
+pub fn Schema::boolean(description? : String) -> Schema {
   Schema::from_node(BoolTypeSchema(description?))
 }
 

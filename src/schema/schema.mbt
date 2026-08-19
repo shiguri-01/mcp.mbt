@@ -39,7 +39,7 @@ pub impl JsonSchema for String with fn json_schema() -> Schema {
 
 ///|
 pub impl JsonSchema for Bool with fn json_schema() -> Schema {
-  Schema::bool_type()
+  Schema::boolean()
 }
 
 ///|
