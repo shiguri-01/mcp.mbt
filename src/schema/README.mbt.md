@@ -1,53 +1,35 @@
 # shiguri-01/mcp/schema
 
-Typed JSON Schema (Draft 2020-12) construction, bounded instance validation, and typed decoding.
-The package is independent of MCP and can be used for any JSON Schema validation and decoding workflow.
+Typed JSON Schema (Draft 2020-12) builder, validator, and decoder.
 
-## Defining a Typed Schema
+## Defining Schemas
 
-Use factory methods on `Schema` to build schemas programmatically:
-
-```mbt nocheck
+```moonbit nocheck
 ///|
-struct HelloInput {
+struct UserInput {
   name : String
-} derive(FromJson)
+  age : Int?
+} derive(@json.FromJson, ToJson)
 
 ///|
-impl @schema.JsonSchema for HelloInput with fn json_schema() -> @schema.Schema {
+impl @schema.JsonSchema for UserInput with fn json_schema() {
   @schema.Schema::object(
     properties={
-      "name": @schema.Schema::string(min_length=1, description="Name to greet"),
+      "name": @schema.Schema::string(min_length=1),
+      "age": @schema.Schema::integer(minimum=0),
     },
     required=["name"],
   )
 }
 ```
 
-## Validating and Decoding JSON
+## Validating & Decoding
 
-Validate raw JSON directly or decode it into a typed struct in a single step:
+```moonbit nocheck
+// Validate & decode JSON into typed struct in one step
+let input : UserInput = try! @schema.decode(json)
 
-```mbt nocheck
-// 1. Direct schema validation
+// Direct instance validation
 let schema = @schema.Schema::string(min_length=3)
-try {
-  schema.validate(Json::string("hello"))
-  println("Valid JSON!")
-} catch {
-  ValidationIssues(issues) => println("Validation failed: \{issues}")
-}
-
-// 2. Typed validation & decoding
-let input_json = Json::object({ "name": Json::string("Alice") })
-try {
-  let input : HelloInput = @schema.decode(input_json)
-  println("Hello, \{input.name}!")
-} catch {
-  ValidationIssues(issues) => println("Validation failed: \{issues}")
-  _ => println("Other error")
-}
-
-// 3. Parsing schema from JSON Schema JSON
-let parsed_schema = @schema.Schema::from_json(json_schema_definition)
+try! schema.validate(Json::string("hello"))
 ```

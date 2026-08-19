@@ -1,121 +1,77 @@
 # shiguri-01/mcp
 
-An ergonomic MoonBit SDK for the
-[MCP 2026-07-28 specification](https://modelcontextprotocol.io/specification/2026-07-28).
-It provides typed async server handlers, request-scoped metadata, multi-round
-trip results, modern discovery, and native stdio and Streamable HTTP transports.
+An ergonomic MoonBit SDK for the [Model Context Protocol (2026-07-28)](https://modelcontextprotocol.io/specification/2026-07-28).
 
-## Install
+## Server
 
-```bash
-moon add shiguri-01/mcp
-```
+Define typed inputs with `@schema.JsonSchema` and `@json.FromJson`, register them on `@server.ServerBuilder`, and serve over standard I/O or Streamable HTTP.
 
-## Quick start
-
-Define a typed async tool. `JsonSchema` advertises its arguments and `FromJson`
-decodes each call before your handler runs.
-
-```mbt check
-///|
+```moonbit
 struct GreetInput {
   name : String
-} derive(FromJson)
+} derive(@json.FromJson, ToJson)
 
-///|
 impl @schema.JsonSchema for GreetInput with fn json_schema() {
-  @schema.object([@schema.string(name="name", required=true)])
+  @schema.Schema::object(
+    properties={ "name": @schema.Schema::string(min_length=1) },
+    required=["name"],
+  )
 }
 
-///|
-async test "discover and call a typed tool" {
+async fn main {
   let builder = try! @server.ServerBuilder(name="greeter", version="1.0.0")
-  try! builder.tool(
-    name="greet",
-    description="Greet someone by name",
-    fn(_context, input : GreetInput) -> @mcp.HandlerOutcome[@mcp.CallToolResult] {
-      @mcp.Complete(@mcp.CallToolResult::text("Hello, \{input.name}!"))
-    },
-  )
-  let server = builder.build()
+  try! builder.tool(name="greet", fn(_ctx, input : GreetInput) {
+    @mcp.Complete(@mcp.CallToolResult::text("Hello, \{input.name}!"))
+  })
 
-  let client = try! @client.Client(
-    name="example-client",
-    version="1.0.0",
-    transport=@client.NoopTransport(),
-  )
-  let discover_response = server.handle_jsonrpc(client.discover_request())
-  guard discover_response is Some(discover_response) else {
-    fail("server/discover returned no response")
-  }
-  let discovered = try! client.decode_discover(discover_response)
-  assert_true(discovered.supported_versions.length() > 0)
-
-  let call_response = server.handle_jsonrpc(
-    try! client.call_tool_request(
-      name="greet",
-      arguments=Json::object({ "name": Json::string("MoonBit") }),
-    ),
-  )
-  guard call_response is Some(call_response) else {
-    fail("tools/call returned no response")
-  }
-  guard (try! client.decode_response(call_response))
-    is @mcp.HandlerOutcome::Complete(raw_result) else {
-    fail("tool requested more input")
-  }
-  let result = try! @mcp.decode_call_tool_result(raw_result)
-  guard result.content is [@mcp.TextContent(text=greeting, ..)] else {
-    fail("expected text tool result")
-  }
-  assert_eq(greeting, "Hello, MoonBit!")
+  // Stdio transport
+  @stdio.serve(builder.build())
 }
 ```
 
-For a standalone native server, register the same tool and pass the server to
-`@mcp_stdio.serve`. See `src/examples/stdio-server` for the complete program.
+## Client
 
-Tool schemas are compiled when registered. Calls are checked against
-`inputSchema` before the handler runs, and successful structured results are
-checked against `outputSchema`; remote `$ref` fetching is deliberately disabled.
-Compound schemas use one processing dialect; a resource that selects a different
-dialect fails registration. The typed builder supports JSON Schema string
-length bounds. A `pattern` keyword supplied through `Schema::raw` is rejected
-by compilation until a compatible regular-expression evaluator is available;
-it is never silently ignored.
-Resource templates require a handler and expose captured simple `{variable}`
-expressions, so every advertised template is readable.
+Connect to a server and call tools, read resources, or fetch prompts:
+
+```moonbit
+async fn main {
+  @async.with_task_group(async fn(group) {
+    let transport = try! @stdio.Transport(group, "path/to/server")
+    let client = try! @client.Client(name="client", version="1.0.0", transport~)
+
+    match client.call_tool(name="greet", arguments={ "name": "MoonBit" }) {
+      Complete(res) => println(res.content)
+      InputRequired(pending) => ... // Handle multi-round interactive requests
+      ExtensionResult(kind, val) => ...
+    }
+
+    transport.shutdown()
+  })
+}
+```
 
 ## Packages
 
-- `shiguri-01/mcp`: canonical protocol types, result envelopes, content models,
-  pagination, and wire codecs.
-- `shiguri-01/mcp/server`: typed server dispatch, handler registration,
-  MRTR coordination, and framed session runtime.
-- `shiguri-01/mcp/client`: client request builders, discovery, response decoding,
-  MRTR resolution loop, and subscription state tracker.
-- `shiguri-01/mcp/schema`: JSON Schema builders for typed tool inputs.
-- `shiguri-01/mcp/auth`: native MCP Authorization discovery, PKCE,
-  registration, token, issuer, scope, and resource-binding primitives.
-- `shiguri-01/mcp/stdio`: native newline-delimited JSON-RPC transport.
-- `shiguri-01/mcp/http`: native Streamable HTTP transport with optional MCP
-  Authorization orchestration.
-
-Transport clients return these canonical root-package types from their normal
-verbs: `ListToolsResult`, `ListResourcesResult`,
-`ListResourceTemplatesResult`, `ListPromptsResult`, `CallToolResult`,
-`ReadResourceResult`, `GetPromptResult`, and `CompleteResult`. Each transport
-also exposes a matching `*_raw` verb, while `@client.Client::request` remains the
-lowest-level escape hatch for protocol extensions.
-
-See [`docs/design-2026-07-28.md`](docs/design-2026-07-28.md) for the protocol
-model, validation rules, transport behavior, and verification strategy.
+| Package | Description |
+|---|---|
+| [`shiguri-01/mcp`](./src) | Core protocol types, content models, and error definitions (`McpError`) |
+| [`shiguri-01/mcp/server`](./src/server) | Typed server builder, dispatching, and session management |
+| [`shiguri-01/mcp/client`](./src/client) | Client runtime, discovery, typed invocation, and MRTR resolution |
+| [`shiguri-01/mcp/schema`](./src/schema) | JSON Schema (Draft 2020-12) builder, validator, and typed decoder |
+| [`shiguri-01/mcp/stdio`](./src/stdio) | Stdio transport (server runner & subprocess client) |
+| [`shiguri-01/mcp/http`](./src/http) | Streamable HTTP transport (SSE progress/subscriptions & OAuth 2.0) |
+| [`shiguri-01/mcp/auth`](./src/auth) | Native MCP Authorization (RFC 9728, PKCE S256, token caching) |
+| [`shiguri-01/mcp/jsonrpc`](./src/jsonrpc) | Low-level JSON-RPC 2.0 wire envelopes and parser |
 
 ## Examples
 
 ```bash
-moon run --target native src/examples/stdio-server
-moon run --target native src/examples/stdio-client
+# Stdio Server & Client
+moon build --target native src/examples/stdio-server
+MCP_STDIO_SERVER="$PWD/_build/native/debug/build/examples/stdio-server/stdio-server" \
+  moon run --target native src/examples/stdio-client
+
+# HTTP Server & Client
 moon run --target native src/examples/http-server
 moon run --target native src/examples/http-client
 ```
