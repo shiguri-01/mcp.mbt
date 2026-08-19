@@ -36,14 +36,14 @@ pub struct ValidationResult {
 } derive(Debug, Eq)
 
 ///|
-pub struct ValidationContext {
+priv struct ValidationContext {
   defs : Map[String, Schema]
   max_depth : Int
   errors : Array[ValidationError]
 }
 
 ///|
-pub fn ValidationContext::push_error(
+fn ValidationContext::push_error(
   self : ValidationContext,
   path : @json.JsonPath,
   message : String,

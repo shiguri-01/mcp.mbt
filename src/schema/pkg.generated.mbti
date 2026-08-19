@@ -24,8 +24,7 @@ pub impl Show for SchemaError
 
 // Types and methods
 pub struct Schema {
-  node : &SchemaNode
-  defs : Map[String, Schema]
+  // private fields
 }
 pub fn Schema::all_of(Array[Self], description? : String) -> Self
 pub fn Schema::always() -> Self
@@ -52,13 +51,6 @@ pub impl Eq for Schema
 pub impl Show for Schema
 pub impl ToJson for Schema
 pub impl @debug.Debug for Schema
-
-pub struct ValidationContext {
-  defs : Map[String, Schema]
-  max_depth : Int
-  errors : Array[ValidationError]
-}
-pub fn ValidationContext::push_error(Self, @json.JsonPath, String) -> Unit
 
 pub struct ValidationError {
   path : @json.JsonPath
@@ -87,7 +79,3 @@ pub impl JsonSchema for String
 pub impl[T : JsonSchema] JsonSchema for T?
 pub impl[T : JsonSchema] JsonSchema for Array[T]
 pub impl JsonSchema for Json
-
-pub trait SchemaNode : ToJson + @debug.Debug {
-  fn validate(Self, Json, path~ : @json.JsonPath, depth~ : Int, ctx~ : ValidationContext) -> Unit
-}

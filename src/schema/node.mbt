@@ -1,7 +1,7 @@
 ///|
 /// A trait representing a JSON Schema (Draft 2020-12) node.
 /// Sealed to this package to prevent external invalid schema nodes.
-pub trait SchemaNode: ToJson + @debug.Debug {
+priv trait SchemaNode: ToJson + @debug.Debug {
   fn validate(
     Self,
     instance : Json,
@@ -14,8 +14,8 @@ pub trait SchemaNode: ToJson + @debug.Debug {
 ///|
 /// A first-class JSON Schema value wrapping any JSON Schema construct.
 pub struct Schema {
-  node : &SchemaNode
-  defs : Map[String, Schema]
+  priv node : &SchemaNode
+  priv defs : Map[String, Schema]
 }
 
 ///|
