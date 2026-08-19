@@ -53,8 +53,6 @@ pub fn subscriptions_acknowledged_notification(subscription_id~ : Json, notifica
 
 pub fn success_response(@jsonrpc.RequestId, Json) -> Json
 
-pub fn success_response_from_json_id(Json, Json) -> Json raise McpError
-
 pub fn tools_list_changed_notification(subscription_id~ : Json) -> Json
 
 // Errors
@@ -235,13 +233,17 @@ pub struct ElicitationCreateParams {
   message : String
   mode : ElicitationMode
 } derive(@debug.Debug)
-pub fn ElicitationCreateParams::from_json(Map[String, Json]) -> Self raise McpError
+pub fn ElicitationCreateParams::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
+pub impl @json.FromJson for ElicitationCreateParams
 
 pub struct ElicitationCreateResult {
   action : ElicitationAction
   content : Json?
 } derive(Eq, @debug.Debug)
-pub fn ElicitationCreateResult::from_json(Map[String, Json], Json) -> Self raise McpError
+pub fn ElicitationCreateResult::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
+pub fn ElicitationCreateResult::validate_against_request(Self, Json) -> Unit raise McpError
+pub impl ToJson for ElicitationCreateResult
+pub impl @json.FromJson for ElicitationCreateResult
 
 pub(all) enum ElicitationMode {
   Url(String)
@@ -252,7 +254,8 @@ pub struct ElicitationPrimitiveSchema {
   schema_type : ElicitationPrimitiveType
   raw : Json
 } derive(Eq, @debug.Debug)
-pub fn ElicitationPrimitiveSchema::from_json(Json) -> Self raise McpError
+pub fn ElicitationPrimitiveSchema::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
+pub impl @json.FromJson for ElicitationPrimitiveSchema
 
 pub(all) enum ElicitationPrimitiveType {
   String
@@ -619,8 +622,9 @@ pub struct Root {
   uri : String
   name : String?
 } derive(Eq, @debug.Debug)
-pub fn Root::from_json(Json) -> Self raise McpError
+pub fn Root::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
 pub impl ToJson for Root
+pub impl @json.FromJson for Root
 
 pub struct RootsCapability {
   list_changed : Bool?
@@ -633,8 +637,9 @@ pub impl @json.FromJson for RootsCapability
 pub struct RootsListResult {
   roots : Array[Root]
 } derive(Eq, @debug.Debug)
-pub fn RootsListResult::from_json(Map[String, Json]) -> Self raise McpError
+pub fn RootsListResult::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
 pub impl ToJson for RootsListResult
+pub impl @json.FromJson for RootsListResult
 
 pub struct SamplingCapability {
 } derive(Eq, @debug.Debug)
@@ -666,14 +671,16 @@ pub struct SamplingCreateMessageParams {
   messages : Array[SamplingMessage]
   max_tokens : Double
 } derive(Eq, @debug.Debug)
-pub fn SamplingCreateMessageParams::from_json(Map[String, Json]) -> Self raise McpError
+pub fn SamplingCreateMessageParams::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
+pub impl @json.FromJson for SamplingCreateMessageParams
 
 pub struct SamplingCreateMessageResult {
   model : String
   role : Role
   content : SamplingContent
 } derive(Eq, @debug.Debug)
-pub fn SamplingCreateMessageResult::from_json(Map[String, Json]) -> Self raise McpError
+pub fn SamplingCreateMessageResult::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
+pub impl @json.FromJson for SamplingCreateMessageResult
 
 pub struct SamplingMessage {
   role : Role

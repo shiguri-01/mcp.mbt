@@ -11,10 +11,10 @@ pub fn InputRequest::InputRequest(
   method_name~ : String,
   params? : Json = Json::object({}),
 ) -> InputRequest raise McpError {
-  guard params is Object(fields) else {
+  guard params is Object(_) else {
     raise InvalidParams("input request params must be an object")
   }
-  validate_core_input_request(method_name, fields)
+  validate_core_input_request(method_name, params)
   { method_name, params }
 }
 
@@ -277,24 +277,52 @@ pub struct SamplingCreateMessageParams {
 } derive(Debug, Eq)
 
 ///|
-pub fn SamplingCreateMessageParams::from_json(
-  fields : Map[String, Json],
-) -> SamplingCreateMessageParams raise McpError {
-  match fields {
-    { "messages": Array(messages_arr), "maxTokens": Number(max_tokens, ..), .. } => {
+pub impl @json.FromJson for SamplingCreateMessageParams with fn from_json(
+  value : Json,
+  path : @json.JsonPath,
+) -> SamplingCreateMessageParams raise {
+  match value {
+    Object(
+      {
+        "messages": Array(messages_arr),
+        "maxTokens": Number(max_tokens, ..),
+        ..
+      }
+    ) => {
       let messages : Array[SamplingMessage] = []
-      for message_json in messages_arr {
-        messages.push(SamplingMessage::from_json(message_json))
+      for index, message_json in messages_arr {
+        messages.push(
+          @json.from_json(
+            message_json,
+            path=path.add_key("messages").add_index(index),
+          ),
+        )
       }
       { messages, max_tokens }
     }
-    { "messages": Array(_), .. } =>
-      raise InvalidParams("sampling/createMessage params.maxTokens is required")
+    Object({ "messages": Array(_), .. }) =>
+      raise @json.JsonDecodeError(
+        (
+          path.add_key("maxTokens"),
+          "sampling/createMessage params.maxTokens is required",
+        ),
+      )
     _ =>
-      raise InvalidParams(
-        "sampling/createMessage params.messages must be an array",
+      raise @json.JsonDecodeError(
+        (
+          path.add_key("messages"),
+          "sampling/createMessage params.messages must be an array",
+        ),
       )
   }
+}
+
+///|
+pub fn SamplingCreateMessageParams::from_json(
+  value : Json,
+  path? : @json.JsonPath,
+) -> SamplingCreateMessageParams raise McpError {
+  decode_json(value, path?)
 }
 
 ///|
@@ -305,34 +333,60 @@ pub struct SamplingCreateMessageResult {
 } derive(Debug, Eq)
 
 ///|
-pub fn SamplingCreateMessageResult::from_json(
-  fields : Map[String, Json],
-) -> SamplingCreateMessageResult raise McpError {
-  match fields {
-    {
-      "model": String(model),
-      "role": String("user"),
-      "content": content_val,
-      ..
-    } => {
-      let content = SamplingContent::from_json(content_val)
+pub impl @json.FromJson for SamplingCreateMessageResult with fn from_json(
+  value : Json,
+  path : @json.JsonPath,
+) -> SamplingCreateMessageResult raise {
+  match value {
+    Object(
+      {
+        "model": String(model),
+        "role": String("user"),
+        "content": content_val,
+        ..
+      }
+    ) => {
+      let content : SamplingContent = @json.from_json(
+        content_val,
+        path=path.add_key("content"),
+      )
       { model, role: Role::User, content }
     }
-    {
-      "model": String(model),
-      "role": String("assistant"),
-      "content": content_val,
-      ..
-    } => {
-      let content = SamplingContent::from_json(content_val)
+    Object(
+      {
+        "model": String(model),
+        "role": String("assistant"),
+        "content": content_val,
+        ..
+      }
+    ) => {
+      let content : SamplingContent = @json.from_json(
+        content_val,
+        path=path.add_key("content"),
+      )
       { model, role: Role::Assistant, content }
     }
-    { "model": String(_), "role": String("user" | "assistant"), .. } =>
-      raise InvalidParams("sampling response.content is required")
-    { "model": String(_), .. } =>
-      raise InvalidParams("sampling response.role is invalid")
-    _ => raise InvalidParams("sampling response.model is required")
+    Object({ "model": String(_), "role": String("user" | "assistant"), .. }) =>
+      raise @json.JsonDecodeError(
+        (path.add_key("content"), "sampling response.content is required"),
+      )
+    Object({ "model": String(_), .. }) =>
+      raise @json.JsonDecodeError(
+        (path.add_key("role"), "sampling response.role is invalid"),
+      )
+    _ =>
+      raise @json.JsonDecodeError(
+        (path.add_key("model"), "sampling response.model is required"),
+      )
   }
+}
+
+///|
+pub fn SamplingCreateMessageResult::from_json(
+  value : Json,
+  path? : @json.JsonPath,
+) -> SamplingCreateMessageResult raise McpError {
+  decode_json(value, path?)
 }
 
 ///|
@@ -351,9 +405,10 @@ pub struct ElicitationPrimitiveSchema {
 } derive(Debug, Eq)
 
 ///|
-pub fn ElicitationPrimitiveSchema::from_json(
+pub impl @json.FromJson for ElicitationPrimitiveSchema with fn from_json(
   value : Json,
-) -> ElicitationPrimitiveSchema raise McpError {
+  path : @json.JsonPath,
+) -> ElicitationPrimitiveSchema raise {
   match value {
     Object({ "type": String("string"), .. }) =>
       { schema_type: String, raw: value }
@@ -400,17 +455,44 @@ pub fn ElicitationPrimitiveSchema::from_json(
         ..
       }
     ) =>
-      raise InvalidParams("elicitation array schema items require enum options")
+      raise @json.JsonDecodeError(
+        (
+          path.add_key("items"),
+          "elicitation array schema items require enum options",
+        ),
+      )
     Object({ "type": String("array"), "items": Object(_), .. }) =>
-      raise InvalidParams("elicitation array schema items must be strings")
+      raise @json.JsonDecodeError(
+        (
+          path.add_key("items"),
+          "elicitation array schema items must be strings",
+        ),
+      )
     Object({ "type": String("array"), "items": _, .. }) =>
-      raise InvalidParams("elicitation enum items must be an object")
+      raise @json.JsonDecodeError(
+        (path.add_key("items"), "elicitation enum items must be an object"),
+      )
     Object({ "type": String("array"), .. }) =>
-      raise InvalidParams("elicitation array schema.items is required")
+      raise @json.JsonDecodeError(
+        (path.add_key("items"), "elicitation array schema.items is required"),
+      )
     Object(_) =>
-      raise InvalidParams("elicitation properties must use primitive schemas")
-    _ => raise InvalidParams("elicitation primitive schema must be an object")
+      raise @json.JsonDecodeError(
+        (path, "elicitation properties must use primitive schemas"),
+      )
+    _ =>
+      raise @json.JsonDecodeError(
+        (path, "elicitation primitive schema must be an object"),
+      )
   }
+}
+
+///|
+pub fn ElicitationPrimitiveSchema::from_json(
+  value : Json,
+  path? : @json.JsonPath,
+) -> ElicitationPrimitiveSchema raise McpError {
+  decode_json(value, path?)
 }
 
 ///|
@@ -430,13 +512,21 @@ pub struct ElicitationCreateParams {
 } derive(Debug)
 
 ///|
-pub fn ElicitationCreateParams::from_json(
-  fields : Map[String, Json],
-) -> ElicitationCreateParams raise McpError {
-  guard fields is { "message": String(message), .. } else {
-    raise InvalidParams("elicitation/create params.message is required")
+pub impl @json.FromJson for ElicitationCreateParams with fn from_json(
+  value : Json,
+  path : @json.JsonPath,
+) -> ElicitationCreateParams raise {
+  guard value is Object(fields) else {
+    raise @json.JsonDecodeError(
+      (path, "elicitation/create params must be an object"),
+    )
   }
-  let parse_form = fn() -> ElicitationMode raise McpError {
+  guard fields is { "message": String(message), .. } else {
+    raise @json.JsonDecodeError(
+      (path.add_key("message"), "elicitation/create params.message is required"),
+    )
+  }
+  let parse_form = fn() -> ElicitationMode raise @json.JsonDecodeError {
     guard fields
       is {
         "requestedSchema": Object(
@@ -445,19 +535,33 @@ pub fn ElicitationCreateParams::from_json(
         ..
       } else {
       guard fields is { "requestedSchema": Object(_), .. } else {
-        raise InvalidParams(
-          "elicitation/create form params.requestedSchema is required",
+        raise @json.JsonDecodeError(
+          (
+            path.add_key("requestedSchema"),
+            "elicitation/create form params.requestedSchema is required",
+          ),
         )
       }
-      raise InvalidParams(
-        "elicitation/create requestedSchema requires object properties",
+      raise @json.JsonDecodeError(
+        (
+          path.add_key("requestedSchema"),
+          "elicitation/create requestedSchema requires object properties",
+        ),
       )
     }
     let properties : Map[String, ElicitationPrimitiveSchema] = Map([])
     for key, property_schema in properties_map {
-      properties[key] = ElicitationPrimitiveSchema::from_json(property_schema)
+      properties[key] = @json.from_json(
+        property_schema,
+        path=path.add_key("requestedSchema").add_key("properties").add_key(key),
+      )
     }
-    let compiled_schema = compile_mrtr_schema(Json::object(schema))
+    let compiled_schema = compile_mrtr_schema(Json::object(schema)) catch {
+      _ =>
+        raise @json.JsonDecodeError(
+          (path.add_key("requestedSchema"), "invalid JSON schema"),
+        )
+    }
     ElicitationMode::Form(
       requested_schema=Json::object(schema),
       properties~,
@@ -468,15 +572,29 @@ pub fn ElicitationCreateParams::from_json(
     { "mode": String("url"), "url": String(url), .. } =>
       ElicitationMode::Url(url)
     { "mode": String("url"), .. } =>
-      raise InvalidParams("elicitation/create params.url is required")
+      raise @json.JsonDecodeError(
+        (path.add_key("url"), "elicitation/create params.url is required"),
+      )
     { "mode": String("form"), .. } => parse_form()
     { "mode": String(_), .. } =>
-      raise InvalidParams("elicitation/create params.mode is invalid")
+      raise @json.JsonDecodeError(
+        (path.add_key("mode"), "elicitation/create params.mode is invalid"),
+      )
     { "mode": _, .. } =>
-      raise InvalidParams("elicitation/create params.mode is invalid")
+      raise @json.JsonDecodeError(
+        (path.add_key("mode"), "elicitation/create params.mode is invalid"),
+      )
     _ => parse_form()
   }
   { message, mode }
+}
+
+///|
+pub fn ElicitationCreateParams::from_json(
+  value : Json,
+  path? : @json.JsonPath,
+) -> ElicitationCreateParams raise McpError {
+  decode_json(value, path?)
 }
 
 ///|
@@ -493,23 +611,43 @@ pub struct ElicitationCreateResult {
 } derive(Debug, Eq)
 
 ///|
-pub fn ElicitationCreateResult::from_json(
-  fields : Map[String, Json],
-  request_params : Json,
-) -> ElicitationCreateResult raise McpError {
-  let action = match fields {
-    { "action": String("accept"), .. } => ElicitationAction::Accept
-    { "action": String("decline"), .. } => ElicitationAction::Decline
-    { "action": String("cancel"), .. } => ElicitationAction::Cancel
-    _ => raise InvalidParams("elicitation response.action is invalid")
+pub impl @json.FromJson for ElicitationCreateResult with fn from_json(
+  value : Json,
+  path : @json.JsonPath,
+) -> ElicitationCreateResult raise {
+  match value {
+    Object({ "action": String("accept"), .. } as fields) =>
+      { action: Accept, content: fields.get("content") }
+    Object({ "action": String("decline"), .. } as fields) =>
+      { action: Decline, content: fields.get("content") }
+    Object({ "action": String("cancel"), .. } as fields) =>
+      { action: Cancel, content: fields.get("content") }
+    _ =>
+      raise @json.JsonDecodeError(
+        (path.add_key("action"), "elicitation response.action is invalid"),
+      )
   }
-  let content = fields.get("content")
-  if action == Accept {
+}
+
+///|
+pub fn ElicitationCreateResult::from_json(
+  value : Json,
+  path? : @json.JsonPath,
+) -> ElicitationCreateResult raise McpError {
+  decode_json(value, path?)
+}
+
+///|
+pub fn ElicitationCreateResult::validate_against_request(
+  self : ElicitationCreateResult,
+  request_params : Json,
+) -> Unit raise McpError {
+  if self.action == Accept {
     guard request_params is Object(request) else {
       raise InvalidParams("elicitation request must be an object")
     }
     if !(request is { "mode": String("url"), .. }) {
-      guard content is Some(content_val) else {
+      guard self.content is Some(content_val) else {
         raise InvalidParams(
           "accepted form elicitation response.content is required",
         )
@@ -528,7 +666,21 @@ pub fn ElicitationCreateResult::from_json(
       }
     }
   }
-  { action, content }
+}
+
+///|
+pub impl ToJson for ElicitationCreateResult with fn to_json(
+  self : ElicitationCreateResult,
+) -> Json {
+  let fields : Map[String, Json] = {
+    "action": match self.action {
+      Accept => Json::string("accept")
+      Decline => Json::string("decline")
+      Cancel => Json::string("cancel")
+    },
+  }
+  fields.set_opt("content", self.content)
+  Json::object(fields)
 }
 
 ///|
@@ -538,17 +690,36 @@ pub struct Root {
 } derive(Debug, Eq)
 
 ///|
-pub fn Root::from_json(value : Json) -> Root raise McpError {
+pub impl @json.FromJson for Root with fn from_json(
+  value : Json,
+  path : @json.JsonPath,
+) -> Root raise {
   match value {
     Object({ "uri": String(uri), "name": String(name), .. }) =>
       { uri, name: Some(name) }
     Object({ "uri": String(uri), "name": Null, .. }) => { uri, name: None }
     Object({ "uri": String(_), "name": _, .. }) =>
-      raise InvalidParams("roots response root.name must be a string")
+      raise @json.JsonDecodeError(
+        (path.add_key("name"), "roots response root.name must be a string"),
+      )
     Object({ "uri": String(uri), .. }) => { uri, name: None }
-    Object(_) => raise InvalidParams("roots response root.uri is required")
-    _ => raise InvalidParams("roots response root must be an object")
+    Object(_) =>
+      raise @json.JsonDecodeError(
+        (path.add_key("uri"), "roots response root.uri is required"),
+      )
+    _ =>
+      raise @json.JsonDecodeError(
+        (path, "roots response root must be an object"),
+      )
   }
+}
+
+///|
+pub fn Root::from_json(
+  value : Json,
+  path? : @json.JsonPath,
+) -> Root raise McpError {
+  decode_json(value, path?)
 }
 
 ///|
@@ -564,19 +735,36 @@ pub struct RootsListResult {
 } derive(Debug, Eq)
 
 ///|
-pub fn RootsListResult::from_json(
-  fields : Map[String, Json],
-) -> RootsListResult raise McpError {
-  match fields {
-    { "roots": Array(roots_arr), .. } => {
+pub impl @json.FromJson for RootsListResult with fn from_json(
+  value : Json,
+  path : @json.JsonPath,
+) -> RootsListResult raise {
+  match value {
+    Object({ "roots": Array(roots_arr), .. }) => {
       let roots : Array[Root] = []
-      for root_json in roots_arr {
-        roots.push(Root::from_json(root_json))
+      for index, root_json in roots_arr {
+        roots.push(
+          @json.from_json(
+            root_json,
+            path=path.add_key("roots").add_index(index),
+          ),
+        )
       }
       { roots, }
     }
-    _ => raise InvalidParams("roots response.roots is required")
+    _ =>
+      raise @json.JsonDecodeError(
+        (path.add_key("roots"), "roots response.roots is required"),
+      )
   }
+}
+
+///|
+pub fn RootsListResult::from_json(
+  value : Json,
+  path? : @json.JsonPath,
+) -> RootsListResult raise McpError {
+  decode_json(value, path?)
 }
 
 ///|
@@ -587,12 +775,12 @@ pub impl ToJson for RootsListResult with fn to_json(self : RootsListResult) -> J
 ///|
 fn validate_core_input_request(
   method_name : String,
-  fields : Map[String, Json],
+  params : Json,
 ) -> Unit raise McpError {
   match method_name {
-    "elicitation/create" => ignore(ElicitationCreateParams::from_json(fields))
+    "elicitation/create" => ignore(ElicitationCreateParams::from_json(params))
     "sampling/createMessage" =>
-      ignore(SamplingCreateMessageParams::from_json(fields))
+      ignore(SamplingCreateMessageParams::from_json(params))
     "roots/list" => ()
     _ => ()
   }
@@ -604,15 +792,14 @@ fn validate_core_input_response(
   request_params : Json,
   result : Json,
 ) -> Unit raise McpError {
-  guard result is Object(fields) else {
-    raise InvalidParams("input response must be an object")
-  }
   match method_name {
-    "elicitation/create" =>
-      ignore(ElicitationCreateResult::from_json(fields, request_params))
+    "elicitation/create" => {
+      let elicitation = ElicitationCreateResult::from_json(result)
+      elicitation.validate_against_request(request_params)
+    }
     "sampling/createMessage" =>
-      ignore(SamplingCreateMessageResult::from_json(fields))
-    "roots/list" => ignore(RootsListResult::from_json(fields))
+      ignore(SamplingCreateMessageResult::from_json(result))
+    "roots/list" => ignore(RootsListResult::from_json(result))
     _ => ()
   }
 }
