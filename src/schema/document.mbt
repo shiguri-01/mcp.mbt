@@ -7,8 +7,8 @@ pub struct ValidationIssue {
 
 ///|
 pub fn ValidationIssue::ValidationIssue(
-  path : @json.JsonPath,
-  message : String,
+  path~ : @json.JsonPath,
+  message~ : String,
 ) -> ValidationIssue {
   { path, message }
 }
@@ -71,7 +71,7 @@ fn ValidationContext::push_issue(
   path : @json.JsonPath,
   message : String,
 ) -> Unit {
-  self.issues.push(ValidationIssue(path, message))
+  self.issues.push(ValidationIssue(path~, message~))
 }
 
 ///|

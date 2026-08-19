@@ -13,8 +13,6 @@ pub fn[T : JsonSchema + @json.FromJson] decode(Json, max_depth? : Int) -> T rais
 
 pub fn[A : JsonSchema] schema_of(A?) -> Schema raise SchemaError
 
-pub fn[T : JsonSchema] validate(Json, max_depth? : Int) -> Unit raise
-
 // Errors
 pub suberror SchemaError {
   InvalidDocument(String)
@@ -64,7 +62,7 @@ pub struct ValidationIssue {
   path : @json.JsonPath
   message : String
 } derive(Eq, @debug.Debug)
-pub fn ValidationIssue::ValidationIssue(@json.JsonPath, String) -> Self
+pub fn ValidationIssue::ValidationIssue(path~ : @json.JsonPath, message~ : String) -> Self
 pub impl Show for ValidationIssue
 pub impl ToJson for ValidationIssue
 

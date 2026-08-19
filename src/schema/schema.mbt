@@ -86,17 +86,6 @@ pub fn[A : JsonSchema] schema_of(_witness : A?) -> Schema raise SchemaError {
 }
 
 ///|
-/// Validates a JSON instance against the schema associated with type `T`.
-/// Raises `ValidationIssues` if any validation constraints are violated.
-pub fn[T : JsonSchema] validate(
-  json : Json,
-  max_depth? : Int = 128,
-) -> Unit raise Error {
-  let schema = schema_of((None : T?))
-  schema.validate(json, max_depth~)
-}
-
-///|
 /// Validates a JSON instance against the schema associated with type `T`,
 /// and decodes it into `T`.
 pub fn[T : JsonSchema + @json.FromJson] decode(
