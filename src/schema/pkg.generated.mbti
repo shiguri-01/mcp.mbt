@@ -7,6 +7,10 @@ import {
 }
 
 // Values
+pub const DRAFT_2020_12 : String = "https://json-schema.org/draft/2020-12/schema"
+
+pub fn[T : JsonSchema + @json.FromJson] decode_json(Json) -> Result[T, Array[ValidationError]]
+
 pub let draft_2020_12 : String
 
 pub fn[A : JsonSchema] schema_of(A?) -> Schema raise SchemaError
@@ -18,51 +22,9 @@ pub suberror SchemaError {
   UnsupportedKeyword(String)
   InvalidSchema(String)
 } derive(Eq, @debug.Debug)
+pub impl Show for SchemaError
 
 // Types and methods
-pub struct AllOfSchema {
-  values : Array[Schema]
-  description : String?
-} derive(Eq, @debug.Debug)
-pub fn AllOfSchema::AllOfSchema(Array[Schema], description? : String) -> Self
-pub impl ToJson for AllOfSchema
-pub impl SchemaNode for AllOfSchema
-
-pub struct AnyOfSchema {
-  values : Array[Schema]
-  description : String?
-} derive(Eq, @debug.Debug)
-pub fn AnyOfSchema::AnyOfSchema(Array[Schema], description? : String) -> Self raise SchemaError
-pub impl ToJson for AnyOfSchema
-pub impl SchemaNode for AnyOfSchema
-
-pub struct ArraySchema {
-  items : Schema?
-  min_items : Int?
-  max_items : Int?
-  unique_items : Bool
-  description : String?
-} derive(Eq, @debug.Debug)
-pub fn ArraySchema::ArraySchema(items? : Schema, min_items? : Int, max_items? : Int, unique_items? : Bool, description? : String) -> Self raise SchemaError
-pub impl ToJson for ArraySchema
-pub impl SchemaNode for ArraySchema
-
-pub struct BoolTypeSchema {
-  description : String?
-} derive(Eq, @debug.Debug)
-pub fn BoolTypeSchema::BoolTypeSchema(description? : String) -> Self
-pub impl ToJson for BoolTypeSchema
-pub impl SchemaNode for BoolTypeSchema
-
-pub struct BooleanSchema {
-  value : Bool
-} derive(Eq, @debug.Debug)
-pub fn BooleanSchema::BooleanSchema(Bool) -> Self
-pub fn BooleanSchema::always() -> Self
-pub fn BooleanSchema::never() -> Self
-pub impl ToJson for BooleanSchema
-pub impl SchemaNode for BooleanSchema
-
 pub struct CompileOptions {
   max_depth : Int
   max_nodes : Int
@@ -78,15 +40,6 @@ pub struct CompiledSchema {
 } derive(Eq, @debug.Debug)
 pub fn CompiledSchema::validate(Self, Json) -> ValidationResult
 
-pub struct ConstSchema {
-  value : Json
-  description : String?
-} derive(Eq, @debug.Debug)
-pub fn ConstSchema::ConstSchema(Json, description? : String) -> Self
-pub fn[T : ToJson] ConstSchema::from_value(T, description? : String) -> Self
-pub impl ToJson for ConstSchema
-pub impl SchemaNode for ConstSchema
-
 pub struct Document {
   value : Json
   dialect : String
@@ -95,109 +48,35 @@ pub fn Document::Document(Json) -> Self raise SchemaError
 pub fn Document::compile(Self, options? : CompileOptions) -> CompiledSchema raise SchemaError
 pub impl ToJson for Document
 
-pub struct EnumSchema {
-  values : Array[Json]
-  description : String?
-} derive(Eq, @debug.Debug)
-pub fn EnumSchema::EnumSchema(Array[Json], description? : String) -> Self raise SchemaError
-pub fn[T : ToJson] EnumSchema::from_values(Array[T], description? : String) -> Self raise SchemaError
-pub impl ToJson for EnumSchema
-pub impl SchemaNode for EnumSchema
-
-pub struct IntegerSchema {
-  minimum : Int?
-  maximum : Int?
-  description : String?
-} derive(Eq, @debug.Debug)
-pub fn IntegerSchema::IntegerSchema(minimum? : Int, maximum? : Int, description? : String) -> Self raise SchemaError
-pub impl ToJson for IntegerSchema
-pub impl SchemaNode for IntegerSchema
-
-pub struct NotSchema {
-  value : Schema
-  description : String?
-} derive(Eq, @debug.Debug)
-pub fn NotSchema::NotSchema(Schema, description? : String) -> Self
-pub impl ToJson for NotSchema
-pub impl SchemaNode for NotSchema
-
-pub struct NullSchema {
-  description : String?
-} derive(Eq, @debug.Debug)
-pub fn NullSchema::NullSchema(description? : String) -> Self
-pub impl ToJson for NullSchema
-pub impl SchemaNode for NullSchema
-
-pub struct NumberSchema {
-  minimum : Double?
-  maximum : Double?
-  exclusive_minimum : Double?
-  exclusive_maximum : Double?
-  multiple_of : Double?
-  description : String?
-} derive(Eq, @debug.Debug)
-pub fn NumberSchema::NumberSchema(minimum? : Double, maximum? : Double, exclusive_minimum? : Double, exclusive_maximum? : Double, multiple_of? : Double, description? : String) -> Self raise SchemaError
-pub impl ToJson for NumberSchema
-pub impl SchemaNode for NumberSchema
-
-pub struct ObjectSchema {
-  properties : Map[String, Schema]
-  required : Array[String]
-  additional_properties : Bool
-  min_properties : Int?
-  max_properties : Int?
-  description : String?
-} derive(Eq, @debug.Debug)
-pub fn ObjectSchema::ObjectSchema(properties? : Map[String, Schema], required? : Array[String], additional_properties? : Bool, min_properties? : Int, max_properties? : Int, description? : String) -> Self raise SchemaError
-pub impl ToJson for ObjectSchema
-pub impl SchemaNode for ObjectSchema
-
-pub struct OneOfSchema {
-  values : Array[Schema]
-  description : String?
-} derive(Eq, @debug.Debug)
-pub fn OneOfSchema::OneOfSchema(Array[Schema], description? : String) -> Self raise SchemaError
-pub impl ToJson for OneOfSchema
-pub impl SchemaNode for OneOfSchema
-
-pub struct RawSchema {
-  value : Json
-  parsed : Schema
-} derive(Eq, @debug.Debug)
-pub fn RawSchema::RawSchema(Json) -> Self raise SchemaError
-pub impl ToJson for RawSchema
-pub impl SchemaNode for RawSchema
-
-pub struct RefSchema {
-  reference : String
-  description : String?
-} derive(Eq, @debug.Debug)
-pub fn RefSchema::RefSchema(String, description? : String) -> Self raise SchemaError
-pub impl ToJson for RefSchema
-pub impl SchemaNode for RefSchema
-
 pub struct Schema {
   node : &SchemaNode
 }
+pub fn Schema::all_of(Array[Self], description? : String) -> Self
+pub fn Schema::always() -> Self
+pub fn Schema::any_of(Array[Self], description? : String) -> Self raise SchemaError
+pub fn Schema::array(items? : Self, min_items? : Int, max_items? : Int, unique_items? : Bool, description? : String) -> Self raise SchemaError
+pub fn Schema::bool_type(description? : String) -> Self
+pub fn Schema::boolean(Bool) -> Self
+pub fn[T : ToJson] Schema::constant(T, description? : String) -> Self
 pub fn Schema::document(Self) -> Document raise SchemaError
-pub fn Schema::from_json(Json) -> Self raise SchemaError
-pub fn[T : SchemaNode] Schema::from_node(T) -> Self
+pub fn[T : ToJson] Schema::enumeration(Array[T], description? : String) -> Self raise SchemaError
+pub fn Schema::from_json(Json, options? : CompileOptions) -> Self raise SchemaError
+pub fn Schema::integer(minimum? : Int, maximum? : Int, description? : String) -> Self raise SchemaError
+pub fn Schema::never() -> Self
+pub fn Schema::not(Self, description? : String) -> Self
+pub fn Schema::null(description? : String) -> Self
+pub fn Schema::number(minimum? : Double, maximum? : Double, exclusive_minimum? : Double, exclusive_maximum? : Double, multiple_of? : Double, description? : String) -> Self raise SchemaError
+pub fn Schema::object(properties? : Map[String, Self], required? : Array[String], additional_properties? : Bool, min_properties? : Int, max_properties? : Int, description? : String) -> Self raise SchemaError
+pub fn Schema::one_of(Array[Self], description? : String) -> Self raise SchemaError
+pub fn Schema::raw(Json) -> Self raise SchemaError
+pub fn Schema::ref_(String, description? : String) -> Self raise SchemaError
+pub fn Schema::string(min_length? : Int, max_length? : Int, description? : String) -> Self raise SchemaError
 pub fn Schema::to_json(Self) -> Json
-pub fn Schema::validate(Self, Json, path? : @json.JsonPath, depth? : Int, ctx~ : ValidationContext) -> Unit
+pub fn Schema::validate(Self, Json, options? : CompileOptions) -> ValidationResult
 pub impl Eq for Schema
 pub impl Show for Schema
 pub impl ToJson for Schema
 pub impl @debug.Debug for Schema
-pub impl SchemaNode for Schema
-
-pub struct StringSchema {
-  min_length : Int?
-  max_length : Int?
-  description : String?
-} derive(Eq, @debug.Debug)
-pub fn StringSchema::StringSchema(min_length? : Int, max_length? : Int, description? : String) -> Self raise SchemaError
-pub impl ToJson for StringSchema
-pub impl SchemaNode for StringSchema
 
 pub struct ValidationContext {
   defs : Map[String, Schema]
@@ -234,7 +113,6 @@ pub impl[T : JsonSchema] JsonSchema for T?
 pub impl[T : JsonSchema] JsonSchema for Array[T]
 pub impl JsonSchema for Json
 
-pub(open) trait SchemaNode : ToJson + @debug.Debug {
-  fn into_schema(Self) -> Schema
+pub trait SchemaNode : ToJson + @debug.Debug {
   fn validate(Self, Json, path~ : @json.JsonPath, depth~ : Int, ctx~ : ValidationContext) -> Unit
 }

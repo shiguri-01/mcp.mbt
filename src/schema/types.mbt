@@ -25,39 +25,27 @@ fn set_description(fields : Map[String, Json], description : String?) -> Unit {
 
 ///|
 /// A JSON Schema boolean schema: `true` (always pass) or `false` (always fail).
-pub struct BooleanSchema {
+priv struct BooleanSchema {
   value : Bool
-} derive(Debug, Eq)
+} derive(Debug)
 
 ///|
-pub fn BooleanSchema::BooleanSchema(value : Bool) -> BooleanSchema {
-  { value, }
-}
-
-///|
-pub fn BooleanSchema::always() -> BooleanSchema {
+fn BooleanSchema::always() -> BooleanSchema {
   { value: true }
 }
 
 ///|
-pub fn BooleanSchema::never() -> BooleanSchema {
+fn BooleanSchema::never() -> BooleanSchema {
   { value: false }
 }
 
 ///|
-pub impl ToJson for BooleanSchema with fn to_json(self) -> Json {
+impl ToJson for BooleanSchema with fn to_json(self) -> Json {
   Json::boolean(self.value)
 }
 
 ///|
-
-///|
-pub impl SchemaNode for BooleanSchema with fn into_schema(self) -> Schema {
-  Schema::from_node(self)
-}
-
-///|
-pub impl SchemaNode for BooleanSchema with fn validate(
+impl SchemaNode for BooleanSchema with fn validate(
   self : BooleanSchema,
   _instance : Json,
   path~ : @json.JsonPath,
@@ -72,29 +60,24 @@ pub impl SchemaNode for BooleanSchema with fn validate(
 
 ///|
 /// A JSON Schema null type schema.
-pub struct NullSchema {
+priv struct NullSchema {
   description : String?
-} derive(Debug, Eq)
+} derive(Debug)
 
 ///|
-pub fn NullSchema::NullSchema(description? : String) -> NullSchema {
+fn NullSchema::NullSchema(description? : String) -> NullSchema {
   { description, }
 }
 
 ///|
-pub impl ToJson for NullSchema with fn to_json(self) -> Json {
+impl ToJson for NullSchema with fn to_json(self) -> Json {
   let fields : Map[String, Json] = { "type": Json::string("null") }
   set_description(fields, self.description)
   Json::object(fields)
 }
 
 ///|
-pub impl SchemaNode for NullSchema with fn into_schema(self) -> Schema {
-  Schema::from_node(self)
-}
-
-///|
-pub impl SchemaNode for NullSchema with fn validate(
+impl SchemaNode for NullSchema with fn validate(
   _self : NullSchema,
   instance : Json,
   path~ : @json.JsonPath,
@@ -109,29 +92,24 @@ pub impl SchemaNode for NullSchema with fn validate(
 
 ///|
 /// A JSON Schema boolean type schema (`type: "boolean"`).
-pub struct BoolTypeSchema {
+priv struct BoolTypeSchema {
   description : String?
-} derive(Debug, Eq)
+} derive(Debug)
 
 ///|
-pub fn BoolTypeSchema::BoolTypeSchema(description? : String) -> BoolTypeSchema {
+fn BoolTypeSchema::BoolTypeSchema(description? : String) -> BoolTypeSchema {
   { description, }
 }
 
 ///|
-pub impl ToJson for BoolTypeSchema with fn to_json(self) -> Json {
+impl ToJson for BoolTypeSchema with fn to_json(self) -> Json {
   let fields : Map[String, Json] = { "type": Json::string("boolean") }
   set_description(fields, self.description)
   Json::object(fields)
 }
 
 ///|
-pub impl SchemaNode for BoolTypeSchema with fn into_schema(self) -> Schema {
-  Schema::from_node(self)
-}
-
-///|
-pub impl SchemaNode for BoolTypeSchema with fn validate(
+impl SchemaNode for BoolTypeSchema with fn validate(
   _self : BoolTypeSchema,
   instance : Json,
   path~ : @json.JsonPath,
@@ -146,14 +124,14 @@ pub impl SchemaNode for BoolTypeSchema with fn validate(
 
 ///|
 /// A JSON Schema string type schema with optional length constraints and description.
-pub struct StringSchema {
+priv struct StringSchema {
   min_length : Int?
   max_length : Int?
   description : String?
-} derive(Debug, Eq)
+} derive(Debug)
 
 ///|
-pub fn StringSchema::StringSchema(
+fn StringSchema::StringSchema(
   min_length? : Int,
   max_length? : Int,
   description? : String,
@@ -163,7 +141,7 @@ pub fn StringSchema::StringSchema(
 }
 
 ///|
-pub impl ToJson for StringSchema with fn to_json(self) -> Json {
+impl ToJson for StringSchema with fn to_json(self) -> Json {
   let fields : Map[String, Json] = { "type": Json::string("string") }
   if self.min_length is Some(value) {
     fields["minLength"] = Json::number(
@@ -182,12 +160,7 @@ pub impl ToJson for StringSchema with fn to_json(self) -> Json {
 }
 
 ///|
-pub impl SchemaNode for StringSchema with fn into_schema(self) -> Schema {
-  Schema::from_node(self)
-}
-
-///|
-pub impl SchemaNode for StringSchema with fn validate(
+impl SchemaNode for StringSchema with fn validate(
   self : StringSchema,
   instance : Json,
   path~ : @json.JsonPath,
@@ -209,14 +182,14 @@ pub impl SchemaNode for StringSchema with fn validate(
 
 ///|
 /// A JSON Schema integer type schema.
-pub struct IntegerSchema {
+priv struct IntegerSchema {
   minimum : Int?
   maximum : Int?
   description : String?
-} derive(Debug, Eq)
+} derive(Debug)
 
 ///|
-pub fn IntegerSchema::IntegerSchema(
+fn IntegerSchema::IntegerSchema(
   minimum? : Int,
   maximum? : Int,
   description? : String,
@@ -228,7 +201,7 @@ pub fn IntegerSchema::IntegerSchema(
 }
 
 ///|
-pub impl ToJson for IntegerSchema with fn to_json(self) -> Json {
+impl ToJson for IntegerSchema with fn to_json(self) -> Json {
   let fields : Map[String, Json] = { "type": Json::string("integer") }
   if self.minimum is Some(min) {
     fields["minimum"] = Json::number(min.to_double(), repr=min.to_string())
@@ -241,12 +214,7 @@ pub impl ToJson for IntegerSchema with fn to_json(self) -> Json {
 }
 
 ///|
-pub impl SchemaNode for IntegerSchema with fn into_schema(self) -> Schema {
-  Schema::from_node(self)
-}
-
-///|
-pub impl SchemaNode for IntegerSchema with fn validate(
+impl SchemaNode for IntegerSchema with fn validate(
   self : IntegerSchema,
   instance : Json,
   path~ : @json.JsonPath,
@@ -268,17 +236,17 @@ pub impl SchemaNode for IntegerSchema with fn validate(
 
 ///|
 /// A JSON Schema number type schema.
-pub struct NumberSchema {
+priv struct NumberSchema {
   minimum : Double?
   maximum : Double?
   exclusive_minimum : Double?
   exclusive_maximum : Double?
   multiple_of : Double?
   description : String?
-} derive(Debug, Eq)
+} derive(Debug)
 
 ///|
-pub fn NumberSchema::NumberSchema(
+fn NumberSchema::NumberSchema(
   minimum? : Double,
   maximum? : Double,
   exclusive_minimum? : Double,
@@ -303,7 +271,7 @@ pub fn NumberSchema::NumberSchema(
 }
 
 ///|
-pub impl ToJson for NumberSchema with fn to_json(self) -> Json {
+impl ToJson for NumberSchema with fn to_json(self) -> Json {
   let fields : Map[String, Json] = { "type": Json::string("number") }
   if self.minimum is Some(min) {
     fields["minimum"] = Json::number(min)
@@ -325,12 +293,7 @@ pub impl ToJson for NumberSchema with fn to_json(self) -> Json {
 }
 
 ///|
-pub impl SchemaNode for NumberSchema with fn into_schema(self) -> Schema {
-  Schema::from_node(self)
-}
-
-///|
-pub impl SchemaNode for NumberSchema with fn validate(
+impl SchemaNode for NumberSchema with fn validate(
   self : NumberSchema,
   instance : Json,
   path~ : @json.JsonPath,
@@ -364,16 +327,16 @@ pub impl SchemaNode for NumberSchema with fn validate(
 
 ///|
 /// A JSON Schema array type schema.
-pub struct ArraySchema {
+priv struct ArraySchema {
   items : Schema?
   min_items : Int?
   max_items : Int?
   unique_items : Bool
   description : String?
-} derive(Debug, Eq)
+} derive(Debug)
 
 ///|
-pub fn ArraySchema::ArraySchema(
+fn ArraySchema::ArraySchema(
   items? : Schema,
   min_items? : Int,
   max_items? : Int,
@@ -385,7 +348,7 @@ pub fn ArraySchema::ArraySchema(
 }
 
 ///|
-pub impl ToJson for ArraySchema with fn to_json(self) -> Json {
+impl ToJson for ArraySchema with fn to_json(self) -> Json {
   let fields : Map[String, Json] = { "type": Json::string("array") }
   if self.items is Some(item_schema) {
     fields["items"] = item_schema.to_json()
@@ -404,12 +367,7 @@ pub impl ToJson for ArraySchema with fn to_json(self) -> Json {
 }
 
 ///|
-pub impl SchemaNode for ArraySchema with fn into_schema(self) -> Schema {
-  Schema::from_node(self)
-}
-
-///|
-pub impl SchemaNode for ArraySchema with fn validate(
+impl SchemaNode for ArraySchema with fn validate(
   self : ArraySchema,
   instance : Json,
   path~ : @json.JsonPath,
@@ -438,7 +396,7 @@ pub impl SchemaNode for ArraySchema with fn validate(
     }
     if self.items is Some(item_schema) {
       for index, value in values {
-        item_schema.validate(
+        item_schema.node.validate(
           value,
           path=path.add_index(index),
           depth=depth + 1,
@@ -453,17 +411,17 @@ pub impl SchemaNode for ArraySchema with fn validate(
 
 ///|
 /// A JSON Schema object type schema.
-pub struct ObjectSchema {
+priv struct ObjectSchema {
   properties : Map[String, Schema]
   required : Array[String]
   additional_properties : Bool
   min_properties : Int?
   max_properties : Int?
   description : String?
-} derive(Debug, Eq)
+} derive(Debug)
 
 ///|
-pub fn ObjectSchema::ObjectSchema(
+fn ObjectSchema::ObjectSchema(
   properties? : Map[String, Schema] = {},
   required? : Array[String] = [],
   additional_properties? : Bool = true,
@@ -493,7 +451,7 @@ pub fn ObjectSchema::ObjectSchema(
 }
 
 ///|
-pub impl ToJson for ObjectSchema with fn to_json(self) -> Json {
+impl ToJson for ObjectSchema with fn to_json(self) -> Json {
   let property_fields : Map[String, Json] = Map([])
   for name, schema in self.properties {
     property_fields[name] = schema.to_json()
@@ -515,12 +473,7 @@ pub impl ToJson for ObjectSchema with fn to_json(self) -> Json {
 }
 
 ///|
-pub impl SchemaNode for ObjectSchema with fn into_schema(self) -> Schema {
-  Schema::from_node(self)
-}
-
-///|
-pub impl SchemaNode for ObjectSchema with fn validate(
+impl SchemaNode for ObjectSchema with fn validate(
   self : ObjectSchema,
   instance : Json,
   path~ : @json.JsonPath,
@@ -548,7 +501,7 @@ pub impl SchemaNode for ObjectSchema with fn validate(
     }
     for name, prop_schema in self.properties {
       if fields.get(name) is Some(prop_val) {
-        prop_schema.validate(
+        prop_schema.node.validate(
           prop_val,
           path=path.add_key(name),
           depth=depth + 1,
@@ -573,21 +526,13 @@ pub impl SchemaNode for ObjectSchema with fn validate(
 
 ///|
 /// A JSON Schema const assertion schema.
-pub struct ConstSchema {
+priv struct ConstSchema {
   value : Json
   description : String?
-} derive(Debug, Eq)
+} derive(Debug)
 
 ///|
-pub fn ConstSchema::ConstSchema(
-  value : Json,
-  description? : String,
-) -> ConstSchema {
-  { value, description }
-}
-
-///|
-pub fn[T : ToJson] ConstSchema::from_value(
+fn[T : ToJson] ConstSchema::from_value(
   value : T,
   description? : String,
 ) -> ConstSchema {
@@ -595,19 +540,14 @@ pub fn[T : ToJson] ConstSchema::from_value(
 }
 
 ///|
-pub impl ToJson for ConstSchema with fn to_json(self) -> Json {
+impl ToJson for ConstSchema with fn to_json(self) -> Json {
   let fields : Map[String, Json] = { "const": self.value }
   set_description(fields, self.description)
   Json::object(fields)
 }
 
 ///|
-pub impl SchemaNode for ConstSchema with fn into_schema(self) -> Schema {
-  Schema::from_node(self)
-}
-
-///|
-pub impl SchemaNode for ConstSchema with fn validate(
+impl SchemaNode for ConstSchema with fn validate(
   self : ConstSchema,
   instance : Json,
   path~ : @json.JsonPath,
@@ -622,13 +562,13 @@ pub impl SchemaNode for ConstSchema with fn validate(
 
 ///|
 /// A JSON Schema enum assertion schema.
-pub struct EnumSchema {
+priv struct EnumSchema {
   values : Array[Json]
   description : String?
-} derive(Debug, Eq)
+} derive(Debug)
 
 ///|
-pub fn EnumSchema::EnumSchema(
+fn EnumSchema::EnumSchema(
   values : Array[Json],
   description? : String,
 ) -> EnumSchema raise SchemaError {
@@ -646,7 +586,7 @@ pub fn EnumSchema::EnumSchema(
 }
 
 ///|
-pub fn[T : ToJson] EnumSchema::from_values(
+fn[T : ToJson] EnumSchema::from_values(
   values : Array[T],
   description? : String,
 ) -> EnumSchema raise SchemaError {
@@ -655,19 +595,14 @@ pub fn[T : ToJson] EnumSchema::from_values(
 }
 
 ///|
-pub impl ToJson for EnumSchema with fn to_json(self) -> Json {
+impl ToJson for EnumSchema with fn to_json(self) -> Json {
   let fields : Map[String, Json] = { "enum": self.values.to_json() }
   set_description(fields, self.description)
   Json::object(fields)
 }
 
 ///|
-pub impl SchemaNode for EnumSchema with fn into_schema(self) -> Schema {
-  Schema::from_node(self)
-}
-
-///|
-pub impl SchemaNode for EnumSchema with fn validate(
+impl SchemaNode for EnumSchema with fn validate(
   self : EnumSchema,
   instance : Json,
   path~ : @json.JsonPath,
@@ -682,13 +617,13 @@ pub impl SchemaNode for EnumSchema with fn validate(
 
 ///|
 /// A JSON Schema allOf combinator schema.
-pub struct AllOfSchema {
+priv struct AllOfSchema {
   values : Array[Schema]
   description : String?
-} derive(Debug, Eq)
+} derive(Debug)
 
 ///|
-pub fn AllOfSchema::AllOfSchema(
+fn AllOfSchema::AllOfSchema(
   values : Array[Schema],
   description? : String,
 ) -> AllOfSchema {
@@ -696,7 +631,7 @@ pub fn AllOfSchema::AllOfSchema(
 }
 
 ///|
-pub impl ToJson for AllOfSchema with fn to_json(self) -> Json {
+impl ToJson for AllOfSchema with fn to_json(self) -> Json {
   let fields : Map[String, Json] = {
     "allOf": self.values.map(fn(s) { s.to_json() }).to_json(),
   }
@@ -705,12 +640,7 @@ pub impl ToJson for AllOfSchema with fn to_json(self) -> Json {
 }
 
 ///|
-pub impl SchemaNode for AllOfSchema with fn into_schema(self) -> Schema {
-  Schema::from_node(self)
-}
-
-///|
-pub impl SchemaNode for AllOfSchema with fn validate(
+impl SchemaNode for AllOfSchema with fn validate(
   self : AllOfSchema,
   instance : Json,
   path~ : @json.JsonPath,
@@ -718,19 +648,19 @@ pub impl SchemaNode for AllOfSchema with fn validate(
   ctx~ : ValidationContext,
 ) -> Unit {
   for child in self.values {
-    child.validate(instance, path~, depth=depth + 1, ctx~)
+    child.node.validate(instance, path~, depth=depth + 1, ctx~)
   }
 }
 
 ///|
 /// A JSON Schema anyOf combinator schema.
-pub struct AnyOfSchema {
+priv struct AnyOfSchema {
   values : Array[Schema]
   description : String?
-} derive(Debug, Eq)
+} derive(Debug)
 
 ///|
-pub fn AnyOfSchema::AnyOfSchema(
+fn AnyOfSchema::AnyOfSchema(
   values : Array[Schema],
   description? : String,
 ) -> AnyOfSchema raise SchemaError {
@@ -741,7 +671,7 @@ pub fn AnyOfSchema::AnyOfSchema(
 }
 
 ///|
-pub impl ToJson for AnyOfSchema with fn to_json(self) -> Json {
+impl ToJson for AnyOfSchema with fn to_json(self) -> Json {
   let fields : Map[String, Json] = {
     "anyOf": self.values.map(fn(s) { s.to_json() }).to_json(),
   }
@@ -750,12 +680,7 @@ pub impl ToJson for AnyOfSchema with fn to_json(self) -> Json {
 }
 
 ///|
-pub impl SchemaNode for AnyOfSchema with fn into_schema(self) -> Schema {
-  Schema::from_node(self)
-}
-
-///|
-pub impl SchemaNode for AnyOfSchema with fn validate(
+impl SchemaNode for AnyOfSchema with fn validate(
   self : AnyOfSchema,
   instance : Json,
   path~ : @json.JsonPath,
@@ -769,7 +694,7 @@ pub impl SchemaNode for AnyOfSchema with fn validate(
       options: ctx.options,
       errors: [],
     }
-    child.validate(instance, path~, depth=depth + 1, ctx=sub_ctx)
+    child.node.validate(instance, path~, depth=depth + 1, ctx=sub_ctx)
     if sub_ctx.errors.is_empty() {
       matched = true
     }
@@ -781,13 +706,13 @@ pub impl SchemaNode for AnyOfSchema with fn validate(
 
 ///|
 /// A JSON Schema oneOf combinator schema.
-pub struct OneOfSchema {
+priv struct OneOfSchema {
   values : Array[Schema]
   description : String?
-} derive(Debug, Eq)
+} derive(Debug)
 
 ///|
-pub fn OneOfSchema::OneOfSchema(
+fn OneOfSchema::OneOfSchema(
   values : Array[Schema],
   description? : String,
 ) -> OneOfSchema raise SchemaError {
@@ -798,7 +723,7 @@ pub fn OneOfSchema::OneOfSchema(
 }
 
 ///|
-pub impl ToJson for OneOfSchema with fn to_json(self) -> Json {
+impl ToJson for OneOfSchema with fn to_json(self) -> Json {
   let fields : Map[String, Json] = {
     "oneOf": self.values.map(fn(s) { s.to_json() }).to_json(),
   }
@@ -807,12 +732,7 @@ pub impl ToJson for OneOfSchema with fn to_json(self) -> Json {
 }
 
 ///|
-pub impl SchemaNode for OneOfSchema with fn into_schema(self) -> Schema {
-  Schema::from_node(self)
-}
-
-///|
-pub impl SchemaNode for OneOfSchema with fn validate(
+impl SchemaNode for OneOfSchema with fn validate(
   self : OneOfSchema,
   instance : Json,
   path~ : @json.JsonPath,
@@ -826,7 +746,7 @@ pub impl SchemaNode for OneOfSchema with fn validate(
       options: ctx.options,
       errors: [],
     }
-    child.validate(instance, path~, depth=depth + 1, ctx=sub_ctx)
+    child.node.validate(instance, path~, depth=depth + 1, ctx=sub_ctx)
     if sub_ctx.errors.is_empty() {
       matches += 1
     }
@@ -838,30 +758,25 @@ pub impl SchemaNode for OneOfSchema with fn validate(
 
 ///|
 /// A JSON Schema not combinator schema.
-pub struct NotSchema {
+priv struct NotSchema {
   value : Schema
   description : String?
-} derive(Debug, Eq)
+} derive(Debug)
 
 ///|
-pub fn NotSchema::NotSchema(value : Schema, description? : String) -> NotSchema {
+fn NotSchema::NotSchema(value : Schema, description? : String) -> NotSchema {
   { value, description }
 }
 
 ///|
-pub impl ToJson for NotSchema with fn to_json(self) -> Json {
+impl ToJson for NotSchema with fn to_json(self) -> Json {
   let fields : Map[String, Json] = { "not": self.value.to_json() }
   set_description(fields, self.description)
   Json::object(fields)
 }
 
 ///|
-pub impl SchemaNode for NotSchema with fn into_schema(self) -> Schema {
-  Schema::from_node(self)
-}
-
-///|
-pub impl SchemaNode for NotSchema with fn validate(
+impl SchemaNode for NotSchema with fn validate(
   self : NotSchema,
   instance : Json,
   path~ : @json.JsonPath,
@@ -873,7 +788,7 @@ pub impl SchemaNode for NotSchema with fn validate(
     options: ctx.options,
     errors: [],
   }
-  self.value.validate(instance, path~, depth=depth + 1, ctx=sub_ctx)
+  self.value.node.validate(instance, path~, depth=depth + 1, ctx=sub_ctx)
   if sub_ctx.errors.is_empty() {
     ctx.push_error(path, "value matches a not schema")
   }
@@ -881,13 +796,13 @@ pub impl SchemaNode for NotSchema with fn validate(
 
 ///|
 /// A JSON Schema reference schema (`$ref`).
-pub struct RefSchema {
+priv struct RefSchema {
   reference : String
   description : String?
-} derive(Debug, Eq)
+} derive(Debug)
 
 ///|
-pub fn RefSchema::RefSchema(
+fn RefSchema::RefSchema(
   reference : String,
   description? : String,
 ) -> RefSchema raise SchemaError {
@@ -898,19 +813,14 @@ pub fn RefSchema::RefSchema(
 }
 
 ///|
-pub impl ToJson for RefSchema with fn to_json(self) -> Json {
+impl ToJson for RefSchema with fn to_json(self) -> Json {
   let fields : Map[String, Json] = { "$ref": Json::string(self.reference) }
   set_description(fields, self.description)
   Json::object(fields)
 }
 
 ///|
-pub impl SchemaNode for RefSchema with fn into_schema(self) -> Schema {
-  Schema::from_node(self)
-}
-
-///|
-pub impl SchemaNode for RefSchema with fn validate(
+impl SchemaNode for RefSchema with fn validate(
   self : RefSchema,
   instance : Json,
   path~ : @json.JsonPath,
@@ -922,42 +832,37 @@ pub impl SchemaNode for RefSchema with fn validate(
     return
   }
   match ctx.defs.get(self.reference) {
-    Some(target) => target.validate(instance, path~, depth=depth + 1, ctx~)
+    Some(target) => target.node.validate(instance, path~, depth=depth + 1, ctx~)
     None => ctx.push_error(path, "unresolved reference: \{self.reference}")
   }
 }
 
 ///|
 /// An unconstrained escape hatch schema for raw JSON.
-pub struct RawSchema {
+priv struct RawSchema {
   value : Json
   parsed : Schema
-} derive(Debug, Eq)
+} derive(Debug)
 
 ///|
-pub fn RawSchema::RawSchema(value : Json) -> RawSchema raise SchemaError {
+fn RawSchema::RawSchema(value : Json) -> RawSchema raise SchemaError {
   ignore(Document::Document(value))
   let parsed = parse_schema_json(value)
   { value, parsed }
 }
 
 ///|
-pub impl ToJson for RawSchema with fn to_json(self) -> Json {
+impl ToJson for RawSchema with fn to_json(self) -> Json {
   self.value
 }
 
 ///|
-pub impl SchemaNode for RawSchema with fn into_schema(self) -> Schema {
-  Schema::from_node(self)
-}
-
-///|
-pub impl SchemaNode for RawSchema with fn validate(
+impl SchemaNode for RawSchema with fn validate(
   self : RawSchema,
   instance : Json,
   path~ : @json.JsonPath,
   depth~ : Int,
   ctx~ : ValidationContext,
 ) -> Unit {
-  self.parsed.validate(instance, path~, depth~, ctx~)
+  self.parsed.node.validate(instance, path~, depth~, ctx~)
 }

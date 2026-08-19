@@ -1,12 +1,11 @@
 # shiguri-01/mcp/schema
 
-Typed JSON Schema 2020-12 construction and bounded instance validation. The
-package is independent of MCP and can be used for any JSON document. The
-implemented keyword subset is explicit; assertion keywords that this runtime
-cannot evaluate (for example `pattern`) are rejected at compile time instead
-of being silently ignored.
+Typed JSON Schema (Draft 2020-12) construction, bounded instance validation, and typed decoding.
+The package is independent of MCP and can be used for any JSON Schema validation and decoding workflow.
 
-Use this package next to the MoonBit input struct that derives `FromJson`:
+## Defining a Typed Schema
+
+Use factory methods on `Schema` to build schemas programmatically:
 
 ```mbt nocheck
 ///|
@@ -16,21 +15,35 @@ struct HelloInput {
 
 ///|
 impl @schema.JsonSchema for HelloInput with fn json_schema() -> @schema.Schema {
-  @schema.ObjectSchema(
+  @schema.Schema::object(
     properties={
-      "name": @schema.StringSchema(description="Name to greet").into_schema(),
+      "name": @schema.Schema::string(min_length=1, description="Name to greet"),
     },
     required=["name"],
-  ).into_schema()
+  )
 }
 ```
 
-Every JSON Schema 2020-12 type (`StringSchema`, `ObjectSchema`, `ArraySchema`,
-`IntegerSchema`, `NumberSchema`, `BooleanSchema`, `EnumSchema`, `ConstSchema`,
-`AllOfSchema`, `AnyOfSchema`, `OneOfSchema`, `NotSchema`, `RefSchema`, `RawSchema`)
-implements the `SchemaNode` trait and can be converted into `Schema` via
-`.into_schema()`.
+## Validating and Decoding JSON
 
-`Schema::document()` validates the document shape, and `Document::compile()`
-produces an instance validator. `schema_of((None : T?))` obtains a schema from
-a `JsonSchema` implementation without constructing `T`.
+Validate raw JSON directly or decode it into a typed struct in a single step:
+
+```mbt nocheck
+// 1. Direct schema validation
+let schema = @schema.Schema::string(min_length=3)
+let result = schema.validate(Json::string("hello"))
+if result.valid {
+  println("Valid JSON!")
+}
+
+// 2. Typed validation & decoding
+let input_json = Json::object({ "name": Json::string("Alice") })
+let decoded : Result[HelloInput, Array[@schema.ValidationError]] = @schema.decode_json(input_json)
+match decoded {
+  Ok(input) => println("Hello, \{input.name}!")
+  Err(errors) => println("Validation failed: \{errors}")
+}
+
+// 3. Parsing schema from JSON Schema JSON
+let parsed_schema = @schema.Schema::from_json(json_schema_definition)
+```

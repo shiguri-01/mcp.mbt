@@ -99,18 +99,16 @@ test "boolean schemas retain JSON Schema semantics" {
 ///|
 test "typed Schema constructors produce a validated document" {
   let properties : Map[String, Schema] = {
-    "name": StringSchema().into_schema(),
-    "count": IntegerSchema().into_schema(),
+    "name": Schema::string(),
+    "count": Schema::integer(),
   }
-  let typed = ObjectSchema(
+  let schema = Schema::object(
     properties~,
     required=["name"],
     additional_properties=false,
   )
-  let document = typed.into_schema().document()
-  let compiled = document.compile()
   assert_true(
-    compiled.validate(
+    schema.validate(
       Json::object({
         "name": Json::string("MoonBit"),
         "count": Json::number(1.0),
@@ -118,13 +116,13 @@ test "typed Schema constructors produce a validated document" {
     ).valid,
   )
   assert_false(
-    compiled.validate(Json::object({ "name": Json::number(1.0) })).valid,
+    schema.validate(Json::object({ "name": Json::number(1.0) })).valid,
   )
 }
 
 ///|
 test "string constraints are constructed and validated as typed schemas" {
-  let schema = StringSchema(min_length=2, max_length=4)
+  let schema = Schema::string(min_length=2, max_length=4)
   assert_eq(
     schema.to_json(),
     Json::object({
@@ -133,19 +131,18 @@ test "string constraints are constructed and validated as typed schemas" {
       "maxLength": Json::number(4.0, repr="4"),
     }),
   )
-  let compiled = schema.into_schema().document().compile()
-  assert_true(compiled.validate(Json::string("moon")).valid)
-  assert_false(compiled.validate(Json::string("m")).valid)
-  try ignore(StringSchema(min_length=5, max_length=2)) catch {
+  assert_true(schema.validate(Json::string("moon")).valid)
+  assert_false(schema.validate(Json::string("m")).valid)
+  try ignore(Schema::string(min_length=5, max_length=2)) catch {
     InvalidSchema(_) => ()
-    _ => fail("expected invalid string bounds")
+    _ => fail("invalid bounds must be rejected")
   } noraise {
-    _ => fail("expected invalid string bounds")
+    _ => fail("invalid bounds must be rejected")
   }
 }
 
 ///|
-test "unsupported pattern validation is rejected instead of ignored" {
+test "unsupported keywords are rejected at compile time" {
   let document = Document::Document(
     Json::object({
       "type": Json::string("string"),
@@ -162,7 +159,7 @@ test "unsupported pattern validation is rejected instead of ignored" {
 
 ///|
 test "typed schema constructors reject duplicate names and enum values" {
-  try ignore(EnumSchema([Json::string("same"), Json::string("same")])) catch {
+  try ignore(Schema::enumeration(["same", "same"])) catch {
     InvalidSchema(_) => ()
     _ => fail("duplicate enum values must be rejected")
   } noraise {
@@ -170,7 +167,7 @@ test "typed schema constructors reject duplicate names and enum values" {
   }
   try
     ignore(
-      ObjectSchema(properties={ "name": StringSchema().into_schema() }, required=[
+      Schema::object(properties={ "name": Schema::string() }, required=[
         "name", "name",
       ]),
     )
@@ -248,13 +245,13 @@ test "array, object, and multipleOf constraints are evaluated" {
 
 ///|
 test "array and object constraints can be built without JSON" {
-  let array_schema = ArraySchema(
-    items=IntegerSchema().into_schema(),
+  let array_schema = Schema::array(
+    items=Schema::integer(),
     min_items=1,
     max_items=2,
     unique_items=true,
-  ).into_schema()
-  let object_schema = ObjectSchema(
+  )
+  let object_schema = Schema::object(
     properties={ "values": array_schema },
     min_properties=1,
     max_properties=1,
@@ -274,14 +271,13 @@ test "array and object constraints can be built without JSON" {
 
 ///|
 test "typed combinators preserve JSON Schema assertion semantics" {
-  let positive = AnyOfSchema([
-    ConstSchema(Json::string("yes")).into_schema(),
-    ConstSchema(Json::string("ok")).into_schema(),
-  ]).into_schema()
-  let exact = ConstSchema(Json::string("yes")).into_schema()
-  let not_exact = NotSchema(exact).into_schema()
-  let document = AllOfSchema([positive, not_exact]).into_schema().document()
-  let result = document.compile()
-  assert_false(result.validate(Json::string("yes")).valid)
-  assert_true(result.validate(Json::string("ok")).valid)
+  let positive = Schema::any_of([
+    Schema::constant("yes"),
+    Schema::constant("ok"),
+  ])
+  let exact = Schema::constant("yes")
+  let not_exact = Schema::not(exact)
+  let schema = Schema::all_of([positive, not_exact])
+  assert_false(schema.validate(Json::string("yes")).valid)
+  assert_true(schema.validate(Json::string("ok")).valid)
 }

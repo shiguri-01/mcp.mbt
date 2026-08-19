@@ -169,7 +169,7 @@ pub fn CompiledSchema::validate(
     options: self.options,
     errors: [],
   }
-  self.root.validate(instance, path=root_json_path(), depth=0, ctx~)
+  self.root.node.validate(instance, path=root_json_path(), depth=0, ctx~)
   { valid: ctx.errors.is_empty(), errors: ctx.errors }
 }
 
@@ -448,41 +448,41 @@ fn collect_definitions(
 ///|
 fn parse_schema_json(value : Json) -> Schema raise SchemaError {
   match value {
-    True => BooleanSchema::always().into_schema()
-    False => BooleanSchema::never().into_schema()
+    True => Schema::from_node(BooleanSchema::always())
+    False => Schema::from_node(BooleanSchema::never())
     Object(fields) => {
       if fields is { "$ref": String(reference), .. } {
-        return RefSchema(reference).into_schema()
+        return Schema::from_node(RefSchema(reference))
       }
       if fields is { "const": val, .. } {
-        return ConstSchema(val).into_schema()
+        return Schema::from_node(ConstSchema::from_value(val))
       }
       if fields is { "enum": Array(values), .. } {
-        return EnumSchema(values).into_schema()
+        return Schema::from_node(EnumSchema(values))
       }
       if fields is { "allOf": Array(values), .. } {
         let schemas = []
         for v in values {
           schemas.push(parse_schema_json(v))
         }
-        return AllOfSchema(schemas).into_schema()
+        return Schema::from_node(AllOfSchema(schemas))
       }
       if fields is { "anyOf": Array(values), .. } {
         let schemas = []
         for v in values {
           schemas.push(parse_schema_json(v))
         }
-        return AnyOfSchema(schemas).into_schema()
+        return Schema::from_node(AnyOfSchema(schemas))
       }
       if fields is { "oneOf": Array(values), .. } {
         let schemas = []
         for v in values {
           schemas.push(parse_schema_json(v))
         }
-        return OneOfSchema(schemas).into_schema()
+        return Schema::from_node(OneOfSchema(schemas))
       }
       if fields is { "not": v, .. } {
-        return NotSchema(parse_schema_json(v)).into_schema()
+        return Schema::from_node(NotSchema(parse_schema_json(v)))
       }
       let desc = if fields is { "description": String(d), .. } {
         Some(d)
@@ -495,8 +495,8 @@ fn parse_schema_json(value : Json) -> Schema raise SchemaError {
         None
       }
       match type_name {
-        Some("null") => NullSchema(description?=desc).into_schema()
-        Some("boolean") => BoolTypeSchema(description?=desc).into_schema()
+        Some("null") => Schema::from_node(NullSchema(description?=desc))
+        Some("boolean") => Schema::from_node(BoolTypeSchema(description?=desc))
         Some("string") => {
           let min_length = if fields is { "minLength": Number(n, ..), .. } {
             Some(n.to_int())
@@ -508,7 +508,9 @@ fn parse_schema_json(value : Json) -> Schema raise SchemaError {
           } else {
             None
           }
-          StringSchema(min_length?, max_length?, description?=desc).into_schema()
+          Schema::from_node(
+            StringSchema(min_length?, max_length?, description?=desc),
+          )
         }
         Some("integer") => {
           let min = if fields is { "minimum": Number(n, ..), .. } {
@@ -521,7 +523,9 @@ fn parse_schema_json(value : Json) -> Schema raise SchemaError {
           } else {
             None
           }
-          IntegerSchema(minimum?=min, maximum?=max, description?=desc).into_schema()
+          Schema::from_node(
+            IntegerSchema(minimum?=min, maximum?=max, description?=desc),
+          )
         }
         Some("number") => {
           let min = if fields is { "minimum": Number(n, ..), .. } {
@@ -549,14 +553,16 @@ fn parse_schema_json(value : Json) -> Schema raise SchemaError {
           } else {
             None
           }
-          NumberSchema(
-            minimum?=min,
-            maximum?=max,
-            exclusive_minimum?=ex_min,
-            exclusive_maximum?=ex_max,
-            multiple_of?=mult,
-            description?=desc,
-          ).into_schema()
+          Schema::from_node(
+            NumberSchema(
+              minimum?=min,
+              maximum?=max,
+              exclusive_minimum?=ex_min,
+              exclusive_maximum?=ex_max,
+              multiple_of?=mult,
+              description?=desc,
+            ),
+          )
         }
         Some("array") => {
           let items = if fields is { "items": item_json, .. } {
@@ -575,13 +581,15 @@ fn parse_schema_json(value : Json) -> Schema raise SchemaError {
             None
           }
           let unique = fields is { "uniqueItems": True, .. }
-          ArraySchema(
-            items?,
-            min_items?=min,
-            max_items?=max,
-            unique_items=unique,
-            description?=desc,
-          ).into_schema()
+          Schema::from_node(
+            ArraySchema(
+              items?,
+              min_items?=min,
+              max_items?=max,
+              unique_items=unique,
+              description?=desc,
+            ),
+          )
         }
         Some("object") | None => {
           let properties : Map[String, Schema] = Map([])
@@ -615,19 +623,21 @@ fn parse_schema_json(value : Json) -> Schema raise SchemaError {
             !add_props ||
             min is Some(_) ||
             max is Some(_) {
-            ObjectSchema(
-              properties~,
-              required~,
-              additional_properties=add_props,
-              min_properties?=min,
-              max_properties?=max,
-              description?=desc,
-            ).into_schema()
+            Schema::from_node(
+              ObjectSchema(
+                properties~,
+                required~,
+                additional_properties=add_props,
+                min_properties?=min,
+                max_properties?=max,
+                description?=desc,
+              ),
+            )
           } else {
-            BooleanSchema::always().into_schema()
+            Schema::from_node(BooleanSchema::always())
           }
         }
-        _ => RawSchema(value).into_schema()
+        _ => Schema::from_node(RawSchema(value))
       }
     }
     _ => raise InvalidDocument("schema must be an object or boolean")

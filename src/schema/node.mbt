@@ -1,9 +1,7 @@
 ///|
 /// A trait representing a JSON Schema (Draft 2020-12) node.
-/// Every specific schema type (StringSchema, ObjectSchema, ArraySchema, etc.)
-/// implements this trait.
-pub(open) trait SchemaNode: ToJson + @debug.Debug {
-  fn into_schema(Self) -> Schema
+/// Sealed to this package to prevent external invalid schema nodes.
+pub trait SchemaNode: ToJson + @debug.Debug {
   fn validate(
     Self,
     instance : Json,
@@ -14,7 +12,7 @@ pub(open) trait SchemaNode: ToJson + @debug.Debug {
 }
 
 ///|
-/// A first-class JSON Schema value wrapping any SchemaNode.
+/// A first-class JSON Schema value wrapping any JSON Schema construct.
 pub struct Schema {
   node : &SchemaNode
 }
@@ -40,22 +38,6 @@ pub impl ToJson for Schema with fn to_json(self : Schema) -> Json {
 }
 
 ///|
-pub impl SchemaNode for Schema with fn into_schema(self : Schema) -> Schema {
-  self
-}
-
-///|
-pub impl SchemaNode for Schema with fn validate(
-  self : Schema,
-  instance : Json,
-  path~ : @json.JsonPath,
-  depth~ : Int,
-  ctx~ : ValidationContext,
-) -> Unit {
-  self.node.validate(instance, path~, depth~, ctx~)
-}
-
-///|
 pub fn Schema::to_json(self : Schema) -> Json {
   ToJson::to_json(self.node)
 }
@@ -66,26 +48,204 @@ pub fn Schema::document(self : Schema) -> Document raise SchemaError {
 }
 
 ///|
-pub fn Schema::from_json(value : Json) -> Schema raise SchemaError {
-  parse_schema_json(value)
+pub fn Schema::from_json(
+  value : Json,
+  options? : CompileOptions = CompileOptions::default(),
+) -> Schema raise SchemaError {
+  let doc = Document::Document(value)
+  let compiled = doc.compile(options~)
+  compiled.root
 }
 
 ///|
 pub fn Schema::validate(
   self : Schema,
   instance : Json,
-  path? : @json.JsonPath,
-  depth? : Int = 0,
-  ctx~ : ValidationContext,
-) -> Unit {
-  let p = match path {
-    Some(p) => p
-    None => root_json_path()
+  options? : CompileOptions = CompileOptions::default(),
+) -> ValidationResult {
+  let doc_val = self.to_json()
+  let defs : Map[String, Schema] = Map([])
+  let _ = collect_definitions(doc_val, defs, "#", 0, options.max_depth) catch {
+    _ => ()
   }
-  self.node.validate(instance, path=p, depth~, ctx~)
+  let ctx : ValidationContext = { defs, options, errors: [] }
+  self.node.validate(instance, path=root_json_path(), depth=0, ctx~)
+  { valid: ctx.errors.is_empty(), errors: ctx.errors }
 }
 
 ///|
-pub fn[T : SchemaNode] Schema::from_node(node : T) -> Schema {
+fn[T : SchemaNode] Schema::from_node(node : T) -> Schema {
   { node, }
+}
+
+///|
+/// Create a boolean schema (`true` or `false`).
+pub fn Schema::boolean(value : Bool) -> Schema {
+  if value {
+    Schema::from_node(BooleanSchema::always())
+  } else {
+    Schema::from_node(BooleanSchema::never())
+  }
+}
+
+///|
+/// A boolean schema that always passes validation (`true`).
+pub fn Schema::always() -> Schema {
+  Schema::from_node(BooleanSchema::always())
+}
+
+///|
+/// A boolean schema that always fails validation (`false`).
+pub fn Schema::never() -> Schema {
+  Schema::from_node(BooleanSchema::never())
+}
+
+///|
+/// A `null` type schema.
+pub fn Schema::null(description? : String) -> Schema {
+  Schema::from_node(NullSchema(description?))
+}
+
+///|
+/// A `boolean` type schema (`type: "boolean"`).
+pub fn Schema::bool_type(description? : String) -> Schema {
+  Schema::from_node(BoolTypeSchema(description?))
+}
+
+///|
+/// A `string` type schema.
+pub fn Schema::string(
+  min_length? : Int,
+  max_length? : Int,
+  description? : String,
+) -> Schema raise SchemaError {
+  Schema::from_node(StringSchema(min_length?, max_length?, description?))
+}
+
+///|
+/// An `integer` type schema.
+pub fn Schema::integer(
+  minimum? : Int,
+  maximum? : Int,
+  description? : String,
+) -> Schema raise SchemaError {
+  Schema::from_node(IntegerSchema(minimum?, maximum?, description?))
+}
+
+///|
+/// A `number` type schema.
+pub fn Schema::number(
+  minimum? : Double,
+  maximum? : Double,
+  exclusive_minimum? : Double,
+  exclusive_maximum? : Double,
+  multiple_of? : Double,
+  description? : String,
+) -> Schema raise SchemaError {
+  Schema::from_node(
+    NumberSchema(
+      minimum?,
+      maximum?,
+      exclusive_minimum?,
+      exclusive_maximum?,
+      multiple_of?,
+      description?,
+    ),
+  )
+}
+
+///|
+/// An `array` type schema.
+pub fn Schema::array(
+  items? : Schema,
+  min_items? : Int,
+  max_items? : Int,
+  unique_items? : Bool = false,
+  description? : String,
+) -> Schema raise SchemaError {
+  Schema::from_node(
+    ArraySchema(items?, min_items?, max_items?, unique_items~, description?),
+  )
+}
+
+///|
+/// An `object` type schema.
+pub fn Schema::object(
+  properties? : Map[String, Schema] = {},
+  required? : Array[String] = [],
+  additional_properties? : Bool = true,
+  min_properties? : Int,
+  max_properties? : Int,
+  description? : String,
+) -> Schema raise SchemaError {
+  Schema::from_node(
+    ObjectSchema(
+      properties~,
+      required~,
+      additional_properties~,
+      min_properties?,
+      max_properties?,
+      description?,
+    ),
+  )
+}
+
+///|
+/// A `const` assertion schema.
+pub fn[T : ToJson] Schema::constant(value : T, description? : String) -> Schema {
+  Schema::from_node(ConstSchema::from_value(value, description?))
+}
+
+///|
+/// An `enum` assertion schema.
+pub fn[T : ToJson] Schema::enumeration(
+  values : Array[T],
+  description? : String,
+) -> Schema raise SchemaError {
+  Schema::from_node(EnumSchema::from_values(values, description?))
+}
+
+///|
+/// An `allOf` combinator schema.
+pub fn Schema::all_of(values : Array[Schema], description? : String) -> Schema {
+  Schema::from_node(AllOfSchema(values, description?))
+}
+
+///|
+/// An `anyOf` combinator schema.
+pub fn Schema::any_of(
+  values : Array[Schema],
+  description? : String,
+) -> Schema raise SchemaError {
+  Schema::from_node(AnyOfSchema(values, description?))
+}
+
+///|
+/// A `oneOf` combinator schema.
+pub fn Schema::one_of(
+  values : Array[Schema],
+  description? : String,
+) -> Schema raise SchemaError {
+  Schema::from_node(OneOfSchema(values, description?))
+}
+
+///|
+/// A `not` combinator schema.
+pub fn Schema::not(value : Schema, description? : String) -> Schema {
+  Schema::from_node(NotSchema(value, description?))
+}
+
+///|
+/// A `$ref` reference schema.
+pub fn Schema::ref_(
+  reference : String,
+  description? : String,
+) -> Schema raise SchemaError {
+  Schema::from_node(RefSchema(reference, description?))
+}
+
+///|
+/// An unconstrained escape hatch schema for raw JSON.
+pub fn Schema::raw(value : Json) -> Schema raise SchemaError {
+  Schema::from_node(RawSchema(value))
 }
