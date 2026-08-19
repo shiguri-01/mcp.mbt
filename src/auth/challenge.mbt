@@ -217,7 +217,7 @@ pub fn BearerChallenge::parse(
 }
 
 ///|
-pub fn scope_words(value : String) -> Array[String] {
+fn scope_words(value : String) -> Array[String] {
   [
     for part in value.split(" ") if !part.is_empty() => part.to_owned()
   ]

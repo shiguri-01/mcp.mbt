@@ -197,17 +197,6 @@ fn private_literal_authority(authority : String) -> Bool {
 }
 
 ///|
-pub fn validate_public_authorization_uri(
-  value : String,
-) -> AbsoluteUri raise AuthError {
-  let uri = validate_secure_uri(value)
-  if private_literal_authority(uri.authority) {
-    raise InvalidUri("authorization destination must not be a private address")
-  }
-  uri
-}
-
-///|
 /// Authorization endpoints require HTTPS. A loopback redirect URI may use
 /// plain HTTP as permitted for native clients.
 pub fn validate_secure_uri(
@@ -258,14 +247,14 @@ pub fn percent_encode(value : String) -> String {
 }
 
 ///|
-pub fn encode_parameters(parameters : Array[(String, String)]) -> String {
+fn encode_parameters(parameters : Array[(String, String)]) -> String {
   parameters
   .map(pair => percent_encode(pair.0) + "=" + percent_encode(pair.1))
   .join("&")
 }
 
 ///|
-pub fn encode_form_parameters(parameters : Array[(String, String)]) -> String {
+fn encode_form_parameters(parameters : Array[(String, String)]) -> String {
   parameters
   .map(pair => {
     form_encode_component(pair.0) + "=" + form_encode_component(pair.1)
@@ -279,7 +268,7 @@ fn form_encode_component(value : String) -> String {
 }
 
 ///|
-pub fn percent_decode(value : String) -> String raise AuthError {
+fn percent_decode(value : String) -> String raise AuthError {
   let bytes : Array[Byte] = []
   let mut index = 0
   while index < value.length() {
@@ -330,7 +319,7 @@ pub fn parse_query(value : String) -> Map[String, String] raise AuthError {
 }
 
 ///|
-pub fn append_query(
+fn append_query(
   endpoint : String,
   parameters : Array[(String, String)],
 ) -> String {

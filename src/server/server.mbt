@@ -221,7 +221,7 @@ pub fn Server::supports_protocol_version(
 
 ///|
 /// Check if a message is a `subscriptions/listen` request.
-pub fn is_subscription_request(message : Json) -> Bool {
+fn is_subscription_request(message : Json) -> Bool {
   try (
     @jsonrpc.decode(message)
     is Request({ method_name: "subscriptions/listen", .. })
@@ -238,7 +238,7 @@ pub fn Server::is_subscription_request(self : Server, message : Json) -> Bool {
 
 ///|
 /// Check if a message is a `notifications/cancelled` notification.
-pub fn is_cancelled_notification(message : Json) -> Bool {
+fn is_cancelled_notification(message : Json) -> Bool {
   try (
     @jsonrpc.decode(message)
     is Notification({ method_name: "notifications/cancelled", .. })
