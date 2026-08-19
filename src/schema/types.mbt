@@ -168,15 +168,14 @@ impl SchemaNode for StringSchema with fn validate(
   ctx~ : ValidationContext,
 ) -> Unit {
   ignore(depth)
-  if instance is String(s) {
-    if self.min_length is Some(min) && s.length() < min {
-      ctx.push_issue(path, "string is shorter than minLength")
-    }
-    if self.max_length is Some(max) && s.length() > max {
-      ctx.push_issue(path, "string is longer than maxLength")
-    }
-  } else {
+  guard instance is String(s) else {
     ctx.push_issue(path, "value does not match type string")
+  }
+  if self.min_length is Some(min) && s.length() < min {
+    ctx.push_issue(path, "string is shorter than minLength")
+  }
+  if self.max_length is Some(max) && s.length() > max {
+    ctx.push_issue(path, "string is longer than maxLength")
   }
 }
 
@@ -222,15 +221,15 @@ impl SchemaNode for IntegerSchema with fn validate(
   ctx~ : ValidationContext,
 ) -> Unit {
   ignore(depth)
-  if instance is Number(value, ..) && value == value.to_int().to_double() {
-    if self.minimum is Some(min) && value.to_int() < min {
-      ctx.push_issue(path, "number is less than minimum")
-    }
-    if self.maximum is Some(max) && value.to_int() > max {
-      ctx.push_issue(path, "number is greater than maximum")
-    }
-  } else {
+  guard instance is Number(value, ..) && value == value.to_int().to_double() else {
     ctx.push_issue(path, "value does not match type integer")
+    return
+  }
+  if self.minimum is Some(min) && value.to_int() < min {
+    ctx.push_issue(path, "number is less than minimum")
+  }
+  if self.maximum is Some(max) && value.to_int() > max {
+    ctx.push_issue(path, "number is greater than maximum")
   }
 }
 
@@ -301,27 +300,27 @@ impl SchemaNode for NumberSchema with fn validate(
   ctx~ : ValidationContext,
 ) -> Unit {
   ignore(depth)
-  if instance is Number(value, ..) {
-    if self.minimum is Some(min) && value < min {
-      ctx.push_issue(path, "number is less than minimum")
-    }
-    if self.maximum is Some(max) && value > max {
-      ctx.push_issue(path, "number is greater than maximum")
-    }
-    if self.exclusive_minimum is Some(min) && value <= min {
-      ctx.push_issue(path, "number is not greater than exclusiveMinimum")
-    }
-    if self.exclusive_maximum is Some(max) && value >= max {
-      ctx.push_issue(path, "number is not less than exclusiveMaximum")
-    }
-    if self.multiple_of is Some(divisor) && divisor > 0.0 {
-      let quotient = value / divisor
-      if quotient != quotient.to_int().to_double() {
-        ctx.push_issue(path, "number is not a multipleOf value")
-      }
-    }
-  } else {
+  guard instance is Number(value, ..) else {
     ctx.push_issue(path, "value does not match type number")
+    return
+  }
+  if self.minimum is Some(min) && value < min {
+    ctx.push_issue(path, "number is less than minimum")
+  }
+  if self.maximum is Some(max) && value > max {
+    ctx.push_issue(path, "number is greater than maximum")
+  }
+  if self.exclusive_minimum is Some(min) && value <= min {
+    ctx.push_issue(path, "number is not greater than exclusiveMinimum")
+  }
+  if self.exclusive_maximum is Some(max) && value >= max {
+    ctx.push_issue(path, "number is not less than exclusiveMaximum")
+  }
+  if self.multiple_of is Some(divisor) && divisor > 0.0 {
+    let quotient = value / divisor
+    if quotient != quotient.to_int().to_double() {
+      ctx.push_issue(path, "number is not a multipleOf value")
+    }
   }
 }
 
@@ -374,38 +373,38 @@ impl SchemaNode for ArraySchema with fn validate(
   depth~ : Int,
   ctx~ : ValidationContext,
 ) -> Unit {
-  if depth > ctx.max_depth {
+  guard depth <= ctx.max_depth else {
     ctx.push_issue(path, "validation exceeded max_depth")
     return
   }
-  if instance is Array(values) {
-    if self.min_items is Some(min) && values.length() < min {
-      ctx.push_issue(path, "array is shorter than minItems")
-    }
-    if self.max_items is Some(max) && values.length() > max {
-      ctx.push_issue(path, "array is longer than maxItems")
-    }
-    if self.unique_items {
-      let seen : Array[Json] = []
-      for value in values {
-        if seen.contains(value) {
-          ctx.push_issue(path, "array items must be unique")
-        }
-        seen.push(value)
-      }
-    }
-    if self.items is Some(item_schema) {
-      for index, value in values {
-        item_schema.node.validate(
-          value,
-          path=path.add_index(index),
-          depth=depth + 1,
-          ctx~,
-        )
-      }
-    }
-  } else {
+  guard instance is Array(values) else {
     ctx.push_issue(path, "value does not match type array")
+    return
+  }
+  if self.min_items is Some(min) && values.length() < min {
+    ctx.push_issue(path, "array is shorter than minItems")
+  }
+  if self.max_items is Some(max) && values.length() > max {
+    ctx.push_issue(path, "array is longer than maxItems")
+  }
+  if self.unique_items {
+    let seen : Array[Json] = []
+    for value in values {
+      if seen.contains(value) {
+        ctx.push_issue(path, "array items must be unique")
+      }
+      seen.push(value)
+    }
+  }
+  if self.items is Some(item_schema) {
+    for index, value in values {
+      item_schema.node.validate(
+        value,
+        path=path.add_index(index),
+        depth=depth + 1,
+        ctx~,
+      )
+    }
   }
 }
 
@@ -480,47 +479,47 @@ impl SchemaNode for ObjectSchema with fn validate(
   depth~ : Int,
   ctx~ : ValidationContext,
 ) -> Unit {
-  if depth > ctx.max_depth {
+  guard depth <= ctx.max_depth else {
     ctx.push_issue(path, "validation exceeded max_depth")
     return
   }
-  if instance is Object(fields) {
-    if self.min_properties is Some(min) && fields.length() < min {
-      ctx.push_issue(path, "object has fewer than minProperties")
+  guard instance is Object(fields) else {
+    ctx.push_issue(path, "value does not match type object")
+    return
+  }
+  if self.min_properties is Some(min) && fields.length() < min {
+    ctx.push_issue(path, "object has fewer than minProperties")
+  }
+  if self.max_properties is Some(max) && fields.length() > max {
+    ctx.push_issue(path, "object has more than maxProperties")
+  }
+  for name in self.required {
+    if fields.get(name) is None {
+      ctx.push_issue(
+        path.add_key(name),
+        "required property is missing: \{name}",
+      )
     }
-    if self.max_properties is Some(max) && fields.length() > max {
-      ctx.push_issue(path, "object has more than maxProperties")
+  }
+  for name, prop_schema in self.properties {
+    if fields.get(name) is Some(prop_val) {
+      prop_schema.node.validate(
+        prop_val,
+        path=path.add_key(name),
+        depth=depth + 1,
+        ctx~,
+      )
     }
-    for name in self.required {
-      if fields.get(name) is None {
+  }
+  if !self.additional_properties {
+    for name, _ in fields {
+      if !self.properties.contains(name) {
         ctx.push_issue(
           path.add_key(name),
-          "required property is missing: \{name}",
+          "additional property is not allowed: \{name}",
         )
       }
     }
-    for name, prop_schema in self.properties {
-      if fields.get(name) is Some(prop_val) {
-        prop_schema.node.validate(
-          prop_val,
-          path=path.add_key(name),
-          depth=depth + 1,
-          ctx~,
-        )
-      }
-    }
-    if !self.additional_properties {
-      for name, _ in fields {
-        if !self.properties.contains(name) {
-          ctx.push_issue(
-            path.add_key(name),
-            "additional property is not allowed: \{name}",
-          )
-        }
-      }
-    }
-  } else {
-    ctx.push_issue(path, "value does not match type object")
   }
 }
 
@@ -555,7 +554,7 @@ impl SchemaNode for ConstSchema with fn validate(
   ctx~ : ValidationContext,
 ) -> Unit {
   ignore(depth)
-  if instance != self.value {
+  guard instance == self.value else {
     ctx.push_issue(path, "value does not match const")
   }
 }
@@ -610,7 +609,7 @@ impl SchemaNode for EnumSchema with fn validate(
   ctx~ : ValidationContext,
 ) -> Unit {
   ignore(depth)
-  if !self.values.contains(instance) {
+  guard self.values.contains(instance) else {
     ctx.push_issue(path, "value is not in enum")
   }
 }

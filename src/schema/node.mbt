@@ -53,9 +53,9 @@ pub fn Schema::from_json(
   if max_depth <= 0 || max_nodes <= 0 {
     raise InvalidSchema("schema compilation limits must be positive")
   }
-  validate_document_compilation(value, max_depth, max_nodes)
+  validate_document_compilation(value, max_depth~, max_nodes~)
   let defs : Map[String, Schema] = Map([])
-  collect_definitions(value, defs, "#", 0, max_depth)
+  collect_definitions(value, defs~, pointer="#", depth=0, max_depth~)
   let parsed = parse_schema_json(value)
   { node: parsed.node, defs }
 }
