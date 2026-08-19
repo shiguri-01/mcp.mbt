@@ -3,10 +3,6 @@
 pub const DRAFT_2020_12 : String = "https://json-schema.org/draft/2020-12/schema"
 
 ///|
-/// Deprecated alias for `DRAFT_2020_12`.
-pub let draft_2020_12 : String = DRAFT_2020_12
-
-///|
 /// Errors raised while constructing, compiling, or validating a schema.
 pub suberror SchemaError {
   InvalidDocument(String)
