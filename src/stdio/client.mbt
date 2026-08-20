@@ -90,7 +90,7 @@ pub impl @client.ClientTransport for Transport with fn close(self : Transport) -
 pub async fn Transport::close_and_wait(
   self : Transport,
 ) -> Unit raise @mcp.McpError {
-  self.close()
+  @client.ClientTransport::close(self)
   self.writer_task.wait() catch {
     error => raise InternalError(error.to_string())
   }
@@ -300,29 +300,16 @@ pub impl @client.ClientTransport for Transport with fn request_with_notification
   if progress_key is Some(token_key) {
     self.progress_routes[token_key] = key
   }
+  defer {
+    ignore(self.pending.remove(key))
+    if progress_key is Some(token_key) {
+      ignore(self.progress_routes.remove(token_key))
+    }
+  }
   self.outbound.put(Some(encode_frame(request))) catch {
-    error => {
-      ignore(self.pending.remove(key))
-      if progress_key is Some(token_key) {
-        ignore(self.progress_routes.remove(token_key))
-      }
-      raise InternalError(error.to_string())
-    }
+    error => raise InternalError(error.to_string())
   }
-  let result = self.read_response(queue, id, on_notification) catch {
-    error => {
-      ignore(self.pending.remove(key))
-      if progress_key is Some(token_key) {
-        ignore(self.progress_routes.remove(token_key))
-      }
-      raise error
-    }
-  }
-  ignore(self.pending.remove(key))
-  if progress_key is Some(token_key) {
-    ignore(self.progress_routes.remove(token_key))
-  }
-  result
+  self.read_response(queue, id, on_notification)
 }
 
 ///|

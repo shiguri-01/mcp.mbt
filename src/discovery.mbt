@@ -31,14 +31,14 @@ pub fn DiscoverResult::DiscoverResult(
 ///|
 pub impl ToJson for DiscoverResult with fn to_json(self : DiscoverResult) -> Json {
   let fields : Map[String, Json] = {
-    "resultType": ResultType::Complete.to_json(),
+    "resultType": ToJson::to_json(ResultType::Complete),
     "supportedVersions": self.supported_versions.to_json(),
-    "capabilities": self.capabilities.to_json(),
+    "capabilities": ToJson::to_json(self.capabilities),
   }
   fields.set_opt("instructions", self.instructions.map(Json::string))
   self.cache_policy.put(fields)
   if self.meta is Some(value) {
-    fields["_meta"] = value.to_json()
+    fields["_meta"] = ToJson::to_json(value)
   }
   Json::object(fields)
 }

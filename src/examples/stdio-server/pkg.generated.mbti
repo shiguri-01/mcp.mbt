@@ -1,0 +1,17 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "shiguri-01/mcp/examples/stdio-server"
+
+import {
+  "moonbitlang/core/json",
+}
+
+// Values
+
+// Errors
+
+// Types and methods
+type GreetInput derive(@json.FromJson)
+
+// Type aliases
+
+// Traits

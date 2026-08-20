@@ -71,7 +71,7 @@ fn ResultMeta::copy(self : ResultMeta) -> ResultMeta {
 pub impl ToJson for ResultMeta with fn to_json(self : ResultMeta) -> Json {
   let fields = self.extra.copy()
   if self.server_info is Some(value) {
-    fields["io.modelcontextprotocol/serverInfo"] = value.to_json()
+    fields["io.modelcontextprotocol/serverInfo"] = ToJson::to_json(value)
   }
   Json::object(fields)
 }
@@ -128,7 +128,7 @@ fn merge_result_meta(
     merged[key] = value
   }
   if server_info is Some(value) {
-    merged["io.modelcontextprotocol/serverInfo"] = value.to_json()
+    merged["io.modelcontextprotocol/serverInfo"] = ToJson::to_json(value)
   }
   if !merged.is_empty() {
     fields["_meta"] = Json::object(merged)
@@ -161,7 +161,7 @@ pub fn complete_result(
     raise InvalidParams("complete result must be an object")
   }
   let fields = fields.copy_json()
-  fields["resultType"] = ResultType::Complete.to_json()
+  fields["resultType"] = ToJson::to_json(ResultType::Complete)
   merge_result_meta(fields, server_info?, extra=meta)
   Json::object(fields)
 }
@@ -226,7 +226,7 @@ pub fn CachePolicy::CachePolicy(
 pub impl ToJson for CachePolicy with fn to_json(self : CachePolicy) -> Json {
   Json::object({
     "ttlMs": Json::number(self.ttl_ms.to_double(), repr="\{self.ttl_ms}"),
-    "cacheScope": self.scope.to_json(),
+    "cacheScope": ToJson::to_json(self.scope),
   })
 }
 
@@ -272,5 +272,5 @@ pub fn CachePolicy::from_json(
 ///|
 fn CachePolicy::put(self : CachePolicy, fields : Map[String, Json]) -> Unit {
   fields["ttlMs"] = Json::number(self.ttl_ms.to_double(), repr="\{self.ttl_ms}")
-  fields["cacheScope"] = self.scope.to_json()
+  fields["cacheScope"] = ToJson::to_json(self.scope)
 }

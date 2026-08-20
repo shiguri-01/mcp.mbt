@@ -99,9 +99,9 @@ pub fn[Params] Request::Request(
 pub impl[Params : ToJson] ToJson for Request[Params] with fn to_json(self) -> Json {
   Json::object({
     "jsonrpc": Json::string(JSON_RPC_VERSION),
-    "id": self.id.to_json(),
+    "id": ToJson::to_json(self.id),
     "method": Json::string(self.method_name),
-    "params": self.params.to_json(),
+    "params": ToJson::to_json(self.params),
   })
 }
 
@@ -130,7 +130,7 @@ pub impl[Params : ToJson] ToJson for Notification[Params] with fn to_json(self) 
   Json::object({
     "jsonrpc": Json::string(JSON_RPC_VERSION),
     "method": Json::string(self.method_name),
-    "params": self.params.to_json(),
+    "params": ToJson::to_json(self.params),
   })
 }
 
@@ -195,14 +195,14 @@ pub impl[Result : ToJson] ToJson for Response[Result] with fn to_json(self) -> J
     Success(id~, result~) =>
       Json::object({
         "jsonrpc": Json::string(JSON_RPC_VERSION),
-        "id": id.to_json(),
-        "result": result.to_json(),
+        "id": ToJson::to_json(id),
+        "result": ToJson::to_json(result),
       })
     Failure(id~, error~) =>
       Json::object({
         "jsonrpc": Json::string(JSON_RPC_VERSION),
-        "id": id.map(fn(i) { i.to_json() }).unwrap_or(Json::null()),
-        "error": error.to_json(),
+        "id": id.map(fn(i) { ToJson::to_json(i) }).unwrap_or(Json::null()),
+        "error": ToJson::to_json(error),
       })
   }
 }

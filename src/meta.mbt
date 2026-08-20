@@ -91,11 +91,13 @@ pub impl ToJson for RequestMeta with fn to_json(self : RequestMeta) -> Json {
     self.protocol_version,
   )
   if self.client_info is Some(value) {
-    fields["io.modelcontextprotocol/clientInfo"] = value.to_json()
+    fields["io.modelcontextprotocol/clientInfo"] = ToJson::to_json(value)
   }
-  fields["io.modelcontextprotocol/clientCapabilities"] = self.client_capabilities.to_json()
+  fields["io.modelcontextprotocol/clientCapabilities"] = ToJson::to_json(
+    self.client_capabilities,
+  )
   if self.log_level is Some(value) {
-    fields["io.modelcontextprotocol/logLevel"] = value.to_json()
+    fields["io.modelcontextprotocol/logLevel"] = ToJson::to_json(value)
   }
   Json::object(fields)
 }
@@ -304,13 +306,13 @@ pub fn RequestOptions::request_params(
   protocol_version? : String = LATEST_PROTOCOL_VERSION,
 ) -> Json raise McpError {
   let fields = params.copy()
-  fields["_meta"] = self
-    .request_meta(client_capabilities~, client_info?, protocol_version~)
-    .to_json()
+  fields["_meta"] = ToJson::to_json(
+    self.request_meta(client_capabilities~, client_info?, protocol_version~),
+  )
   if self.input_responses is Some(responses) {
     let values : Map[String, Json] = Map([])
     for key, response in responses {
-      values[key] = response.to_json()
+      values[key] = ToJson::to_json(response)
     }
     fields["inputResponses"] = Json::object(values)
   }

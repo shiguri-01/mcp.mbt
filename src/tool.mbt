@@ -152,11 +152,13 @@ pub impl ToJson for Tool with fn to_json(self : Tool) -> Json {
   fields.set_opt("description", self.description.map(Json::string))
   fields.set_opt("outputSchema", self.output_schema.map(fn(s) { s.copy() }))
   match self.annotations {
-    Some(annotations) => fields["annotations"] = annotations.to_json()
+    Some(annotations) => fields["annotations"] = ToJson::to_json(annotations)
     None => ()
   }
   if !self.icons.is_empty() {
-    fields["icons"] = self.icons.map(fn(icon) { icon.to_json() }).to_json()
+    fields["icons"] = self.icons
+      .map(fn(icon) { ToJson::to_json(icon) })
+      .to_json()
   }
   if !self.meta.is_empty() {
     fields["_meta"] = Json::object(self.meta.copy_json())
@@ -284,7 +286,7 @@ pub fn[T : FromJson] CallToolResult::decode_structured(
 ///|
 pub impl ToJson for CallToolResult with fn to_json(self : CallToolResult) -> Json {
   let fields : Map[String, Json] = {
-    "content": self.content.map(fn(block) { block.to_json() }).to_json(),
+    "content": self.content.map(fn(block) { ToJson::to_json(block) }).to_json(),
     "isError": Json::boolean(self.is_error),
   }
   fields.set_opt(
@@ -292,7 +294,7 @@ pub impl ToJson for CallToolResult with fn to_json(self : CallToolResult) -> Jso
     self.structured_content.map(fn(c) { c.copy() }),
   )
   if self.meta is Some(meta) {
-    fields["_meta"] = meta.to_json()
+    fields["_meta"] = ToJson::to_json(meta)
   }
   Json::object(fields)
 }
@@ -388,13 +390,13 @@ pub struct ListToolsResult {
 ///|
 pub impl ToJson for ListToolsResult with fn to_json(self : ListToolsResult) -> Json {
   let fields : Map[String, Json] = {
-    "resultType": ResultType::Complete.to_json(),
-    "tools": self.tools.map(fn(t) { t.to_json() }).to_json(),
+    "resultType": ToJson::to_json(ResultType::Complete),
+    "tools": self.tools.map(fn(t) { ToJson::to_json(t) }).to_json(),
   }
   fields.set_opt("nextCursor", self.next_cursor.map(Json::string))
   self.cache_policy.put(fields)
   if self.meta is Some(meta) {
-    fields["_meta"] = meta.to_json()
+    fields["_meta"] = ToJson::to_json(meta)
   }
   Json::object(fields)
 }

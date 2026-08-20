@@ -60,7 +60,7 @@ pub impl Show for McpError with fn output(self : McpError, logger : &Logger) -> 
 pub fn McpError::data(self : McpError) -> Json? {
   match self {
     MissingRequiredClientCapability(_, required) =>
-      Some(Json::object({ "requiredCapabilities": required.to_json() }))
+      Some(Json::object({ "requiredCapabilities": ToJson::to_json(required) }))
     UnsupportedProtocolVersion(requested~, supported~) =>
       Some(
         Json::object({

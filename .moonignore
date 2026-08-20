@@ -1,0 +1,6 @@
+.agents/
+.codex/
+.github/
+.githooks/
+AGENTS.md
+src/examples/

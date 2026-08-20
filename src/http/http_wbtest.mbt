@@ -1,5 +1,7 @@
 ///|
-fn post_request(headers~ : Map[String, String]) -> @async_http.Request {
+fn post_request(
+  headers~ : Map[@async_http.CaseInsensitiveString, String],
+) -> @async_http.Request {
   { meth: Post, path: "/mcp", headers }
 }
 
@@ -81,14 +83,6 @@ test "standard header names ignore case but values do not" {
     "MCP-METHOD": "ping",
   })
   assert_true(standard_validation_error(accepted, ping) is None)
-  let duplicate = post_request(headers={
-    "MCP-Protocol-Version": @mcp.LATEST_PROTOCOL_VERSION,
-    "mcp-protocol-version": @mcp.LATEST_PROTOCOL_VERSION,
-    "Mcp-Method": "ping",
-  })
-  assert_true(
-    standard_validation_error(duplicate, ping) is Some(@mcp.HeaderMismatch(_)),
-  )
 }
 
 ///|
@@ -424,7 +418,7 @@ test "invalid request metadata is reported before header mismatch" {
     "params": Json::object({}),
   })
   let server = (try! @server.ServerBuilder(name="server", version="1")).build()
-  let headers : Map[String, String] = {
+  let headers : Map[@async_http.CaseInsensitiveString, String] = {
     "Accept": "application/json, text/event-stream",
     "Content-Type": "application/json",
   }

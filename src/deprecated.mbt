@@ -67,7 +67,10 @@ pub fn logging_message_notification(
   data~ : Json,
   logger? : String,
 ) -> Json {
-  let params : Map[String, Json] = { "level": level.to_json(), "data": data }
+  let params : Map[String, Json] = {
+    "level": ToJson::to_json(level),
+    "data": data,
+  }
   params.set_opt("logger", logger.map(Json::string))
   @jsonrpc.Notification(
     method_name="notifications/message",

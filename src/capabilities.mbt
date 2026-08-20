@@ -292,13 +292,13 @@ pub impl ToJson for ClientCapabilities with fn to_json(
     fields.remove(key)
   }
   if self.roots is Some(value) {
-    fields["roots"] = value.to_json()
+    fields["roots"] = ToJson::to_json(value)
   }
   if self.sampling is Some(value) {
-    fields["sampling"] = value.to_json()
+    fields["sampling"] = ToJson::to_json(value)
   }
   if self.elicitation is Some(value) {
-    fields["elicitation"] = value.to_json()
+    fields["elicitation"] = ToJson::to_json(value)
   }
   put_capability_map(fields, "extensions", self.extensions)
   put_capability_map(fields, "experimental", self.experimental)
@@ -630,16 +630,16 @@ pub impl ToJson for ServerCapabilities with fn to_json(
     fields.remove(key)
   }
   if self.tools is Some(value) {
-    fields["tools"] = value.to_json()
+    fields["tools"] = ToJson::to_json(value)
   }
   if self.resources is Some(value) {
-    fields["resources"] = value.to_json()
+    fields["resources"] = ToJson::to_json(value)
   }
   if self.prompts is Some(value) {
-    fields["prompts"] = value.to_json()
+    fields["prompts"] = ToJson::to_json(value)
   }
   if self.logging is Some(value) {
-    fields["logging"] = value.to_json()
+    fields["logging"] = ToJson::to_json(value)
   }
   if self.completions {
     fields["completions"] = Json::object({})

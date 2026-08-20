@@ -61,7 +61,7 @@ pub impl ToJson for Annotations with fn to_json(self : Annotations) -> Json {
   let fields : Map[String, Json] = Map([])
   if !self.audience.is_empty() {
     fields["audience"] = self.audience
-      .map(fn(role) { role.to_json() })
+      .map(fn(role) { ToJson::to_json(role) })
       .to_json()
   }
   if self.priority is Some(priority) {
@@ -186,10 +186,12 @@ pub impl ToJson for ResourceLink with fn to_json(self : ResourceLink) -> Json {
   fields.set_opt("description", self.description.map(Json::string))
   fields.set_opt("mimeType", self.mime_type.map(Json::string))
   if !self.icons.is_empty() {
-    fields["icons"] = self.icons.map(fn(icon) { icon.to_json() }).to_json()
+    fields["icons"] = self.icons
+      .map(fn(icon) { ToJson::to_json(icon) })
+      .to_json()
   }
   if self.annotations is Some(annotations) {
-    fields["annotations"] = annotations.to_json()
+    fields["annotations"] = ToJson::to_json(annotations)
   }
   fields.set_opt(
     "size",
@@ -322,7 +324,7 @@ fn put_content_metadata(
   meta : Json?,
 ) -> Unit {
   if annotations is Some(annotations) {
-    fields["annotations"] = annotations.to_json()
+    fields["annotations"] = ToJson::to_json(annotations)
   }
   fields.set_opt("_meta", meta.map(fn(m) { m.copy() }))
 }
@@ -359,12 +361,12 @@ pub impl ToJson for Content with fn to_json(self : Content) -> Json {
     EmbeddedResource(resource~, annotations~, meta~) => {
       let fields : Map[String, Json] = {
         "type": Json::string("resource"),
-        "resource": resource.to_json(),
+        "resource": ToJson::to_json(resource),
       }
       put_content_metadata(fields, annotations, meta)
       Json::object(fields)
     }
-    ResourceLink(resource_link) => resource_link.to_json()
+    ResourceLink(resource_link) => ToJson::to_json(resource_link)
   }
 }
 

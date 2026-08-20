@@ -46,7 +46,7 @@ pub impl Show for ValidationIssues with fn output(
         if i > 0 {
           logger.write_string("\n")
         }
-        logger.write_string(issue.to_string())
+        logger.write_string(Show::to_string(issue))
       }
   }
 }
@@ -54,7 +54,8 @@ pub impl Show for ValidationIssues with fn output(
 ///|
 pub impl ToJson for ValidationIssues with fn to_json(self : ValidationIssues) -> Json {
   match self {
-    ValidationIssues(issues) => issues.map(fn(i) { i.to_json() }).to_json()
+    ValidationIssues(issues) =>
+      issues.map(fn(i) { ToJson::to_json(i) }).to_json()
   }
 }
 

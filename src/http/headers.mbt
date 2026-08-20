@@ -21,23 +21,26 @@ priv struct HeaderBinding {
 
 ///|
 fn header_entries(
-  headers : Map[String, String],
+  headers : Map[@async_http.CaseInsensitiveString, String],
   name : String,
 ) -> Array[String] {
-  let expected = name.to_lower()
+  let expected = @async_http.CaseInsensitiveString(name)
   [
-    for key, value in headers if key.to_lower() == expected => value
+    for key, value in headers if key == expected => value
   ]
 }
 
 ///|
-fn header(headers : Map[String, String], name : String) -> String? {
-  header_entries(headers, name).get(0)
+fn header(
+  headers : Map[@async_http.CaseInsensitiveString, String],
+  name : String,
+) -> String? {
+  headers.get(@async_http.CaseInsensitiveString(name))
 }
 
 ///|
 fn unique_header(
-  headers : Map[String, String],
+  headers : Map[@async_http.CaseInsensitiveString, String],
   name : String,
 ) -> Result[String?, String] {
   match header_entries(headers, name) {
@@ -304,16 +307,16 @@ fn primitive_header_value(
 pub fn tool_argument_headers(
   input_schema : Json,
   arguments : Json,
-) -> Map[String, String] raise HttpHeaderError {
-  let headers : Map[String, String] = Map([])
+) -> Map[@async_http.CaseInsensitiveString, String] raise HttpHeaderError {
+  let headers : Map[@async_http.CaseInsensitiveString, String] = Map([])
   for binding in scan_header_bindings(input_schema) {
     match value_at_path(arguments, binding.path) {
       Some(value) =>
         match primitive_header_value(value, binding.primitive) {
           Some(value) =>
-            headers["Mcp-Param-\{binding.name}"] = encode_mcp_header_value(
-              value,
-            )
+            headers[@async_http.CaseInsensitiveString(
+              "Mcp-Param-\{binding.name}",
+            )] = encode_mcp_header_value(value)
           None => ()
         }
       None => ()
@@ -348,7 +351,7 @@ fn header_value_matches(
 /// Validate recognized `Mcp-Param-*` headers against a tool schema and call
 /// arguments. Unknown extension headers are deliberately ignored.
 pub fn validate_tool_argument_headers(
-  headers : Map[String, String],
+  headers : Map[@async_http.CaseInsensitiveString, String],
   input_schema : Json,
   arguments : Json,
 ) -> Unit raise HttpHeaderError {
@@ -495,8 +498,8 @@ fn protocol_version_from_message(message : Json) -> String? {
 fn standard_request_headers(
   message : Json,
   protocol_version : String,
-) -> Map[String, String] {
-  let headers : Map[String, String] = {
+) -> Map[@async_http.CaseInsensitiveString, String] {
+  let headers : Map[@async_http.CaseInsensitiveString, String] = {
     "MCP-Protocol-Version": protocol_version,
   }
   if request_method_name(message) is Some(method_name) {

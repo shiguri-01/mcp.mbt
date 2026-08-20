@@ -4,7 +4,7 @@ test "request metadata owns reserved fields and preserves extension fields" {
     "io.modelcontextprotocol/protocolVersion": Json::string("bad"),
     "com.example/trace": Json::string("trace-1"),
   })
-  guard meta.to_json() is Object(fields) else { fail("expected object") }
+  guard ToJson::to_json(meta) is Object(fields) else { fail("expected object") }
   assert_eq(
     fields["io.modelcontextprotocol/protocolVersion"],
     Json::string("2026-07-28"),
@@ -69,7 +69,7 @@ test "unsupported protocol errors identify requested and supported versions" {
   let error = UnsupportedProtocolVersion(requested="1900-01-01", supported=[
     LATEST_PROTOCOL_VERSION,
   ])
-  guard error.to_json()
+  guard ToJson::to_json(error)
     is Object(
       {
         "code": Number(-32022.0, ..),
@@ -227,7 +227,7 @@ test "discover accepts complete results without resultType" {
     Some(Json::object({ "enabled": Json::boolean(true) })),
   )
   assert_true(
-    result.to_json() is Object({ "resultType": String("complete"), .. }),
+    ToJson::to_json(result) is Object({ "resultType": String("complete"), .. }),
   )
 }
 

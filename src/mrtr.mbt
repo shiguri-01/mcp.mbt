@@ -181,7 +181,7 @@ pub impl ToJson for SamplingContentBlock with fn to_json(
       Json::object({
         "type": Json::string("tool_result"),
         "toolUseId": Json::string(tool_use_id),
-        "content": Json::array(content.map(fn(c) { c.to_json() })),
+        "content": Json::array(content.map(fn(c) { ToJson::to_json(c) })),
       })
   }
 }
@@ -221,8 +221,8 @@ pub fn SamplingContent::from_json(
 ///|
 pub impl ToJson for SamplingContent with fn to_json(self : SamplingContent) -> Json {
   match self {
-    Single(block) => block.to_json()
-    Multiple(blocks) => Json::array(blocks.map(fn(b) { b.to_json() }))
+    Single(block) => ToJson::to_json(block)
+    Multiple(blocks) => Json::array(blocks.map(fn(b) { ToJson::to_json(b) }))
   }
 }
 
@@ -265,8 +265,8 @@ pub fn SamplingMessage::from_json(
 ///|
 pub impl ToJson for SamplingMessage with fn to_json(self : SamplingMessage) -> Json {
   Json::object({
-    "role": self.role.to_json(),
-    "content": self.content.to_json(),
+    "role": ToJson::to_json(self.role),
+    "content": ToJson::to_json(self.content),
   })
 }
 
@@ -769,7 +769,9 @@ pub fn RootsListResult::from_json(
 
 ///|
 pub impl ToJson for RootsListResult with fn to_json(self : RootsListResult) -> Json {
-  Json::object({ "roots": Json::array(self.roots.map(fn(r) { r.to_json() })) })
+  Json::object({
+    "roots": Json::array(self.roots.map(fn(r) { ToJson::to_json(r) })),
+  })
 }
 
 ///|
@@ -979,18 +981,18 @@ pub impl ToJson for InputRequiredResult with fn to_json(
   self : InputRequiredResult,
 ) -> Json {
   let fields : Map[String, Json] = {
-    "resultType": ResultType::InputRequired.to_json(),
+    "resultType": ToJson::to_json(ResultType::InputRequired),
   }
   if self.input_requests is Some(requests) {
     let values : Map[String, Json] = Map([])
     for key, request in requests {
-      values[key] = request.to_json()
+      values[key] = ToJson::to_json(request)
     }
     fields["inputRequests"] = Json::object(values)
   }
   fields.set_opt("requestState", self.request_state.map(Json::string))
   if self.meta is Some(value) {
-    fields["_meta"] = value.to_json()
+    fields["_meta"] = ToJson::to_json(value)
   }
   Json::object(fields)
 }

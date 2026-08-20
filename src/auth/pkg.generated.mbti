@@ -1,0 +1,201 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "shiguri-01/mcp/auth"
+
+import {
+  "moonbitlang/core/debug",
+}
+
+// Values
+pub fn authorization_code_token_request(AuthorizationServerMetadata, ClientCredentials, code~ : String, redirect_uri~ : String, code_verifier~ : String, resource~ : String, exact_resource? : Bool) -> HttpRequest raise AuthError
+
+pub fn authorization_request_url(AuthorizationServerMetadata, ClientCredentials, redirect_uri~ : String, resource~ : String, pkce~ : PkceSession, scopes? : Array[String], allow_insecure_loopback? : Bool, exact_resource? : Bool) -> String raise AuthError
+
+pub fn authorization_server_metadata_urls(String) -> Array[String] raise AuthError
+
+pub fn canonical_resource_uri(String) -> String raise AuthError
+
+pub fn choose_registration(AuthorizationServerMetadata, client_id_metadata_url? : String, pre_registered? : ClientCredentials, allow_insecure_loopback? : Bool) -> RegistrationChoice raise AuthError
+
+pub async fn discover_authorization_server_metadata(AuthorizationProvider, String) -> AuthorizationServerMetadata raise AuthError
+
+pub async fn discover_protected_resource_metadata(AuthorizationProvider, String, challenge? : BearerChallenge, exact_resource? : Bool) -> ProtectedResourceMetadata raise AuthError
+
+pub fn dynamic_registration_request(AuthorizationServerMetadata, client_name~ : String, redirect_uris~ : Array[String], wants_refresh_token? : Bool) -> HttpRequest raise AuthError
+
+pub fn initial_scopes(challenge_scope? : String, resource_scopes? : Array[String], authorization_server_scopes? : Array[String], wants_refresh_token? : Bool) -> Array[String]
+
+pub fn parse_query(String) -> Map[String, String] raise AuthError
+
+pub fn percent_encode(String) -> String
+
+pub fn pkce_challenge(String) -> String raise AuthError
+
+pub fn pkce_from_entropy(Bytes, Bytes) -> PkceSession raise AuthError
+
+pub fn protected_resource_metadata_urls(String) -> Array[String] raise AuthError
+
+pub fn refresh_token_request(AuthorizationServerMetadata, ClientCredentials, refresh_token~ : String, resource~ : String, scopes? : Array[String], exact_resource? : Bool) -> HttpRequest raise AuthError
+
+pub fn resource_identifiers_match(String, String) -> Bool raise AuthError
+
+pub fn step_up_scopes(Array[String], String) -> Array[String]
+
+pub fn validate_authorization_response(String, expected_state~ : String, expected_issuer~ : String, issuer_parameter_required~ : Bool, expected_redirect_uri? : String) -> AuthorizationCode raise AuthError
+
+pub fn validate_secure_uri(String, allow_loopback_http? : Bool) -> AbsoluteUri raise AuthError
+
+// Errors
+pub(all) suberror AuthError {
+  InvalidUri(String)
+  InvalidChallenge(String)
+  InvalidMetadata(String)
+  InvalidAuthorizationResponse(String)
+  UnsupportedRegistration(String)
+  TransportFailure(String)
+  AuthorizationFailed(String)
+  RetryLimitExceeded(String)
+} derive(Eq, @debug.Debug)
+
+// Types and methods
+pub struct AbsoluteUri {
+  scheme : String
+  authority : String
+  path : String
+  query : String?
+}
+pub fn AbsoluteUri::parse(String) -> Self raise AuthError
+pub fn AbsoluteUri::to_string(Self) -> String
+
+pub struct AuthorizationCode {
+  code : String
+  issuer : String?
+}
+
+pub struct AuthorizationEngine {
+  // private fields
+}
+pub fn AuthorizationEngine::AuthorizationEngine(AuthorizationProvider) -> Self
+pub async fn AuthorizationEngine::authorize(Self, AuthorizationServerMetadata, ClientCredentials, redirect_uri~ : String, resource~ : String, scopes? : Array[String], exact_resource? : Bool) -> OAuthTokens raise AuthError
+pub async fn AuthorizationEngine::refresh(Self, AuthorizationServerMetadata, ClientCredentials, refresh_token~ : String, resource~ : String, scopes? : Array[String], exact_resource? : Bool) -> OAuthTokens raise AuthError
+
+pub struct AuthorizationProvider {
+  allow_insecure_loopback : Bool
+  // private fields
+}
+pub fn AuthorizationProvider::AuthorizationProvider(send_request~ : async (HttpRequest) -> HttpResponse raise AuthError, open_authorization_url~ : async (String) -> String raise AuthError, random_bytes~ : (Int) -> Bytes raise AuthError, validate_destination? : (String) -> Unit raise AuthError, allow_insecure_loopback? : Bool) -> Self
+pub async fn AuthorizationProvider::authorize(Self, String) -> String raise AuthError
+pub fn AuthorizationProvider::check_destination(Self, String) -> Unit raise AuthError
+pub fn AuthorizationProvider::new_pkce_session(Self) -> PkceSession raise AuthError
+pub async fn AuthorizationProvider::send(Self, HttpRequest) -> HttpResponse raise AuthError
+
+pub struct AuthorizationServerMetadata {
+  issuer : String
+  authorization_endpoint : String
+  token_endpoint : String
+  registration_endpoint : String?
+  scopes_supported : Array[String]?
+  token_endpoint_auth_methods_supported : Array[String]
+  client_id_metadata_document_supported : Bool
+  authorization_response_iss_parameter_supported : Bool
+  code_challenge_methods_supported : Array[String]
+}
+pub fn AuthorizationServerMetadata::from_json(Json, expected_issuer~ : String, allow_insecure_loopback? : Bool) -> Self raise AuthError
+
+pub struct BearerChallenge {
+  // private fields
+}
+pub fn BearerChallenge::error(Self) -> String?
+pub fn BearerChallenge::parameter(Self, String) -> String?
+pub fn BearerChallenge::parse(String) -> Self raise AuthError
+pub fn BearerChallenge::resource_metadata(Self) -> String?
+pub fn BearerChallenge::scope(Self) -> String?
+
+pub struct ClientCredentials {
+  client_id : String
+  client_secret : String?
+  token_endpoint_auth_method : TokenEndpointAuthMethod
+} derive(Eq)
+pub fn ClientCredentials::ClientCredentials(client_id~ : String, client_secret? : String, token_endpoint_auth_method? : TokenEndpointAuthMethod) -> Self raise AuthError
+pub fn ClientCredentials::from_registration_json(Json, requested_token_endpoint_auth_method? : TokenEndpointAuthMethod) -> Self raise AuthError
+
+pub struct CredentialCache {
+  // private fields
+}
+pub fn CredentialCache::CredentialCache() -> Self
+pub fn CredentialCache::get(Self, String) -> ClientCredentials?
+pub fn CredentialCache::put(Self, issuer~ : String, ClientCredentials) -> Unit
+
+pub(all) enum HttpMethod {
+  Get
+  Post
+} derive(Eq, @debug.Debug)
+
+pub struct HttpRequest {
+  request_method : HttpMethod
+  url : String
+  headers : Map[String, String]
+  body : String
+}
+pub fn HttpRequest::HttpRequest(request_method~ : HttpMethod, url~ : String, headers? : Map[String, String], body? : String) -> Self raise AuthError
+
+pub struct HttpResponse {
+  status : Int
+  headers : Map[String, String]
+  body : String
+}
+pub fn HttpResponse::HttpResponse(status~ : Int, headers? : Map[String, String], body? : String) -> Self
+pub fn HttpResponse::header(Self, String) -> String?
+
+pub struct OAuthTokens {
+  access_token : String
+  token_type : String
+  refresh_token : String?
+  scope : Array[String]
+  expires_in : Int?
+}
+pub fn OAuthTokens::OAuthTokens(access_token~ : String, token_type? : String, refresh_token? : String, scope? : Array[String], expires_in? : Int) -> Self raise AuthError
+pub fn OAuthTokens::authorization_header(Self) -> String
+pub fn OAuthTokens::from_json(Json) -> Self raise AuthError
+
+pub struct PkceSession {
+  code_verifier : String
+  code_challenge : String
+  state : String
+}
+
+pub struct ProtectedResourceMetadata {
+  resource : String
+  authorization_servers : Array[String]
+  scopes_supported : Array[String]?
+}
+pub fn ProtectedResourceMetadata::from_json(Json, expected_resource~ : String, allow_insecure_loopback? : Bool, exact_resource? : Bool, allow_same_origin_root? : Bool) -> Self raise AuthError
+
+pub(all) enum RegistrationChoice {
+  ClientIdMetadataDocument(String)
+  PreRegistered(ClientCredentials)
+  Dynamic(String)
+} derive(Eq)
+
+pub struct RetryPolicy {
+  // private fields
+}
+pub fn RetryPolicy::RetryPolicy(maximum_attempts? : Int) -> Self raise AuthError
+pub fn RetryPolicy::clear(Self, String, String) -> Unit
+pub fn RetryPolicy::record_attempt(Self, String, String) -> Unit raise AuthError
+
+pub struct TokenCache {
+  // private fields
+}
+pub fn TokenCache::TokenCache() -> Self
+pub fn TokenCache::get(Self, issuer~ : String, resource~ : String) -> OAuthTokens?
+pub fn TokenCache::put(Self, issuer~ : String, resource~ : String, OAuthTokens) -> Unit
+
+pub(all) enum TokenEndpointAuthMethod {
+  ClientSecretBasic
+  ClientSecretPost
+  None
+} derive(Eq, @debug.Debug)
+
+// Type aliases
+
+// Traits

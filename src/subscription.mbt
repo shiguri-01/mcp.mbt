@@ -127,7 +127,7 @@ pub fn subscriptions_acknowledged_notification(
       "_meta": Json::object({
         "io.modelcontextprotocol/subscriptionId": subscription_id,
       }),
-      "notifications": notifications.to_json(),
+      "notifications": ToJson::to_json(notifications),
     }),
   ).to_json()
 }

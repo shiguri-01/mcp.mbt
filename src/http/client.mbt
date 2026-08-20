@@ -138,8 +138,8 @@ pub fn Transport::headers(
   self : Transport,
   request : Json,
   input_schema? : Json,
-) -> Map[String, String] raise HttpHeaderError {
-  let headers : Map[String, String] = {
+) -> Map[@async_http.CaseInsensitiveString, String] raise HttpHeaderError {
+  let headers : Map[@async_http.CaseInsensitiveString, String] = {
     "Accept": "application/json, text/event-stream",
     "Content-Type": "application/json",
   }

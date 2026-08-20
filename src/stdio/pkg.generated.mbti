@@ -1,0 +1,31 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "shiguri-01/mcp/stdio"
+
+import {
+  "moonbitlang/async",
+  "moonbitlang/async/process",
+  "shiguri-01/mcp",
+  "shiguri-01/mcp/client",
+  "shiguri-01/mcp/server",
+}
+
+// Values
+pub async fn serve(@server.Server, on_subscription? : async (@server.Subscription, async (Json) -> Unit) -> Unit) -> Unit
+
+// Errors
+
+// Types and methods
+pub struct Transport {
+  process : @process.Process
+  pid : Int
+  // private fields
+}
+pub async fn[X] Transport::Transport(@async.TaskGroup[X], String, args? : Array[String], cwd? : String) -> Self raise @mcp.McpError
+pub async fn Transport::close_and_wait(Self) -> Unit raise @mcp.McpError
+pub async fn Transport::shutdown(Self) -> Unit raise @mcp.McpError
+pub impl @client.ClientTransport for Transport
+
+// Type aliases
+pub using @client {type Client}
+
+// Traits

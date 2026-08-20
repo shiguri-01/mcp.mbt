@@ -213,7 +213,7 @@ pub impl ToJson for CompleteResult with fn to_json(self : CompleteResult) -> Jso
   }
   let fields : Map[String, Json] = { "completion": Json::object(completion) }
   if self.meta is Some(meta) {
-    fields["_meta"] = meta.to_json()
+    fields["_meta"] = ToJson::to_json(meta)
   }
   Json::object(fields)
 }

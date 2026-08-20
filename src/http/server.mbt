@@ -15,7 +15,7 @@ async fn send_json(
   status : Int,
   reason : String,
   body : Json,
-  extra_headers? : Map[String, String] = Map([]),
+  extra_headers? : Map[@async_http.CaseInsensitiveString, String] = Map([]),
 ) -> Unit {
   extra_headers["Content-Type"] = "application/json"
   let (text, content_length) = encode_json_response(body)
@@ -251,7 +251,10 @@ fn response_status(response : Json) -> (Int, String) {
 }
 
 ///|
-fn origin_allowed(headers : Map[String, String], allowed : Set[String]) -> Bool {
+fn origin_allowed(
+  headers : Map[@async_http.CaseInsensitiveString, String],
+  allowed : Set[String],
+) -> Bool {
   match unique_header(headers, "Origin") {
     Ok(Some(origin)) => {
       if allowed.contains(origin) {

@@ -6,7 +6,7 @@ pub fn cancelled_notification(
   let params = CancelledNotificationParams(request_id~, reason?)
   try! @jsonrpc.Notification(
     method_name="notifications/cancelled",
-    params=params.to_json(),
+    params=ToJson::to_json(params),
   ).to_json()
 }
 

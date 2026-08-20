@@ -132,11 +132,13 @@ pub impl ToJson for Prompt with fn to_json(self : Prompt) -> Json {
   fields.set_opt("description", self.description.map(Json::string))
   if !self.arguments.is_empty() {
     fields["arguments"] = self.arguments
-      .map(fn(arg) { arg.to_json() })
+      .map(fn(arg) { ToJson::to_json(arg) })
       .to_json()
   }
   if !self.icons.is_empty() {
-    fields["icons"] = self.icons.map(fn(icon) { icon.to_json() }).to_json()
+    fields["icons"] = self.icons
+      .map(fn(icon) { ToJson::to_json(icon) })
+      .to_json()
   }
   if !self.meta.is_empty() {
     fields["_meta"] = Json::object(self.meta.copy_json())
@@ -248,8 +250,8 @@ pub fn PromptMessage::assistant(text : String) -> PromptMessage {
 ///|
 pub impl ToJson for PromptMessage with fn to_json(self : PromptMessage) -> Json {
   Json::object({
-    "role": self.role.to_json(),
-    "content": self.content.to_json(),
+    "role": ToJson::to_json(self.role),
+    "content": ToJson::to_json(self.content),
   })
 }
 
@@ -303,11 +305,13 @@ pub fn GetPromptResult::GetPromptResult(
 ///|
 pub impl ToJson for GetPromptResult with fn to_json(self : GetPromptResult) -> Json {
   let fields : Map[String, Json] = {
-    "messages": self.messages.map(fn(message) { message.to_json() }).to_json(),
+    "messages": self.messages
+    .map(fn(message) { ToJson::to_json(message) })
+    .to_json(),
   }
   fields.set_opt("description", self.description.map(Json::string))
   if self.meta is Some(meta) {
-    fields["_meta"] = meta.to_json()
+    fields["_meta"] = ToJson::to_json(meta)
   }
   Json::object(fields)
 }
@@ -377,13 +381,13 @@ pub struct ListPromptsResult {
 ///|
 pub impl ToJson for ListPromptsResult with fn to_json(self : ListPromptsResult) -> Json {
   let fields : Map[String, Json] = {
-    "resultType": ResultType::Complete.to_json(),
-    "prompts": self.prompts.map(fn(p) { p.to_json() }).to_json(),
+    "resultType": ToJson::to_json(ResultType::Complete),
+    "prompts": self.prompts.map(fn(p) { ToJson::to_json(p) }).to_json(),
   }
   fields.set_opt("nextCursor", self.next_cursor.map(Json::string))
   self.cache_policy.put(fields)
   if self.meta is Some(meta) {
-    fields["_meta"] = meta.to_json()
+    fields["_meta"] = ToJson::to_json(meta)
   }
   Json::object(fields)
 }

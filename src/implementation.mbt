@@ -49,7 +49,7 @@ pub impl ToJson for Icon with fn to_json(self : Icon) -> Json {
     fields["sizes"] = self.sizes.to_json()
   }
   if self.theme is Some(theme) {
-    fields["theme"] = theme.to_json()
+    fields["theme"] = ToJson::to_json(theme)
   }
   Json::object(fields)
 }
@@ -130,7 +130,9 @@ pub impl ToJson for Implementation with fn to_json(self : Implementation) -> Jso
   fields.set_opt("title", self.title.map(Json::string))
   fields.set_opt("description", self.description.map(Json::string))
   if !self.icons.is_empty() {
-    fields["icons"] = self.icons.map(fn(icon) { icon.to_json() }).to_json()
+    fields["icons"] = self.icons
+      .map(fn(icon) { ToJson::to_json(icon) })
+      .to_json()
   }
   fields.set_opt("websiteUrl", self.website_url.map(Json::string))
   Json::object(fields)

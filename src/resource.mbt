@@ -85,10 +85,12 @@ pub impl ToJson for Resource with fn to_json(self : Resource) -> Json {
   fields.set_opt("description", self.description.map(Json::string))
   fields.set_opt("mimeType", self.mime_type.map(Json::string))
   if !self.icons.is_empty() {
-    fields["icons"] = self.icons.map(fn(icon) { icon.to_json() }).to_json()
+    fields["icons"] = self.icons
+      .map(fn(icon) { ToJson::to_json(icon) })
+      .to_json()
   }
   if self.annotations is Some(annotations) {
-    fields["annotations"] = annotations.to_json()
+    fields["annotations"] = ToJson::to_json(annotations)
   }
   fields.set_opt(
     "size",
@@ -245,10 +247,12 @@ pub impl ToJson for ResourceTemplate with fn to_json(self : ResourceTemplate) ->
   fields.set_opt("description", self.description.map(Json::string))
   fields.set_opt("mimeType", self.mime_type.map(Json::string))
   if !self.icons.is_empty() {
-    fields["icons"] = self.icons.map(fn(icon) { icon.to_json() }).to_json()
+    fields["icons"] = self.icons
+      .map(fn(icon) { ToJson::to_json(icon) })
+      .to_json()
   }
   if self.annotations is Some(annotations) {
-    fields["annotations"] = annotations.to_json()
+    fields["annotations"] = ToJson::to_json(annotations)
   }
   if !self.meta.is_empty() {
     fields["_meta"] = Json::object(self.meta.copy_json())
@@ -471,13 +475,15 @@ pub impl ToJson for ReadResourceResult with fn to_json(
   self : ReadResourceResult,
 ) -> Json {
   let fields : Map[String, Json] = {
-    "contents": self.contents.map(fn(content) { content.to_json() }).to_json(),
+    "contents": self.contents
+    .map(fn(content) { ToJson::to_json(content) })
+    .to_json(),
   }
   if self.cache_policy is Some(policy) {
     policy.put(fields)
   }
   if self.meta is Some(meta) {
-    fields["_meta"] = meta.to_json()
+    fields["_meta"] = ToJson::to_json(meta)
   }
   Json::object(fields)
 }
@@ -558,13 +564,13 @@ pub impl ToJson for ListResourcesResult with fn to_json(
   self : ListResourcesResult,
 ) -> Json {
   let fields : Map[String, Json] = {
-    "resultType": ResultType::Complete.to_json(),
-    "resources": self.resources.map(fn(r) { r.to_json() }).to_json(),
+    "resultType": ToJson::to_json(ResultType::Complete),
+    "resources": self.resources.map(fn(r) { ToJson::to_json(r) }).to_json(),
   }
   fields.set_opt("nextCursor", self.next_cursor.map(Json::string))
   self.cache_policy.put(fields)
   if self.meta is Some(meta) {
-    fields["_meta"] = meta.to_json()
+    fields["_meta"] = ToJson::to_json(meta)
   }
   Json::object(fields)
 }
@@ -632,15 +638,15 @@ pub impl ToJson for ListResourceTemplatesResult with fn to_json(
   self : ListResourceTemplatesResult,
 ) -> Json {
   let fields : Map[String, Json] = {
-    "resultType": ResultType::Complete.to_json(),
+    "resultType": ToJson::to_json(ResultType::Complete),
     "resourceTemplates": self.resource_templates
-    .map(fn(t) { t.to_json() })
+    .map(fn(t) { ToJson::to_json(t) })
     .to_json(),
   }
   fields.set_opt("nextCursor", self.next_cursor.map(Json::string))
   self.cache_policy.put(fields)
   if self.meta is Some(meta) {
-    fields["_meta"] = meta.to_json()
+    fields["_meta"] = ToJson::to_json(meta)
   }
   Json::object(fields)
 }
