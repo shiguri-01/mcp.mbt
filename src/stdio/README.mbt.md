@@ -1,33 +1,28 @@
 # shiguri-01/mcp/stdio
 
-Native stdio transport for `shiguri-01/mcp`.
+Native newline-delimited JSON-RPC stdio transport.
 
-Use this package when the process should speak MCP over stdin/stdout. Server
-programs call `serve(server)`. Client-side integration tests and local tools can
-use `Client::spawn(...)` to launch a stdio server and issue JSON-RPC requests.
+## Server
 
-This package is intentionally separate from `shiguri-01/mcp` because it depends on
-`moonbitlang/async`, process pipes, and the native backend.
-
-```mbt nocheck
-///|
-struct HelloInput {
-  name : String
-} derive(FromJson)
-
-///|
-impl @schema.JsonSchema for HelloInput with fn json_schema() {
-  @schema.schema([@schema.string(name="name", required=true)])
-}
-
+```moonbit nocheck
 ///|
 async fn main {
-  let server = @mcp.Server(name="example", version="0.1.0")
-  try! server.tool(name="hello", fn(input : HelloInput) {
-    @mcp.CallToolResult::text("Hello, \{input.name}!")
-  })
-  @mcp_stdio.serve(server)
+  let server = builder.build()
+  @stdio.serve(server)
 }
 ```
 
-On Windows, `moonbitlang/async` currently requires an MSVC native toolchain.
+## Client
+
+```moonbit nocheck
+///|
+async fn main {
+  @async.with_task_group(async fn(group) {
+    let transport = try! @stdio.Transport(group, "path/to/server", args=[])
+    let client = try! @client.Client(name="client", version="1.0.0", transport~)
+
+    let res = client.call_tool(name="greet", arguments={ "name": "World" })
+    transport.shutdown()
+  })
+}
+```

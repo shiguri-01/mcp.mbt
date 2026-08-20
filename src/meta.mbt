@@ -1,0 +1,390 @@
+///|
+fn valid_meta_key(key : String) -> Bool {
+  let segments = key.split("/").to_array()
+  if segments.length() > 2 {
+    return false
+  }
+  let name = segments[segments.length() - 1].to_owned()
+  if !name.is_empty() {
+    let chars = name.to_array()
+    let endpoint = fn(char : Char) {
+      char.is_ascii_alphabetic() || char.is_ascii_digit()
+    }
+    if !endpoint(chars[0]) ||
+      !endpoint(chars[chars.length() - 1]) ||
+      !chars.all(fn(char) {
+        endpoint(char) || char == '-' || char == '_' || char == '.'
+      }) {
+      return false
+    }
+  }
+  if segments.length() == 2 {
+    let labels = segments[0].split(".").to_array()
+    if labels.is_empty() {
+      return false
+    }
+    for label in labels {
+      let chars = label.to_array()
+      if chars.is_empty() ||
+        !chars[0].is_ascii_alphabetic() ||
+        !(chars[chars.length() - 1].is_ascii_alphabetic() ||
+        chars[chars.length() - 1].is_ascii_digit()) ||
+        !chars.all(fn(char) {
+          char.is_ascii_alphabetic() || char.is_ascii_digit() || char == '-'
+        }) {
+        return false
+      }
+    }
+  }
+  true
+}
+
+///|
+fn validate_meta_map(values : Map[String, Json]) -> Unit raise McpError {
+  for key, _ in values {
+    if !valid_meta_key(key) {
+      raise InvalidParams("invalid _meta key: \{key}")
+    }
+  }
+}
+
+///|
+/// Metadata required on every MCP 2026-07-28 request.
+pub struct RequestMeta {
+  protocol_version : String
+  client_info : Implementation?
+  client_capabilities : ClientCapabilities
+  progress_token : Json?
+  log_level : LoggingLevel?
+  extra : Map[String, Json]
+} derive(Debug, Eq)
+
+///|
+pub fn RequestMeta::RequestMeta(
+  protocol_version? : String = PROTOCOL_VERSION,
+  client_info? : Implementation,
+  client_capabilities? : ClientCapabilities = ClientCapabilities::empty(),
+  progress_token? : Json,
+  log_level? : LoggingLevel,
+  extra? : Map[String, Json] = {},
+) -> RequestMeta raise McpError {
+  if protocol_version.is_empty() {
+    raise InvalidParams("protocol version must not be empty")
+  }
+  validate_meta_map(extra)
+  {
+    protocol_version,
+    client_info: client_info.map(value => value.copy()),
+    client_capabilities: client_capabilities.copy(),
+    progress_token: progress_token.map(fn(p) { p.copy() }),
+    log_level,
+    extra: extra.copy_json(),
+  }
+}
+
+///|
+pub impl ToJson for RequestMeta with fn to_json(self : RequestMeta) -> Json {
+  // Vendor metadata is inserted first so protocol-reserved keys always win.
+  let fields = self.extra.copy_json()
+  fields.set_opt("progressToken", self.progress_token.map(fn(p) { p.copy() }))
+  fields["io.modelcontextprotocol/protocolVersion"] = Json::string(
+    self.protocol_version,
+  )
+  if self.client_info is Some(value) {
+    fields["io.modelcontextprotocol/clientInfo"] = ToJson::to_json(value)
+  }
+  fields["io.modelcontextprotocol/clientCapabilities"] = ToJson::to_json(
+    self.client_capabilities,
+  )
+  if self.log_level is Some(value) {
+    fields["io.modelcontextprotocol/logLevel"] = ToJson::to_json(value)
+  }
+  Json::object(fields)
+}
+
+///|
+fn validate_progress_token(
+  value : Json,
+  context : String,
+) -> Unit raise McpError {
+  match value {
+    String(_) | Number(_) => ()
+    _ =>
+      raise InvalidParams("\{context}.progressToken must be a string or number")
+  }
+}
+
+///|
+pub impl @json.FromJson for RequestMeta with fn from_json(
+  value : Json,
+  path : @json.JsonPath,
+) -> RequestMeta raise {
+  guard value is Object(fields) else {
+    raise JsonDecodeError((path, "expected object"))
+  }
+  let protocol_version = match
+    fields.get("io.modelcontextprotocol/protocolVersion") {
+    Some(String(s)) => s
+    Some(_) =>
+      raise JsonDecodeError(
+        (
+          path.add_key("io.modelcontextprotocol/protocolVersion"),
+          "expected string",
+        ),
+      )
+    None =>
+      raise JsonDecodeError(
+        (
+          path.add_key("io.modelcontextprotocol/protocolVersion"),
+          "protocolVersion is required",
+        ),
+      )
+  }
+  guard fields.get("io.modelcontextprotocol/clientCapabilities")
+    is Some(caps_val) else {
+    raise JsonDecodeError(
+      (
+        path.add_key("io.modelcontextprotocol/clientCapabilities"),
+        "clientCapabilities is required",
+      ),
+    )
+  }
+  let client_capabilities : ClientCapabilities = @json.from_json(
+    caps_val,
+    path=path.add_key("io.modelcontextprotocol/clientCapabilities"),
+  )
+  let extra : Map[String, Json] = Map([])
+  for key, item in fields {
+    match key {
+      "progressToken"
+      | "io.modelcontextprotocol/protocolVersion"
+      | "io.modelcontextprotocol/clientInfo"
+      | "io.modelcontextprotocol/clientCapabilities"
+      | "io.modelcontextprotocol/logLevel" => ()
+      _ => {
+        if !valid_meta_key(key) {
+          raise JsonDecodeError(
+            (path.add_key(key), "invalid _meta key: \{key}"),
+          )
+        }
+        extra[key] = item.copy()
+      }
+    }
+  }
+  let client_info : Implementation? = match
+    fields.get("io.modelcontextprotocol/clientInfo") {
+    Some(v) =>
+      Some(
+        @json.from_json(
+          v,
+          path=path.add_key("io.modelcontextprotocol/clientInfo"),
+        ),
+      )
+    None => None
+  }
+  let progress_token = match fields.get("progressToken") {
+    Some(String(_) | Number(_) as t) => Some(t)
+    Some(Null) | None => None
+    Some(_) =>
+      raise JsonDecodeError(
+        (path.add_key("progressToken"), "expected string or number"),
+      )
+  }
+  let log_level : LoggingLevel? = match
+    fields.get("io.modelcontextprotocol/logLevel") {
+    Some(v) =>
+      Some(
+        @json.from_json(
+          v,
+          path=path.add_key("io.modelcontextprotocol/logLevel"),
+        ),
+      )
+    None => None
+  }
+  RequestMeta(
+    protocol_version~,
+    client_info?,
+    client_capabilities~,
+    progress_token?,
+    log_level?,
+    extra~,
+  ) catch {
+    error => raise JsonDecodeError((path, error.message()))
+  }
+}
+
+///|
+/// Decode the request `_meta` object at the MCP protocol boundary.
+pub fn RequestMeta::from_json(
+  value : Json,
+  path? : @json.JsonPath,
+) -> RequestMeta raise McpError {
+  decode_json(value, path?)
+}
+
+///|
+/// Per-call overrides and MRTR retry data used by request builders.
+pub struct RequestOptions {
+  progress_token : Json?
+  log_level : LoggingLevel?
+  input_responses : Map[String, InputResponse]?
+  request_state : String?
+  meta : Map[String, Json]
+} derive(Debug, Eq)
+
+///|
+pub fn RequestOptions::RequestOptions(
+  progress_token? : Json,
+  log_level? : LoggingLevel,
+  input_responses? : Map[String, InputResponse],
+  request_state? : String,
+  meta? : Map[String, Json] = {},
+) -> RequestOptions {
+  let copied_responses : Map[String, InputResponse]? = input_responses.map(fn(
+    responses,
+  ) {
+    let copied : Map[String, InputResponse] = Map([])
+    for key, response in responses {
+      copied[key] = InputResponse(response.result)
+    }
+    copied
+  })
+  {
+    progress_token: progress_token.map(fn(p) { p.copy() }),
+    log_level,
+    input_responses: copied_responses,
+    request_state,
+    meta: meta.copy_json(),
+  }
+}
+
+///|
+/// Transport-provided request hooks. Built-in defaults are inert, while
+/// streaming adapters can emit progress and expose cancellation without
+/// storing connection state on `Server`.
+pub struct RequestHooks {
+  priv emit_notification : async (Json) -> Unit raise McpError
+  priv is_cancelled : () -> Bool
+  priv transport_meta : Json?
+  priv last_progress : Ref[Double?]
+}
+
+///|
+pub fn RequestHooks::RequestHooks(
+  emit_notification? : async (Json) -> Unit raise McpError = fn(_) { () },
+  is_cancelled? : () -> Bool = fn() { false },
+  transport_meta? : Json,
+) -> RequestHooks {
+  { emit_notification, is_cancelled, transport_meta, last_progress: Ref(None) }
+}
+
+///|
+pub fn RequestOptions::request_meta(
+  self : RequestOptions,
+  client_capabilities~ : ClientCapabilities,
+  client_info? : Implementation,
+  protocol_version? : String = PROTOCOL_VERSION,
+) -> RequestMeta raise McpError {
+  validate_meta_map(self.meta)
+  RequestMeta(
+    protocol_version~,
+    client_info?,
+    client_capabilities~,
+    progress_token?=self.progress_token,
+    log_level?=self.log_level,
+    extra=self.meta,
+  )
+}
+
+///|
+/// Add common metadata and MRTR retry fields to method-specific parameters.
+pub fn RequestOptions::request_params(
+  self : RequestOptions,
+  params : Map[String, Json],
+  client_capabilities~ : ClientCapabilities,
+  client_info? : Implementation,
+  protocol_version? : String = PROTOCOL_VERSION,
+) -> Json raise McpError {
+  let fields = params.copy()
+  fields["_meta"] = ToJson::to_json(
+    self.request_meta(client_capabilities~, client_info?, protocol_version~),
+  )
+  if self.input_responses is Some(responses) {
+    let values : Map[String, Json] = Map([])
+    for key, response in responses {
+      values[key] = ToJson::to_json(response)
+    }
+    fields["inputResponses"] = Json::object(values)
+  }
+  fields.set_opt("requestState", self.request_state.map(Json::string))
+  Json::object(fields)
+}
+
+///|
+/// Request-scoped protocol data passed to application handlers.
+pub struct RequestContext {
+  request_id : Json
+  method_name : String
+  meta : RequestMeta
+  input_responses : Map[String, InputResponse]?
+  request_state : String?
+  transport_meta : Json?
+  hooks : RequestHooks
+}
+
+///|
+pub fn RequestContext::RequestContext(
+  request_id~ : Json,
+  method_name~ : String,
+  meta~ : RequestMeta,
+  input_responses? : Map[String, InputResponse],
+  request_state? : String,
+  hooks? : RequestHooks = RequestHooks(),
+) -> RequestContext raise McpError {
+  if !(request_id is (String(_) | Number(_))) {
+    raise InvalidRequest("request id must be a string or number")
+  }
+  {
+    request_id,
+    method_name,
+    meta,
+    input_responses,
+    request_state,
+    transport_meta: hooks.transport_meta.map(fn(m) { m.copy() }),
+    hooks,
+  }
+}
+
+///|
+pub fn RequestContext::is_cancelled(self : RequestContext) -> Bool {
+  (self.hooks.is_cancelled)()
+}
+
+///|
+/// Emit request-scoped progress using the token supplied by the client.
+pub async fn RequestContext::report_progress(
+  self : RequestContext,
+  progress~ : Double,
+  total? : Double,
+  message? : String,
+) -> Unit raise McpError {
+  guard self.meta.progress_token is Some(token) else {
+    raise InvalidRequest("request did not provide a progress token")
+  }
+  if progress < 0.0 || progress.is_nan() || progress.is_inf() {
+    raise InvalidParams("progress must be a finite non-negative number")
+  }
+  if self.hooks.last_progress.val is Some(previous) && progress <= previous {
+    raise InvalidParams("progress must increase with each notification")
+  }
+  if total is Some(limit) &&
+    (limit <= 0.0 || limit.is_nan() || limit.is_inf() || progress > limit) {
+    raise InvalidParams(
+      "progress total must be finite, positive, and not below progress",
+    )
+  }
+  (self.hooks.emit_notification)(
+    ProgressNotification(progress_token=token, progress~, total?, message?).to_json(),
+  )
+  self.hooks.last_progress.val = Some(progress)
+}

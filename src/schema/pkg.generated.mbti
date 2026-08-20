@@ -3,47 +3,79 @@ package "shiguri-01/mcp/schema"
 
 import {
   "moonbitlang/core/debug",
+  "moonbitlang/core/json",
 }
 
 // Values
-pub fn array(name~ : String, items~ : Json, description? : String, required? : Bool) -> Property
+pub const DRAFT_2020_12 : String = "https://json-schema.org/draft/2020-12/schema"
 
-pub fn array_schema(items~ : Json, description? : String) -> Json
+pub fn[T : JsonSchema + @json.FromJson] decode(Json, max_depth? : Int) -> T raise
 
-pub fn boolean(name~ : String, description? : String, required? : Bool) -> Property
-
-pub fn boolean_schema(description? : String) -> Json
-
-pub fn field(name~ : String, schema~ : Json, required? : Bool) -> Property
-
-pub fn integer(name~ : String, description? : String, required? : Bool) -> Property
-
-pub fn integer_schema(description? : String) -> Json
-
-pub fn number(name~ : String, description? : String, required? : Bool) -> Property
-
-pub fn number_schema(description? : String) -> Json
-
-pub fn schema(Array[Property], additional_properties? : Bool) -> Json
-
-pub fn string(name~ : String, description? : String, required? : Bool) -> Property
-
-pub fn string_enum(name~ : String, values~ : Array[String], description? : String, required? : Bool) -> Property
-
-pub fn string_enum_schema(Array[String], description? : String) -> Json
-
-pub fn string_schema(description? : String) -> Json
+pub fn[A : JsonSchema] schema_of(A?) -> Schema raise SchemaError
 
 // Errors
+pub suberror SchemaError {
+  InvalidDocument(String)
+  UnsupportedDialect(String)
+  UnsupportedKeyword(String)
+  InvalidSchema(String)
+} derive(Eq, @debug.Debug)
+pub impl Show for SchemaError
+
+pub suberror ValidationIssues {
+  ValidationIssues(Array[ValidationIssue])
+} derive(Eq, @debug.Debug)
+pub impl Show for ValidationIssues
+pub impl ToJson for ValidationIssues
 
 // Types and methods
-pub struct Property {
+pub struct Schema {
   // private fields
+}
+pub fn Schema::all_of(Array[Self], description? : String) -> Self
+pub fn Schema::always() -> Self
+pub fn Schema::any_of(Array[Self], description? : String) -> Self raise SchemaError
+pub fn Schema::array(items? : Self, min_items? : Int, max_items? : Int, unique_items? : Bool, description? : String) -> Self raise SchemaError
+pub fn Schema::boolean(description? : String) -> Self
+pub fn[T : ToJson] Schema::constant(T, description? : String) -> Self
+pub fn[T : ToJson] Schema::enumeration(Array[T], description? : String) -> Self raise SchemaError
+pub fn Schema::from_json(Json, max_depth? : Int, max_nodes? : Int) -> Self raise SchemaError
+pub fn Schema::integer(minimum? : Int, maximum? : Int, description? : String) -> Self raise SchemaError
+pub fn Schema::never() -> Self
+pub fn Schema::not(Self, description? : String) -> Self
+pub fn Schema::null(description? : String) -> Self
+pub fn Schema::number(minimum? : Double, maximum? : Double, exclusive_minimum? : Double, exclusive_maximum? : Double, multiple_of? : Double, description? : String) -> Self raise SchemaError
+pub fn Schema::object(properties? : Map[String, Self], required? : Array[String], additional_properties? : Bool, min_properties? : Int, max_properties? : Int, description? : String) -> Self raise SchemaError
+pub fn Schema::one_of(Array[Self], description? : String) -> Self raise SchemaError
+pub fn Schema::raw(Json) -> Self raise SchemaError
+pub fn Schema::ref_(String, description? : String) -> Self raise SchemaError
+pub fn Schema::string(min_length? : Int, max_length? : Int, description? : String) -> Self raise SchemaError
+pub fn Schema::to_json(Self) -> Json
+pub fn Schema::validate(Self, Json, max_depth? : Int) -> Unit raise ValidationIssues
+pub impl Eq for Schema
+pub impl Show for Schema
+pub impl ToJson for Schema
+pub impl @debug.Debug for Schema
+
+pub struct ValidationIssue {
+  path : @json.JsonPath
+  message : String
 } derive(Eq, @debug.Debug)
+pub fn ValidationIssue::ValidationIssue(path~ : @json.JsonPath, message~ : String) -> Self
+pub impl Show for ValidationIssue
+pub impl ToJson for ValidationIssue
 
 // Type aliases
 
 // Traits
 pub(open) trait JsonSchema {
-  fn json_schema() -> Json
+  fn json_schema() -> Schema raise SchemaError
 }
+pub impl JsonSchema for Bool
+pub impl JsonSchema for Int
+pub impl JsonSchema for Int64
+pub impl JsonSchema for Double
+pub impl JsonSchema for String
+pub impl[T : JsonSchema] JsonSchema for T?
+pub impl[T : JsonSchema] JsonSchema for Array[T]
+pub impl JsonSchema for Json

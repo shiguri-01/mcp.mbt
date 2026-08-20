@@ -1,21 +1,40 @@
 ///|
-/// Serve an MCP server over newline-delimited JSON-RPC on stdin/stdout.
-pub async fn serve(server : @mcp.Server) -> Unit {
-  while @async_stdio.stdin.read_until("\n") is Some(line) {
-    let message = @json.parse(line.trim()) catch {
-      error => {
-        let response = Json::object({
-          "jsonrpc": Json::string("2.0"),
-          "id": Json::null(),
-          "error": @mcp.ParseError(error.to_string()).to_json(),
-        })
-        @async_stdio.stdout.write(response.stringify() + "\n")
-        continue
-      }
-    }
-    match server.handle_jsonrpc(message) {
-      Some(response) => @async_stdio.stdout.write(response.stringify() + "\n")
-      None => ()
-    }
+async fn write_frames(queue : @aqueue.Queue[String?]) -> Unit {
+  while queue.get() is Some(frame) {
+    @async_stdio.stdout.write(frame)
   }
+}
+
+///|
+/// Serve newline-delimited MCP with concurrent request dispatch and one stdout writer.
+pub async fn serve(
+  server : @server.Server,
+  on_subscription? : async (@server.Subscription, async (Json) -> Unit) -> Unit = fn(
+    _,
+    _,
+  ) {
+    ()
+  },
+) -> Unit {
+  @async.with_task_group(group => {
+    let output : @aqueue.Queue[String?] = Queue(kind=Unbounded)
+    let writer = group.spawn(() => write_frames(output))
+    server.serve_framed(
+      read_message=async fn() {
+        match @async_stdio.stdin.read_until("\n") {
+          Some(line) => {
+            let message = decode_frame(line) catch {
+              error => error.to_response().to_json()
+            }
+            Some(message)
+          }
+          None => None
+        }
+      },
+      send_message=async fn(msg) { output.put(Some(encode_frame(msg))) },
+      on_subscription~,
+    )
+    output.put(None)
+    writer.wait()
+  })
 }

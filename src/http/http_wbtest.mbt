@@ -1,75 +1,377 @@
 ///|
-fn initialize_message() -> Json {
-  @mcp.Client().initialize_request(
-    client_name="http-client",
-    client_version="0.1.0",
-  )
-}
-
-///|
-fn post_request(headers~ : Map[String, String]) -> @async_http.Request {
+fn post_request(
+  headers~ : Map[@async_http.CaseInsensitiveString, String],
+) -> @async_http.Request {
   { meth: Post, path: "/mcp", headers }
 }
 
 ///|
-test "validate POST Accept header" {
-  let options = ServerOptions()
-  let missing_event_stream = post_request(headers={
-    "Accept": "application/json",
+fn metadata_request(
+  method_name : String,
+  params? : Map[String, Json] = Map([]),
+) -> Json {
+  params["_meta"] = Json::object({
+    "io.modelcontextprotocol/protocolVersion": Json::string(
+      @mcp.PROTOCOL_VERSION,
+    ),
+    "io.modelcontextprotocol/clientCapabilities": Json::object({}),
   })
+  Json::object({
+    "jsonrpc": Json::string("2.0"),
+    "id": Json::number(1.0, repr="1"),
+    "method": Json::string(method_name),
+    "params": Json::object(params),
+  })
+}
+
+///|
+fn standard_validation_error(
+  request : @async_http.Request,
+  message : Json,
+) -> @mcp.McpError? {
+  try {
+    validate_standard_headers_with_policy(
+      request,
+      message,
+      Some([@mcp.PROTOCOL_VERSION]),
+    )
+    None
+  } catch {
+    error => Some(error)
+  }
+}
+
+///|
+test "standard request headers are required and match body metadata" {
+  let ping = metadata_request("ping")
   assert_true(
-    validate_post_request(
-      missing_event_stream,
-      initialize_message(),
-      options,
-      None,
-    ) ==
-    Some("Accept header must include application/json and text/event-stream"),
+    standard_validation_error(post_request(headers=Map([])), ping)
+    is Some(@mcp.HeaderMismatch(_)),
   )
-  let accepted = post_request(headers={
-    "Accept": "application/json, text/event-stream",
-  })
+  let headers = standard_request_headers(ping, @mcp.PROTOCOL_VERSION)
+  let request = post_request(headers~)
+  assert_true(standard_validation_error(request, ping) is None)
+  headers["Mcp-Method"] = "PING"
   assert_true(
-    validate_post_request(accepted, initialize_message(), options, None) == None,
-  )
-  let bogus_substrings = post_request(headers={
-    "Accept": "application/jsonp, text/event-streamx",
-  })
-  assert_true(
-    validate_post_request(bogus_substrings, initialize_message(), options, None) ==
-    Some("Accept header must include application/json and text/event-stream"),
-  )
-  let accepted_with_parameters = post_request(headers={
-    "Accept": "application/json; charset=utf-8, text/event-stream; q=0.9",
-  })
-  assert_true(
-    validate_post_request(
-      accepted_with_parameters,
-      initialize_message(),
-      options,
-      None,
-    ) ==
-    None,
+    standard_validation_error(post_request(headers~), ping)
+    is Some(@mcp.HeaderMismatch(_)),
   )
 }
 
 ///|
-test "Origin header requires configured allow list" {
-  let rejected = post_request(headers={
-    "Accept": "application/json, text/event-stream",
-    "Origin": "https://evil.example",
+test "standard headers require matching protocol metadata in the body" {
+  let message = Json::object({
+    "jsonrpc": Json::string("2.0"),
+    "id": Json::number(1.0, repr="1"),
+    "method": Json::string("server/discover"),
+    "params": Json::object({}),
+  })
+  let request = post_request(headers={
+    "MCP-Protocol-Version": @mcp.PROTOCOL_VERSION,
+    "Mcp-Method": "server/discover",
   })
   assert_true(
-    common_request_error(rejected, ServerOptions()) ==
+    standard_validation_error(request, message) is Some(@mcp.HeaderMismatch(_)),
+  )
+}
+
+///|
+test "standard header names ignore case but values do not" {
+  let ping = metadata_request("ping")
+  let accepted = post_request(headers={
+    "mcp-protocol-version": @mcp.PROTOCOL_VERSION,
+    "MCP-METHOD": "ping",
+  })
+  assert_true(standard_validation_error(accepted, ping) is None)
+}
+
+///|
+test "unsupported protocol version is distinct from header mismatch" {
+  let unsupported_request = Json::object({
+    "jsonrpc": Json::string("2.0"),
+    "id": Json::number(1.0, repr="1"),
+    "method": Json::string("ping"),
+    "params": Json::object({
+      "_meta": Json::object({
+        "io.modelcontextprotocol/protocolVersion": Json::string("2025-11-25"),
+      }),
+    }),
+  })
+  let request = post_request(headers={
+    "MCP-Protocol-Version": "2025-11-25",
+    "Mcp-Method": "ping",
+  })
+  assert_true(
+    standard_validation_error(request, unsupported_request)
+    is Some(@mcp.UnsupportedProtocolVersion(..)),
+  )
+}
+
+///|
+test "Mcp-Name is conditional and Base64 decoded before comparison" {
+  let read = metadata_request("resources/read", params={
+    "uri": Json::string("memory://東京"),
+  })
+  let headers = standard_request_headers(read, @mcp.PROTOCOL_VERSION)
+  assert_eq(headers["Mcp-Name"], "=?base64?bWVtb3J5Oi8v5p2x5Lqs?=")
+  assert_true(standard_validation_error(post_request(headers~), read) is None)
+  headers.remove("Mcp-Name")
+  assert_true(
+    standard_validation_error(post_request(headers~), read)
+    is Some(@mcp.HeaderMismatch(_)),
+  )
+  let ping = metadata_request("ping")
+  let extra = standard_request_headers(ping, @mcp.PROTOCOL_VERSION)
+  extra["Mcp-Name"] = "unexpected"
+  assert_true(
+    standard_validation_error(post_request(headers=extra), ping)
+    is Some(@mcp.HeaderMismatch(_)),
+  )
+}
+
+///|
+test "MCP Base64 sentinel encoding is unambiguous and UTF-8 safe" {
+  assert_eq(encode_mcp_header_value("us-west1"), "us-west1")
+  assert_eq(
+    encode_mcp_header_value("Hello, 世界"),
+    "=?base64?SGVsbG8sIOS4lueVjA==?=",
+  )
+  assert_eq(encode_mcp_header_value(" padded "), "=?base64?IHBhZGRlZCA=?=")
+  assert_eq(
+    encode_mcp_header_value("=?base64?literal?="),
+    "=?base64?PT9iYXNlNjQ/bGl0ZXJhbD89?=",
+  )
+  assert_eq(
+    try! decode_mcp_header_value("=?base64?SGVsbG8sIOS4lueVjA==?="),
+    "Hello, 世界",
+  )
+  let malformed = try decode_mcp_header_value("=?base64?%%%?=") catch {
+    _ => true
+  } noraise {
+    _ => false
+  }
+  assert_true(malformed)
+}
+
+///|
+fn annotated_schema() -> Json {
+  Json::object({
+    "type": Json::string("object"),
+    "properties": Json::object({
+      "region": Json::object({
+        "type": Json::string("string"),
+        "x-mcp-header": Json::string("Region"),
+      }),
+      "options": Json::object({
+        "type": Json::string("object"),
+        "properties": Json::object({
+          "attempt": Json::object({
+            "type": Json::string("integer"),
+            "x-mcp-header": Json::string("Attempt"),
+          }),
+          "enabled": Json::object({
+            "type": Json::string("boolean"),
+            "x-mcp-header": Json::string("Enabled"),
+          }),
+        }),
+      }),
+    }),
+  })
+}
+
+///|
+test "annotated nested primitive arguments become Mcp-Param headers" {
+  let arguments = Json::object({
+    "region": Json::string("東京"),
+    "options": Json::object({
+      "attempt": Json::number(42.0, repr="42"),
+      "enabled": Json::boolean(false),
+    }),
+  })
+  let headers = try! tool_argument_headers(annotated_schema(), arguments)
+  assert_eq(headers["Mcp-Param-Region"], "=?base64?5p2x5Lqs?=")
+  assert_eq(headers["Mcp-Param-Attempt"], "42")
+  assert_eq(headers["Mcp-Param-Enabled"], "false")
+  try! validate_tool_argument_headers(headers, annotated_schema(), arguments)
+  headers["Mcp-Param-Attempt"] = "42.0"
+  try! validate_tool_argument_headers(headers, annotated_schema(), arguments)
+}
+
+///|
+test "null and absent arguments omit custom headers" {
+  let arguments = Json::object({ "region": Json::null() })
+  let headers = try! tool_argument_headers(annotated_schema(), arguments)
+  assert_true(headers.is_empty())
+  try! validate_tool_argument_headers(headers, annotated_schema(), arguments)
+  let mismatch = try
+    validate_tool_argument_headers(
+      { "Mcp-Param-Region": "unexpected" },
+      annotated_schema(),
+      arguments,
+    )
+  catch {
+    HeaderMismatch(_) => true
+    _ => false
+  } noraise {
+    _ => false
+  }
+  assert_true(mismatch)
+}
+
+///|
+test "x-mcp-header rejects duplicate names, invalid types, and bad paths" {
+  let duplicate = Json::object({
+    "type": Json::string("object"),
+    "properties": Json::object({
+      "one": Json::object({
+        "type": Json::string("string"),
+        "x-mcp-header": Json::string("Tenant"),
+      }),
+      "two": Json::object({
+        "type": Json::string("boolean"),
+        "x-mcp-header": Json::string("tenant"),
+      }),
+    }),
+  })
+  let duplicate_invalid = try validate_tool_header_schema(duplicate) catch {
+    InvalidHeaderSchema(_) => true
+    _ => false
+  } noraise {
+    _ => false
+  }
+  assert_true(duplicate_invalid)
+  let under_items = Json::object({
+    "type": Json::string("object"),
+    "properties": Json::object({
+      "values": Json::object({
+        "type": Json::string("array"),
+        "items": Json::object({
+          "type": Json::string("string"),
+          "x-mcp-header": Json::string("Value"),
+        }),
+      }),
+    }),
+  })
+  let path_invalid = try validate_tool_header_schema(under_items) catch {
+    InvalidHeaderSchema(_) => true
+    _ => false
+  } noraise {
+    _ => false
+  }
+  assert_true(path_invalid)
+  let number = Json::object({
+    "type": Json::string("object"),
+    "properties": Json::object({
+      "value": Json::object({
+        "type": Json::string("number"),
+        "x-mcp-header": Json::string("Value"),
+      }),
+    }),
+  })
+  let type_invalid = try validate_tool_header_schema(number) catch {
+    InvalidHeaderSchema(_) => true
+    _ => false
+  } noraise {
+    _ => false
+  }
+  assert_true(type_invalid)
+}
+
+///|
+test "annotated integer enforces JavaScript safe range" {
+  let arguments = Json::object({
+    "options": Json::object({
+      "attempt": Json::number(9007199254740992.0, repr="9007199254740992"),
+    }),
+  })
+  let invalid = try tool_argument_headers(annotated_schema(), arguments) catch {
+    InvalidHeaderValue(_) => true
+    _ => false
+  } noraise {
+    _ => false
+  }
+  assert_true(invalid)
+}
+
+///|
+test "POST requests require both JSON and SSE response media types" {
+  let server = (try! @server.ServerBuilder(name="test", version="0.1.0")).build()
+  let message = metadata_request("server/discover")
+  let accepted_headers = standard_request_headers(
+    message,
+    @mcp.PROTOCOL_VERSION,
+  )
+  accepted_headers["Accept"] = "application/json, text/event-stream"
+  accepted_headers["Content-Type"] = "application/json; charset=utf-8"
+  let accepted = post_request(headers=accepted_headers)
+  let accepted_result = try
+    validate_post_request(accepted, message, server)
+  catch {
+    _ => false
+  } noraise {
+    _ => true
+  }
+  assert_true(accepted_result)
+  accepted_headers["Accept"] = "application/json"
+  let rejected = try
+    validate_post_request(
+      post_request(headers=accepted_headers),
+      message,
+      server,
+    )
+  catch {
+    @mcp.InvalidRequest(_) => true
+    _ => false
+  } noraise {
+    _ => false
+  }
+  assert_true(rejected)
+}
+
+///|
+test "Mcp-Param headers match annotated tool arguments" {
+  let builder = try! @server.ServerBuilder(
+    name="tool-header-test",
+    version="0.1.0",
+  )
+  try! builder.tool_raw(name="regional", input_schema=annotated_schema(), (_, _) => {
+    @mcp.Complete(@mcp.CallToolResult::text("ok"))
+  })
+  let server = builder.build()
+  let arguments = Json::object({
+    "region": Json::string("東京"),
+    "options": Json::object({
+      "attempt": Json::number(1.0),
+      "enabled": Json::boolean(true),
+    }),
+  })
+  let message = metadata_request("tools/call", params={
+    "name": Json::string("regional"),
+    "arguments": arguments,
+  })
+  let missing = try
+    validate_tool_call_headers(server, post_request(headers=Map([])), message)
+  catch {
+    @mcp.HeaderMismatch(_) => true
+    _ => false
+  } noraise {
+    _ => false
+  }
+  assert_true(missing)
+  let custom = try! tool_argument_headers(annotated_schema(), arguments)
+  try! validate_tool_call_headers(server, post_request(headers=custom), message)
+}
+
+///|
+test "Streamable HTTP rejects origins outside the configured allowlist" {
+  let origin = post_request(headers={ "Origin": "https://client.example" })
+  assert_true(
+    common_request_error(origin, ServerOptions()) ==
     Some("Origin is not allowed"),
   )
-  let allowed = post_request(headers={
-    "Accept": "application/json, text/event-stream",
-    "Origin": "https://client.example",
-  })
   assert_true(
     common_request_error(
-      allowed,
+      origin,
       ServerOptions(allowed_origins=Set::from_array(["https://client.example"])),
     ) ==
     None,
@@ -77,152 +379,257 @@ test "Origin header requires configured allow list" {
 }
 
 ///|
-test "common request validation applies auth to non-POST methods" {
-  let delete : @async_http.Request = { meth: Delete, path: "/mcp", headers: {} }
-  let rejected = ServerOptions(authenticate=fn(context) {
-    context.http_method != Delete
+test "Streamable HTTP accepts only matching loopback origins by default" {
+  let loopback = post_request(headers={
+    "Host": "127.0.0.1:8080",
+    "Origin": "http://127.0.0.1:8080",
   })
-  assert_true(common_request_error(delete, rejected) == Some("Unauthorized"))
-  let get : @async_http.Request = { meth: Get, path: "/mcp", headers: {} }
-  assert_true(common_request_error(get, ServerOptions()) == None)
-}
-
-///|
-test "standard headers must match JSON-RPC body" {
-  let request = post_request(headers={
-    "Accept": "application/json, text/event-stream",
-    "Mcp-Method": "tools/call",
+  assert_eq(common_request_error(loopback, ServerOptions()), None)
+  let rebinding = post_request(headers={
+    "Host": "evil.example.com",
+    "Origin": "http://evil.example.com",
   })
-  assert_true(
-    validate_post_request(request, initialize_message(), ServerOptions(), None) ==
-    Some("Header mismatch: Mcp-Method does not match body method"),
+  assert_eq(
+    common_request_error(rebinding, ServerOptions()),
+    Some("Origin is not allowed"),
   )
 }
 
 ///|
-test "standard headers reject unsupported protocol version" {
-  let request = post_request(headers={
-    "Accept": "application/json, text/event-stream",
-    "MCP-Protocol-Version": "2024-11-05",
+test "standard header values ignore surrounding HTTP whitespace" {
+  let request = metadata_request("tools/call", params={
+    "name": Json::string("greet"),
   })
-  assert_true(
-    validate_post_request(
-      request,
-      @mcp.Client().ping_request(),
-      ServerOptions(),
-      None,
-    ) ==
-    Some("Unsupported MCP protocol version: 2024-11-05"),
+  let headers = standard_request_headers(request, @mcp.PROTOCOL_VERSION)
+  headers["Mcp-Name"] = "  greet\t"
+  try! validate_standard_headers_with_policy(
+    post_request(headers~),
+    request,
+    Some([@mcp.PROTOCOL_VERSION]),
   )
 }
 
 ///|
-test "headers are case-insensitive and session IDs must be visible ASCII" {
-  let request = post_request(headers={ "mcp-session-id": "session-123" })
-  assert_true(header(request.headers, "MCP-Session-Id") is Some("session-123"))
-  assert_true(request_context(request).session_id is Some("session-123"))
-  assert_true(visible_ascii("session-123"))
-  assert_true(!visible_ascii("has space"))
-  assert_true(!visible_ascii("日本語"))
-}
-
-///|
-test "JSON-RPC message classification requires valid message shapes" {
-  assert_true(is_jsonrpc_request(@mcp.Client().ping_request()))
-  assert_true(is_jsonrpc_notification(@mcp.Client().initialized_notification()))
-  let response = Json::object({
+test "invalid request metadata is reported before header mismatch" {
+  let message = Json::object({
     "jsonrpc": Json::string("2.0"),
-    "id": Json::number(1.0, repr="1"),
-    "result": Json::object({}),
+    "id": Json::number(1),
+    "method": Json::string("tools/list"),
+    "params": Json::object({}),
   })
-  assert_true(is_jsonrpc_response(response))
-  assert_true(!is_jsonrpc_response(Json::object({})))
-  assert_true(
-    !is_jsonrpc_notification(
-      Json::object({ "method": Json::string("notifications/initialized") }),
-    ),
-  )
+  let server = (try! @server.ServerBuilder(name="server", version="1")).build()
+  let headers : Map[@async_http.CaseInsensitiveString, String] = {
+    "Accept": "application/json, text/event-stream",
+    "Content-Type": "application/json",
+  }
+  let error = try
+    validate_post_request(post_request(headers~), message, server)
+  catch {
+    error => Some(error)
+  } noraise {
+    _ => None
+  }
+  assert_true(error is Some(@mcp.InvalidParams(_)))
 }
 
 ///|
-test "session store insert lookup and remove" {
-  let store = SessionStore()
-  let server = @mcp.Server(name="session-test", version="0.1.0")
-  store.insert("session-1", server)
-  assert_true(store.get("session-1") is Some(_))
-  assert_true(store.remove("session-1"))
-  assert_true(store.get("session-1") is None)
-  assert_true(!store.remove("session-1"))
-}
-
-///|
-test "client derives request headers" {
-  let client = Client("http://127.0.0.1:8080/mcp")
-  let request = client.core.call_tool_request(
-    name="echo",
-    arguments=Json::object({}),
+test "client derives standard and tool parameter headers" {
+  let transport = try! Transport("http://127.0.0.1:8080/mcp")
+  let core = try! @client.Client(
+    name="test",
+    version="1.0.0",
+    transport=@client.NoopTransport(),
   )
-  let headers = client.headers(request)
-  assert_true(headers["Accept"].contains("application/json"))
-  assert_true(headers["Accept"].contains("text/event-stream"))
+  let request = core.request_raw(method_name="tools/call", params={
+    "name": Json::string("echo"),
+    "arguments": Json::object({ "region": Json::string("東京") }),
+  })
+  let schema = Json::object({
+    "type": Json::string("object"),
+    "properties": Json::object({
+      "region": Json::object({
+        "type": Json::string("string"),
+        "x-mcp-header": Json::string("Region"),
+      }),
+    }),
+  })
+  let headers = try! transport.headers(request, input_schema=schema)
+  assert_eq(headers["MCP-Protocol-Version"], @mcp.PROTOCOL_VERSION)
   assert_eq(headers["Mcp-Method"], "tools/call")
   assert_eq(headers["Mcp-Name"], "echo")
+  assert_eq(headers["Mcp-Param-Region"], "=?base64?5p2x5Lqs?=")
 }
 
 ///|
-test "client derives request names for prompt and resource requests" {
-  let client = Client("http://127.0.0.1:8080/mcp")
-  let prompt_headers = client.headers(
-    client.core.get_prompt_request(name="summarize"),
+test "protocol negotiation rewrites metadata and uses a fresh request id" {
+  let transport = try! Transport("http://127.0.0.1:8080/mcp", supported_protocol_versions=[
+    "2026-07-28", "2026-01-01",
+  ])
+  let core = try! @client.Client(
+    name="test",
+    version="1.0.0",
+    transport=@client.NoopTransport(),
   )
-  assert_eq(prompt_headers["Mcp-Method"], "prompts/get")
-  assert_eq(prompt_headers["Mcp-Name"], "summarize")
-  let resource_headers = client.headers(
-    client.core.read_resource_request(uri="memory://status"),
+  let request = core.request_raw(method_name="tools/list")
+  let rewritten = try! request_with_protocol_version(
+    request, "2026-01-01", true,
   )
-  assert_eq(resource_headers["Mcp-Method"], "resources/read")
-  assert_eq(resource_headers["Mcp-Name"], "memory://status")
+  guard request
+    is Object(
+      {
+        "id": _,
+        "params": Object(
+          {
+            "_meta": Object(
+              {
+                "io.modelcontextprotocol/protocolVersion": String("2026-07-28"),
+                ..
+              }
+            ),
+            ..
+          }
+        ),
+        ..
+      }
+    ) else {
+    fail("expected initial protocolVersion")
+  }
+  guard rewritten
+    is Object(
+      {
+        "id": String(fresh_id),
+        "params": Object(
+          {
+            "_meta": Object(
+              {
+                "io.modelcontextprotocol/protocolVersion": String("2026-01-01"),
+                ..
+              }
+            ),
+            ..
+          }
+        ),
+        ..
+      }
+    ) else {
+    fail("expected rewritten protocolVersion and fresh request id")
+  }
+  assert_true(fresh_id.contains("mcp-version-retry:"[:]))
+  assert_eq(
+    transport.mutually_supported_protocol_version(["1900-01-01", "2026-07-28"]),
+    Some("2026-07-28"),
+  )
+  assert_eq(transport.mutually_supported_protocol_version(["2025-11-25"]), None)
 }
 
 ///|
-test "method not found JSON-RPC responses map to HTTP 404" {
-  let (status, reason) = response_status(
-    jsonrpc_error(Json::null(), -32601, "Method not found"),
-  )
-  assert_eq(status, 404)
-  assert_eq(reason, "Not Found")
+test "HTTP clients require at least one supported protocol version" {
+  let rejected = try
+    Transport("http://127.0.0.1:8080/mcp", supported_protocol_versions=[])
+  catch {
+    @mcp.InvalidParams(_) => true
+    _ => false
+  } noraise {
+    _ => false
+  }
+  assert_true(rejected)
 }
 
 ///|
-test "HTTP JSON-RPC errors preserve MCP error category" {
-  let error = http_error_to_mcp(
-    { code: 400, reason: "Bad Request", headers: {}, cookies: [] },
-    jsonrpc_error(Json::null(), -32602, "bad params").stringify(),
+test "HTTP notifications carry standard headers and accept only empty 202" {
+  let client = try! Transport("http://127.0.0.1:8080/mcp")
+  let notification = Json::object({
+    "jsonrpc": Json::string("2.0"),
+    "method": Json::string("notifications/cancelled"),
+    "params": Json::object({}),
+  })
+  let prepared = try! notification_with_protocol_version(
+    notification,
+    @mcp.PROTOCOL_VERSION,
   )
-  assert_true(error is @mcp.InvalidParams("bad params"))
-  let not_found = http_error_to_mcp(
-    { code: 404, reason: "Not Found", headers: {}, cookies: [] },
-    jsonrpc_error(Json::null(), -32601, "missing").stringify(),
-  )
-  assert_true(not_found is @mcp.MethodNotFound("missing"))
-  let resource_not_found = http_error_to_mcp(
-    { code: 404, reason: "Not Found", headers: {}, cookies: [] },
-    Json::object({
-      "jsonrpc": Json::string("2.0"),
-      "id": Json::null(),
-      "error": Json::object({
-        "code": Json::number(-32002.0, repr="-32002"),
-        "message": Json::string("Resource not found"),
-        "data": Json::object({ "uri": Json::string("memory://missing") }),
+  let headers = try! client.headers(prepared)
+  assert_eq(headers["MCP-Protocol-Version"], @mcp.PROTOCOL_VERSION)
+  assert_eq(headers["Mcp-Method"], "notifications/cancelled")
+  let notification_with_meta = Json::object({
+    "jsonrpc": Json::string("2.0"),
+    "method": Json::string("notifications/cancelled"),
+    "params": Json::object({
+      "_meta": Json::object({
+        "io.modelcontextprotocol/protocolVersion": Json::string("1900-01-01"),
+        "com.example/trace": Json::string("kept"),
       }),
-    }).stringify(),
+    }),
+  })
+  assert_true(
+    (try! notification_with_protocol_version(
+      notification_with_meta,
+      @mcp.PROTOCOL_VERSION,
+    ))
+    is Object(
+      {
+        "id"? : None,
+        "params": Object(
+          {
+            "_meta": Object(
+              {
+                "io.modelcontextprotocol/protocolVersion": String("2026-07-28"),
+                "com.example/trace": String("kept"),
+                ..
+              }
+            ),
+            ..
+          }
+        ),
+        ..
+      }
+    ),
   )
-  assert_true(resource_not_found is @mcp.ResourceNotFound("memory://missing"))
+  let accepted_response : @async_http.Response = {
+    code: 202,
+    reason: "Accepted",
+    headers: {},
+    cookies: [],
+  }
+  try! validate_notification_response(accepted_response, "")
+  let body_rejected = try
+    validate_notification_response(accepted_response, "{}")
+  catch {
+    @mcp.InvalidRequest(_) => true
+    _ => false
+  } noraise {
+    _ => false
+  }
+  assert_true(body_rejected)
+  let wrong_status : @async_http.Response = {
+    code: 200,
+    reason: "OK",
+    headers: {},
+    cookies: [],
+  }
+  let status_rejected = try
+    validate_notification_response(wrong_status, "")
+  catch {
+    @mcp.InvalidRequest(_) => true
+    _ => false
+  } noraise {
+    _ => false
+  }
+  assert_true(status_rejected)
 }
 
 ///|
-test "client parses JSON-RPC responses from event stream body" {
-  let messages = parse_http_messages(
+test "JSON and request-scoped SSE response bodies are parsed" {
+  let json = parse_http_messages(
+    {
+      code: 200,
+      reason: "OK",
+      headers: { "Content-Type": "application/json" },
+      cookies: [],
+    },
+    "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{}}",
+  )
+  assert_eq(json.length(), 1)
+  let events = parse_http_messages(
     {
       code: 200,
       reason: "OK",
@@ -230,29 +637,662 @@ test "client parses JSON-RPC responses from event stream body" {
       cookies: [],
     },
     (
-      #|event: prime
-      #|data:
-      #|
+      #|: keep-alive
       #|event: message
-      #|data: {"jsonrpc":"2.0","method":"notifications/progress","params":{"progressToken":1,"progress":0.5}}
+      #|data: {"jsonrpc":"2.0","method":"notifications/progress","params":{}}
       #|
       #|event: message
       #|data: {"jsonrpc":"2.0","id":1,"result":{}}
       #|
     ),
   )
-  guard messages
-    is [
-      Object({ "method": String("notifications/progress"), .. }),
-      Object({ "result": Object(_), .. }),
-    ] else {
-    fail("expected notification then response")
+  assert_eq(events.length(), 2)
+  assert_true(is_jsonrpc_response(events[1]))
+}
+
+///|
+test "JSON response Content-Length is the UTF-8 octet count" {
+  let (text, content_length) = encode_json_response(
+    Json::object({ "text": Json::string("世界—😀") }),
+  )
+  assert_eq(text, "{\"text\":\"世界—😀\"}")
+  assert_eq(content_length, 24)
+}
+
+///|
+test "method-not-found responses map to HTTP 404" {
+  let (status, reason) = response_status(
+    jsonrpc_error(Json::null(), @mcp.MethodNotFound("missing")),
+  )
+  assert_eq(status, 404)
+  assert_eq(reason, "Not Found")
+  let (invalid_status, invalid_reason) = response_status(
+    jsonrpc_error(Json::null(), @mcp.InvalidParams("missing metadata")),
+  )
+  assert_eq(invalid_status, 400)
+  assert_eq(invalid_reason, "Bad Request")
+  let (header_status, _) = response_status(
+    jsonrpc_error(Json::null(), @mcp.HeaderMismatch("missing header")),
+  )
+  assert_eq(header_status, 400)
+}
+
+///|
+test "subscription SSE starts with acknowledgement and ends with response" {
+  let server = (try! @server.ServerBuilder(
+    name="subscription-test",
+    version="0.1.0",
+    tool_list_changed=true,
+  )).build()
+  let client = try! @client.Client(
+    name="test",
+    version="0.1.0",
+    transport=@client.NoopTransport(),
+  )
+  let request = client.request_raw(method_name="subscriptions/listen", params={
+    "notifications": @mcp.SubscriptionFilter(tools_list_changed=true).to_json(),
+  })
+  let subscription = try! server.accept_subscription(request)
+  let ack = sse_message(subscription.acknowledgement())
+  let close = sse_message(subscription.close_response())
+  assert_true(ack.has_prefix("event: message\r\ndata:"[:]))
+  assert_true(ack.contains("notifications/subscriptions/acknowledged"))
+  assert_true(close.contains("\"result\""))
+  assert_true(
+    subscription.allows_event(
+      @mcp.ToolsListChangedNotification(subscription_id=subscription.id).to_json(),
+    ),
+  )
+  assert_true(
+    !subscription.allows_event(
+      @mcp.PromptsListChangedNotification(subscription_id=subscription.id).to_json(),
+    ),
+  )
+  assert_true(
+    !subscription.allows_event(
+      @mcp.ToolsListChangedNotification(
+        subscription_id=try! @jsonrpc.RequestId::number(99.0),
+      ).to_json(),
+    ),
+  )
+}
+
+///|
+test "request response streaming is opt-in" {
+  assert_true(!ServerOptions().stream_responses)
+  assert_true(ServerOptions(stream_responses=true).stream_responses)
+}
+
+///|
+test "HTTP body limits are positive and have safe defaults" {
+  assert_eq(
+    ServerOptions().max_request_body_bytes,
+    default_max_request_body_bytes,
+  )
+  ignore(try! Transport("http://127.0.0.1:8080/mcp"))
+  try ignore(ServerOptions(max_request_body_bytes=0)) catch {
+    @mcp.InvalidParams(_) => ()
+    _ => fail("expected an invalid request body limit")
+  } noraise {
+    _ => fail("accepted a zero request body limit")
+  }
+  try
+    ignore(Transport("http://127.0.0.1:8080/mcp", max_response_body_bytes=0))
+  catch {
+    @mcp.InvalidParams(_) => ()
+    _ => fail("expected an invalid response body limit")
+  } noraise {
+    _ => fail("accepted a zero response body limit")
+  }
+  try
+    ignore(Transport("http://127.0.0.1:8080/mcp", max_sse_event_bytes=0))
+  catch {
+    @mcp.InvalidParams(_) => ()
+    _ => fail("expected an invalid SSE event limit")
+  } noraise {
+    _ => fail("accepted a zero SSE event limit")
+  }
+  assert_true(decimal_header_exceeds("4194305", 4194304))
+  assert_true(!decimal_header_exceeds("4194304", 4194304))
+  assert_true(decimal_header_exceeds("999999999999999999999", 4194304))
+  assert_true(!decimal_header_exceeds("not-a-length", 4194304))
+}
+
+///|
+async test "HTTP JSON body limit counts UTF-8 octets during the read" {
+  let (reader, writer) = @io.pipe()
+  defer reader.close()
+  defer writer.close()
+  @async.with_task_group(group => {
+    let producer = group.spawn(
+      async fn() {
+        writer.write("世界")
+        writer.close()
+      },
+      allow_failure=true,
+    )
+    let rejected = try {
+      ignore(read_bounded_text(reader, 5, "test body"))
+      false
+    } catch {
+      BodyTooLarge(subject="test body", limit=5) => true
+      _ => false
+    }
+    assert_true(rejected)
+    producer.wait()
+  })
+}
+
+///|
+async test "SSE limit applies independently to every event" {
+  let (reader, writer) = @io.pipe()
+  defer reader.close()
+  defer writer.close()
+  @async.with_task_group(group => {
+    let producer = group.spawn(
+      async fn() { writer.write("data: first\n\ndata: second\n\n") },
+      allow_failure=true,
+    )
+    let state = SseReadState::new()
+    assert_eq(try! read_sse_data(reader, state, 14), Some("first"))
+    assert_eq(try! read_sse_data(reader, state, 14), Some("second"))
+    producer.wait()
+  })
+  let (oversized_reader, oversized_writer) = @io.pipe()
+  defer oversized_reader.close()
+  defer oversized_writer.close()
+  @async.with_task_group(group => {
+    let producer = group.spawn(
+      async fn() { oversized_writer.write("data: too-large\n\n") },
+      allow_failure=true,
+    )
+    let rejected = try {
+      ignore(read_sse_data(oversized_reader, SseReadState::new(), 10))
+      false
+    } catch {
+      BodyTooLarge(subject="MCP SSE event", limit=10) => true
+      _ => false
+    }
+    assert_true(rejected)
+    producer.wait()
+  })
+}
+
+///|
+test "accepted notifications still require every standard header" {
+  let server = (try! @server.ServerBuilder(
+    name="notification-test",
+    version="0.1.0",
+  )).build()
+  let message = Json::object({
+    "jsonrpc": Json::string("2.0"),
+    "method": Json::string("notifications/cancelled"),
+    "params": Json::object({
+      "_meta": Json::object({
+        "io.modelcontextprotocol/protocolVersion": Json::string(
+          @mcp.PROTOCOL_VERSION,
+        ),
+      }),
+    }),
+  })
+  let headers = standard_request_headers(message, @mcp.PROTOCOL_VERSION)
+  headers["Accept"] = "application/json, text/event-stream"
+  headers["Content-Type"] = "application/json"
+  try! validate_post_request(post_request(headers~), message, server)
+  headers["Mcp-Method"] = "notifications/progress"
+  let mismatch = try
+    validate_post_request(post_request(headers~), message, server)
+  catch {
+    error => Some(error)
+  } noraise {
+    _ => None
+  }
+  guard mismatch is Some(error) else {
+    fail("expected notification header mismatch")
+  }
+  assert_eq(error.code(), -32020)
+  headers["Mcp-Method"] = "notifications/cancelled"
+  headers["MCP-Protocol-Version"] = "2025-01-01"
+  let version_mismatch = try
+    validate_post_request(post_request(headers~), message, server)
+  catch {
+    error => Some(error)
+  } noraise {
+    _ => None
+  }
+  guard version_mismatch is Some(version_error) else {
+    fail("expected notification protocol version mismatch")
+  }
+  assert_eq(version_error.code(), -32020)
+}
+
+///|
+test "response ids are checked before decoding results" {
+  let response = Json::object({
+    "jsonrpc": Json::string("2.0"),
+    "id": Json::number(2.0, repr="2"),
+    "result": Json::object({}),
+  })
+  let mismatch = try
+    validate_response_id(response, Json::number(1.0, repr="1"), "HTTP")
+  catch {
+    @mcp.InvalidRequest(_) => true
+    _ => false
+  } noraise {
+    _ => false
+  }
+  assert_true(mismatch)
+}
+
+///|
+test "subscription client enforces acknowledgement and stream identity" {
+  let server = (try! @server.ServerBuilder(
+    name="subscription-state-test",
+    version="0.1.0",
+    tool_list_changed=true,
+  )).build()
+  let core = try! @client.Client(
+    name="test",
+    version="0.1.0",
+    transport=@client.NoopTransport(),
+  )
+  let requested = @mcp.SubscriptionFilter(tools_list_changed=true)
+  let request = core.request_raw(method_name="subscriptions/listen", params={
+    "notifications": requested.to_json(),
+  })
+  let expected_id : @jsonrpc.RequestId = try! @json.from_json(
+    request_id(request).unwrap(),
+  )
+  let subscription = try! server.accept_subscription(request)
+  let before_ack = @client.SubscriptionStreamState(expected_id~, requested~)
+  let premature = try
+    before_ack.consume(
+      @mcp.ToolsListChangedNotification(subscription_id=subscription.id).to_json(),
+    )
+  catch {
+    @mcp.InvalidRequest(_) => true
+    _ => false
+  } noraise {
+    _ => false
+  }
+  assert_true(premature)
+  let state = @client.SubscriptionStreamState(expected_id~, requested~)
+  assert_true(state.consume(subscription.acknowledgement()) is Acknowledged)
+  assert_true(
+    state.consume(
+      @mcp.ToolsListChangedNotification(subscription_id=subscription.id).to_json(),
+    )
+    is Notification(_),
+  )
+  let outside_filter = try
+    state.consume(
+      @mcp.PromptsListChangedNotification(subscription_id=subscription.id).to_json(),
+    )
+  catch {
+    @mcp.InvalidRequest(_) => true
+    _ => false
+  } noraise {
+    _ => false
+  }
+  assert_true(outside_filter)
+  let wrong_id = try
+    state.consume(
+      @mcp.ToolsListChangedNotification(
+        subscription_id=try! @jsonrpc.RequestId::number(99.0),
+      ).to_json(),
+    )
+  catch {
+    @mcp.InvalidRequest(_) => true
+    _ => false
+  } noraise {
+    _ => false
+  }
+  assert_true(wrong_id)
+  assert_true(state.consume(subscription.close_response()) is Final(_))
+}
+
+///|
+test "subscription producer errors retain their JSON-RPC identity" {
+  let expected_id = try! @jsonrpc.RequestId::number(7.0, repr="7")
+  let state = @client.SubscriptionStreamState(
+    expected_id~,
+    requested=@mcp.SubscriptionFilter(tools_list_changed=true),
+  )
+  let acknowledgement = Json::object({
+    "jsonrpc": Json::string("2.0"),
+    "method": Json::string("notifications/subscriptions/acknowledged"),
+    "params": Json::object({
+      "notifications": @mcp.SubscriptionFilter(tools_list_changed=true).to_json(),
+      "_meta": Json::object({
+        "io.modelcontextprotocol/subscriptionId": expected_id.as_json(),
+      }),
+    }),
+  })
+  assert_true(state.consume(acknowledgement) is Acknowledged)
+  let error = jsonrpc_error(
+    expected_id.as_json(),
+    @mcp.InternalError("producer failed"),
+  )
+  assert_true(state.consume(error) is Final(_))
+}
+
+///|
+test "subscription client rejects unhonored filters and wrong final id" {
+  let expected_id = try! @jsonrpc.RequestId::number(1.0, repr="1")
+  let requested = @mcp.SubscriptionFilter(tools_list_changed=true)
+  let invalid_ack = @mcp.SubscriptionsAcknowledgedNotification(
+    subscription_id=expected_id,
+    notifications=@mcp.SubscriptionFilter(prompts_list_changed=true),
+  ).to_json()
+  let invalid_state = @client.SubscriptionStreamState(expected_id~, requested~)
+  let unrequested = try invalid_state.consume(invalid_ack) catch {
+    @mcp.InvalidRequest(_) => true
+    _ => false
+  } noraise {
+    _ => false
+  }
+  assert_true(unrequested)
+  let state = @client.SubscriptionStreamState(expected_id~, requested~)
+  let ack = @mcp.SubscriptionsAcknowledgedNotification(
+    subscription_id=expected_id,
+    notifications=requested,
+  ).to_json()
+  ignore(try! state.consume(ack))
+  let wrong_final = Json::object({
+    "jsonrpc": Json::string("2.0"),
+    "id": Json::number(2.0, repr="2"),
+    "result": Json::object({
+      "resultType": Json::string("complete"),
+      "_meta": Json::object({
+        "io.modelcontextprotocol/subscriptionId": expected_id.as_json(),
+      }),
+    }),
+  })
+  let rejected = try state.consume(wrong_final) catch {
+    @mcp.InvalidRequest(_) => true
+    _ => false
+  } noraise {
+    _ => false
+  }
+  assert_true(rejected)
+  let wrong_subscription = Json::object({
+    "jsonrpc": Json::string("2.0"),
+    "id": expected_id,
+    "result": Json::object({
+      "resultType": Json::string("complete"),
+      "_meta": Json::object({
+        "io.modelcontextprotocol/subscriptionId": Json::number(99.0),
+      }),
+    }),
+  })
+  let rejected_subscription = try state.consume(wrong_subscription) catch {
+    @mcp.InvalidRequest(_) => true
+    _ => false
+  } noraise {
+    _ => false
+  }
+  assert_true(rejected_subscription)
+}
+
+///|
+test "Streamable HTTP accepts notification shapes but rejects responses" {
+  let notification = Json::object({
+    "jsonrpc": Json::string("2.0"),
+    "method": Json::string("notifications/cancelled"),
+    "params": Json::object({}),
+  })
+  let decoded_notification = decode_http_client_message(notification) catch {
+    _ => fail("expected valid notification")
+  }
+  assert_true(decoded_notification is Notification(_))
+  let response = Json::object({
+    "jsonrpc": Json::string("2.0"),
+    "id": Json::number(1.0),
+    "result": Json::object({}),
+  })
+  let rejected_response = try decode_http_client_message(response) catch {
+    @mcp.InvalidRequest(_) => true
+    _ => false
+  } noraise {
+    _ => false
+  }
+  assert_true(rejected_response)
+}
+
+///|
+fn test_authorization_provider() -> @auth.AuthorizationProvider {
+  @auth.AuthorizationProvider(
+    send_request=_ => @auth.HttpResponse(status=500),
+    open_authorization_url=url => url,
+    random_bytes=size => Bytes::make(size, 1),
+  )
+}
+
+///|
+test "authorization configuration requires an absolute redirect URI" {
+  try
+    ignore(
+      AuthorizationOptions(
+        provider=test_authorization_provider(),
+        redirect_uri="/callback",
+      ),
+    )
+  catch {
+    @mcp.InvalidParams(_) => ()
+    _ => fail("expected InvalidParams")
+  } noraise {
+    _ => fail("expected invalid redirect URI to be rejected")
   }
 }
 
 ///|
-test "split endpoint keeps MCP path for DELETE" {
-  let (base, path) = try! split_endpoint("http://127.0.0.1:8080/mcp")
-  assert_eq(base, "http://127.0.0.1:8080")
-  assert_eq(path, "/mcp")
+test "Bearer credentials are attached only as an Authorization header" {
+  let options = try! AuthorizationOptions(
+    provider=test_authorization_provider(),
+    redirect_uri="https://client.example/callback",
+  )
+  let client = try! Transport("https://rs.example/mcp", authorization=options)
+  let issuer = "https://as.example"
+  client.authorization_issuer = Some(issuer)
+  client.token_cache.put(
+    try! @auth.OAuthTokens(access_token="top-secret"),
+    issuer~,
+    resource="https://rs.example/mcp",
+  )
+  let request = metadata_request("tools/list")
+  let headers = try! client.headers(request)
+  assert_eq(headers.get("Authorization"), Some("Bearer top-secret"))
+  assert_false(client.endpoint.contains("top-secret"[:]))
+  assert_false(request.stringify().contains("top-secret"[:]))
+}
+
+///|
+test "Bearer credentials are not reused across resource bindings" {
+  let options = try! AuthorizationOptions(
+    provider=test_authorization_provider(),
+    redirect_uri="https://client.example/callback",
+  )
+  let client = try! Transport("https://rs.example/mcp", authorization=options)
+  let issuer = "https://as.example"
+  client.authorization_issuer = Some(issuer)
+  client.token_cache.put(
+    try! @auth.OAuthTokens(access_token="wrong-resource"),
+    issuer~,
+    resource="https://rs.example/other",
+  )
+  assert_true(
+    try! (client.headers(metadata_request("tools/list")).get("Authorization")
+    is None),
+  )
+}
+
+///|
+async test "401 without a challenge falls back to protected-resource discovery" {
+  let auth_requests : Array[@auth.HttpRequest] = []
+  let opened : Array[String] = []
+  let provider = @auth.AuthorizationProvider(
+    send_request=request => {
+      auth_requests.push(request)
+      match request.url {
+        "https://rs.example/.well-known/oauth-protected-resource" =>
+          @auth.HttpResponse(
+            status=200,
+            headers=Map([("Content-Type", "application/json")]),
+            body=Json::object({
+              "resource": "https://rs.example",
+              "authorization_servers": ["https://as.example"],
+              "scopes_supported": ["read"],
+            }).stringify(),
+          )
+        "https://as.example/.well-known/oauth-authorization-server" =>
+          @auth.HttpResponse(
+            status=200,
+            headers=Map([("content-type", "Application/JSON; charset=utf-8")]),
+            body=Json::object({
+              "issuer": "https://as.example",
+              "authorization_endpoint": "https://as.example/authorize",
+              "token_endpoint": "https://as.example/token",
+              "token_endpoint_auth_methods_supported": ["none"],
+              "code_challenge_methods_supported": ["S256"],
+              "authorization_response_iss_parameter_supported": true,
+            }).stringify(),
+          )
+        "https://as.example/token" =>
+          @auth.HttpResponse(
+            status=200,
+            headers=Map([("Content-Type", "application/json")]),
+            body=Json::object({
+              "access_token": "bound-access",
+              "token_type": "Bearer",
+              "scope": "read",
+            }).stringify(),
+          )
+        _ => @auth.HttpResponse(status=404)
+      }
+    },
+    open_authorization_url=url => {
+      opened.push(url)
+      let parsed = @auth.AbsoluteUri::parse(url)
+      let state = @auth.parse_query(parsed.query.unwrap_or(""))
+        .get("state")
+        .unwrap()
+      "https://client.example/callback?code=code-1&state=" +
+      @auth.percent_encode(state) +
+      "&iss=https%3A%2F%2Fas.example"
+    },
+    random_bytes=size => Bytes::make(size, 9),
+  )
+  let credentials = try! @auth.ClientCredentials(client_id="registered")
+  let options = try! AuthorizationOptions(
+    provider~,
+    redirect_uri="https://client.example/callback",
+    pre_registered=Map([("https://as.example", credentials)]),
+  )
+  let client = try! Transport("https://rs.example/mcp", authorization=options)
+  let response : @async_http.Response = {
+    code: 401,
+    reason: "Unauthorized",
+    headers: Map([]),
+    cookies: [],
+  }
+  client.authorize_challenge(response, "tools/list") catch {
+    _ => abort("authorization failed")
+  }
+  let headers = try! client.headers(metadata_request("tools/list"))
+  assert_eq(headers.get("Authorization"), Some("Bearer bound-access"))
+  assert_eq(opened.length(), 1)
+  assert_false(opened[0].contains("bound-access"[:]))
+  guard auth_requests.last() is Some(token_request) else {
+    abort("missing token request")
+  }
+  assert_true(
+    token_request.body.contains("resource=https%3A%2F%2Frs.example%2Fmcp"[:]),
+  )
+}
+
+///|
+test "generic 403 is not treated as scope step-up" {
+  let generic : @async_http.Response = {
+    code: 403,
+    reason: "Forbidden",
+    headers: Map([]),
+    cookies: [],
+  }
+  let step_up : @async_http.Response = {
+    code: 403,
+    reason: "Forbidden",
+    headers: Map([
+      (
+        "WWW-Authenticate", "Bearer error=\"insufficient_scope\", scope=\"write\"",
+      ),
+    ]),
+    cookies: [],
+  }
+  assert_false(response_requires_authorization(generic))
+  assert_true(response_requires_authorization(step_up))
+}
+
+///|
+test "authorization endpoint policy is enforced when Client is constructed" {
+  let strict = try! AuthorizationOptions(
+    provider=test_authorization_provider(),
+    redirect_uri="https://client.example/callback",
+  )
+  try
+    ignore(Transport("http://127.0.0.1:8080/mcp", authorization=strict))
+  catch {
+    @mcp.InvalidRequest(_) => ()
+    _ => fail("expected authorization destination rejection")
+  } noraise {
+    _ => fail("authorization bypassed endpoint policy")
+  }
+  let loopback_provider = @auth.AuthorizationProvider(
+    send_request=_ => @auth.HttpResponse(status=500),
+    open_authorization_url=url => url,
+    random_bytes=size => Bytes::make(size, 1),
+    allow_insecure_loopback=true,
+  )
+  let loopback = try! AuthorizationOptions(
+    provider=loopback_provider,
+    redirect_uri="http://127.0.0.1:9000/callback",
+  )
+  ignore(try! Transport("http://127.0.0.1:8080/mcp", authorization=loopback))
+}
+
+///|
+test "authorization resource override preserves a significant trailing slash" {
+  let options = try! AuthorizationOptions(
+    provider=test_authorization_provider(),
+    redirect_uri="https://client.example/callback",
+    resource_uri="https://rs.example/mcp/",
+  )
+  let client = try! Transport("https://rs.example/mcp", authorization=options)
+  assert_eq(client.authorization_resource, "https://rs.example/mcp/")
+  assert_true(client.authorization_resource_exact)
+  let issuer = "https://as.example"
+  client.authorization_issuer = Some(issuer)
+  client.token_cache.put(
+    try! @auth.OAuthTokens(access_token="slash-bound"),
+    issuer~,
+    resource="https://rs.example/mcp/",
+  )
+  assert_eq(
+    (try! client.headers(metadata_request("tools/list"))).get("Authorization"),
+    Some("Bearer slash-bound"),
+  )
+}
+
+///|
+test "authorization resource override obeys destination security policy" {
+  let options = try! AuthorizationOptions(
+    provider=test_authorization_provider(),
+    redirect_uri="https://client.example/callback",
+    resource_uri="https://169.254.169.254/mcp/",
+  )
+  try ignore(Transport("https://rs.example/mcp", authorization=options)) catch {
+    @mcp.InvalidRequest(_) => ()
+    _ => fail("expected resource policy rejection")
+  } noraise {
+    _ => fail("private resource override was accepted")
+  }
 }

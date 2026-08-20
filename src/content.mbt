@@ -18,7 +18,19 @@ pub impl ToJson for Role with fn to_json(self : Role) -> Json {
 }
 
 ///|
-pub(all) struct Annotations {
+pub impl @json.FromJson for Role with fn from_json(value, path) -> Role {
+  match value {
+    String("user") => User
+    String("assistant") => Assistant
+    _ =>
+      raise @json.JsonDecodeError(
+        (path, "role must be \"user\" or \"assistant\""),
+      )
+  }
+}
+
+///|
+pub struct Annotations {
   audience : Array[Role]
   priority : Double?
   last_modified : String?
@@ -29,8 +41,19 @@ pub fn Annotations::Annotations(
   audience? : Array[Role] = [],
   priority? : Double,
   last_modified? : String,
-) -> Annotations {
-  { audience, priority, last_modified }
+) -> Annotations raise McpError {
+  if priority is Some(value) &&
+    (value.is_nan() || value.is_inf() || value < 0.0 || value > 1.0) {
+    raise InvalidParams(
+      "annotation priority must be finite and between 0 and 1",
+    )
+  }
+  { audience: audience.copy(), priority, last_modified }
+}
+
+///|
+fn Annotations::copy(self : Annotations) -> Annotations {
+  { ..self, audience: self.audience.copy() }
 }
 
 ///|
@@ -38,14 +61,73 @@ pub impl ToJson for Annotations with fn to_json(self : Annotations) -> Json {
   let fields : Map[String, Json] = Map([])
   if !self.audience.is_empty() {
     fields["audience"] = self.audience
-      .map(fn(role) { role.to_json() })
+      .map(fn(role) { ToJson::to_json(role) })
       .to_json()
   }
   if self.priority is Some(priority) {
     fields["priority"] = Json::number(priority)
   }
-  put_optional_string(fields, "lastModified", self.last_modified)
+  fields.set_opt("lastModified", self.last_modified.map(Json::string))
   Json::object(fields)
+}
+
+///|
+pub impl @json.FromJson for Annotations with fn from_json(
+  value : Json,
+  path : @json.JsonPath,
+) -> Annotations raise {
+  guard value is Object(fields) else {
+    raise JsonDecodeError((path, "expected object"))
+  }
+  let audience : Array[Role] = match fields.get("audience") {
+    None => []
+    Some(Array(values)) => {
+      let audience : Array[Role] = []
+      for i, item in values {
+        audience.push(
+          @json.from_json(item) catch {
+            JsonDecodeError((_, msg)) =>
+              raise JsonDecodeError(
+                (path.add_key("audience").add_index(i), msg),
+              )
+          },
+        )
+      }
+      audience
+    }
+    Some(_) =>
+      raise JsonDecodeError((path.add_key("audience"), "expected array"))
+  }
+  let priority = match fields.get("priority") {
+    Some(Number(value, ..)) => {
+      if value.is_nan() || value.is_inf() || value < 0.0 || value > 1.0 {
+        raise JsonDecodeError(
+          (path.add_key("priority"), "priority must be between 0 and 1"),
+        )
+      }
+      Some(value)
+    }
+    Some(Null) | None => None
+    Some(_) =>
+      raise JsonDecodeError((path.add_key("priority"), "expected number"))
+  }
+  let last_modified = match fields.get("lastModified") {
+    Some(String(s)) => Some(s)
+    Some(Null) | None => None
+    Some(_) =>
+      raise JsonDecodeError((path.add_key("lastModified"), "expected string"))
+  }
+  Annotations(audience~, priority?, last_modified?) catch {
+    error => raise JsonDecodeError((path, error.message()))
+  }
+}
+
+///|
+pub fn Annotations::from_json(
+  value : Json,
+  path? : @json.JsonPath,
+) -> Annotations raise McpError {
+  decode_json(value, path?)
 }
 
 ///|
@@ -53,7 +135,7 @@ pub impl ToJson for Annotations with fn to_json(self : Annotations) -> Json {
 ///
 /// `size`, when known, is the raw resource byte length before base64 encoding
 /// or tokenization.
-pub(all) struct ResourceLink {
+pub struct ResourceLink {
   uri : String
   name : String
   title : String?
@@ -76,8 +158,21 @@ pub fn ResourceLink::ResourceLink(
   annotations? : Annotations,
   size? : Int64,
   meta? : Json,
-) -> ResourceLink {
-  { uri, name, title, description, mime_type, icons, annotations, size, meta }
+) -> ResourceLink raise McpError {
+  if size is Some(value) && value < 0L {
+    raise InvalidParams("resource link size must be non-negative")
+  }
+  {
+    uri,
+    name,
+    title,
+    description,
+    mime_type,
+    icons: icons.map(icon => icon.copy()),
+    annotations: annotations.map(fn(a) { a.copy() }),
+    size,
+    meta: meta.map(fn(m) { m.copy() }),
+  }
 }
 
 ///|
@@ -87,26 +182,120 @@ pub impl ToJson for ResourceLink with fn to_json(self : ResourceLink) -> Json {
     "uri": Json::string(self.uri),
     "name": Json::string(self.name),
   }
-  put_optional_string(fields, "title", self.title)
-  put_optional_string(fields, "description", self.description)
-  put_optional_string(fields, "mimeType", self.mime_type)
+  fields.set_opt("title", self.title.map(Json::string))
+  fields.set_opt("description", self.description.map(Json::string))
+  fields.set_opt("mimeType", self.mime_type.map(Json::string))
   if !self.icons.is_empty() {
-    fields["icons"] = self.icons.map(fn(icon) { icon.to_json() }).to_json()
+    fields["icons"] = self.icons
+      .map(fn(icon) { ToJson::to_json(icon) })
+      .to_json()
   }
   if self.annotations is Some(annotations) {
-    fields["annotations"] = annotations.to_json()
+    fields["annotations"] = ToJson::to_json(annotations)
   }
-  put_optional_int64(fields, "size", self.size)
-  put_optional_json(fields, "_meta", self.meta)
+  fields.set_opt(
+    "size",
+    self.size.map(fn(size) { Json::number(size.to_double(), repr="\{size}") }),
+  )
+  fields.set_opt("_meta", self.meta.map(fn(m) { m.copy() }))
   Json::object(fields)
+}
+
+///|
+pub impl @json.FromJson for ResourceLink with fn from_json(
+  value : Json,
+  path : @json.JsonPath,
+) -> ResourceLink raise {
+  guard value is Object(fields) else {
+    raise JsonDecodeError((path, "expected object"))
+  }
+  let uri = match fields.get("uri") {
+    Some(String(u)) => u
+    Some(_) => raise JsonDecodeError((path.add_key("uri"), "expected string"))
+    None => raise JsonDecodeError((path.add_key("uri"), "uri is required"))
+  }
+  let name = match fields.get("name") {
+    Some(String(n)) => n
+    Some(_) => raise JsonDecodeError((path.add_key("name"), "expected string"))
+    None => raise JsonDecodeError((path.add_key("name"), "name is required"))
+  }
+  let title = match fields.get("title") {
+    Some(String(t)) => Some(t)
+    Some(Null) | None => None
+    Some(_) => raise JsonDecodeError((path.add_key("title"), "expected string"))
+  }
+  let description = match fields.get("description") {
+    Some(String(d)) => Some(d)
+    Some(Null) | None => None
+    Some(_) =>
+      raise JsonDecodeError((path.add_key("description"), "expected string"))
+  }
+  let mime_type = match fields.get("mimeType") {
+    Some(String(m)) => Some(m)
+    Some(Null) | None => None
+    Some(_) =>
+      raise JsonDecodeError((path.add_key("mimeType"), "expected string"))
+  }
+  let icons : Array[Icon] = match fields.get("icons") {
+    Some(Array(arr)) => {
+      let result : Array[Icon] = []
+      for i, it in arr {
+        result.push(
+          @json.from_json(it, path=path.add_key("icons").add_index(i)),
+        )
+      }
+      result
+    }
+    Some(Null) | None => []
+    Some(_) => raise JsonDecodeError((path.add_key("icons"), "expected array"))
+  }
+  let annotations : Annotations? = match fields {
+    { "annotations": v, .. } =>
+      Some(@json.from_json(v, path=path.add_key("annotations")))
+    _ => None
+  }
+  let size : Int64? = match fields.get("size") {
+    Some(Number(s, ..)) => {
+      if s < 0.0 || s != s.to_int64().to_double() {
+        raise JsonDecodeError(
+          (path.add_key("size"), "expected non-negative integer"),
+        )
+      }
+      Some(s.to_int64())
+    }
+    Some(Null) | None => None
+    Some(_) => raise JsonDecodeError((path.add_key("size"), "expected number"))
+  }
+  let meta = fields.get("_meta")
+  ResourceLink(
+    uri~,
+    name~,
+    title?,
+    description?,
+    mime_type?,
+    icons~,
+    annotations?,
+    size?,
+    meta?,
+  ) catch {
+    error => raise JsonDecodeError((path, error.to_string()))
+  }
+}
+
+///|
+pub fn ResourceLink::from_json(
+  value : Json,
+  path? : @json.JsonPath,
+) -> ResourceLink raise McpError {
+  decode_json(value, path?)
 }
 
 ///|
 /// Content payload accepted by MCP prompts and tool results.
 ///
-/// This enum intentionally tracks the official content union instead of
-/// accepting arbitrary JSON. Add new protocol variants here as typed cases.
-pub(all) enum ContentBlock {
+/// Corresponds to `Content` in the MCP specification:
+/// `TextContent | ImageContent | EmbeddedResource`
+pub(all) enum Content {
   TextContent(text~ : String, annotations~ : Annotations?, meta~ : Json?)
   ImageContent(
     data~ : String,
@@ -135,13 +324,13 @@ fn put_content_metadata(
   meta : Json?,
 ) -> Unit {
   if annotations is Some(annotations) {
-    fields["annotations"] = annotations.to_json()
+    fields["annotations"] = ToJson::to_json(annotations)
   }
-  put_optional_json(fields, "_meta", meta)
+  fields.set_opt("_meta", meta.map(fn(m) { m.copy() }))
 }
 
 ///|
-pub impl ToJson for ContentBlock with fn to_json(self : ContentBlock) -> Json {
+pub impl ToJson for Content with fn to_json(self : Content) -> Json {
   match self {
     TextContent(text~, annotations~, meta~) => {
       let fields : Map[String, Json] = {
@@ -172,139 +361,172 @@ pub impl ToJson for ContentBlock with fn to_json(self : ContentBlock) -> Json {
     EmbeddedResource(resource~, annotations~, meta~) => {
       let fields : Map[String, Json] = {
         "type": Json::string("resource"),
-        "resource": resource.to_json(),
+        "resource": ToJson::to_json(resource),
       }
       put_content_metadata(fields, annotations, meta)
       Json::object(fields)
     }
-    ResourceLink(resource_link) => resource_link.to_json()
+    ResourceLink(resource_link) => ToJson::to_json(resource_link)
   }
 }
 
 ///|
-/// Construct a text content block.
-pub fn ContentBlock::text(
+/// Construct a text content.
+pub fn Content::text(
   text : String,
   annotations? : Annotations,
   meta? : Json,
-) -> ContentBlock {
-  TextContent(text~, annotations~, meta~)
+) -> Content {
+  TextContent(
+    text~,
+    annotations=annotations.map(fn(a) { a.copy() }),
+    meta=meta.map(fn(m) { m.copy() }),
+  )
 }
 
 ///|
-/// Construct an image content block from base64-encoded data.
-pub fn ContentBlock::image(
+/// Construct an image content from base64-encoded data.
+pub fn Content::image(
   data~ : String,
   mime_type~ : String,
   annotations? : Annotations,
   meta? : Json,
-) -> ContentBlock {
-  ImageContent(data~, mime_type~, annotations~, meta~)
+) -> Content {
+  ImageContent(
+    data~,
+    mime_type~,
+    annotations=annotations.map(fn(a) { a.copy() }),
+    meta=meta.map(fn(m) { m.copy() }),
+  )
 }
 
 ///|
-/// Construct an audio content block from base64-encoded data.
-pub fn ContentBlock::audio(
+/// Construct an audio content from base64-encoded data.
+pub fn Content::audio(
   data~ : String,
   mime_type~ : String,
   annotations? : Annotations,
   meta? : Json,
-) -> ContentBlock {
-  AudioContent(data~, mime_type~, annotations~, meta~)
+) -> Content {
+  AudioContent(
+    data~,
+    mime_type~,
+    annotations=annotations.map(fn(a) { a.copy() }),
+    meta=meta.map(fn(m) { m.copy() }),
+  )
 }
 
 ///|
-/// Construct a content block that embeds resource contents inline.
-pub fn ContentBlock::embedded_resource(
+/// Construct a content that embeds resource contents inline.
+pub fn Content::embedded_resource(
   resource~ : ResourceContent,
   annotations? : Annotations,
   meta? : Json,
-) -> ContentBlock {
-  EmbeddedResource(resource~, annotations~, meta~)
+) -> Content {
+  EmbeddedResource(
+    resource~,
+    annotations=annotations.map(fn(a) { a.copy() }),
+    meta=meta.map(fn(m) { m.copy() }),
+  )
 }
 
 ///|
-/// Construct a content block that links to a readable resource.
-pub fn ContentBlock::resource_link(
-  resource_link : ResourceLink,
-) -> ContentBlock {
+/// Construct a content that links to a readable resource.
+pub fn Content::resource_link(resource_link : ResourceLink) -> Content {
   ResourceLink(resource_link)
 }
 
 ///|
-pub(all) struct CallToolResult {
-  content : Array[ContentBlock]
-  structured_content : Json?
-  is_error : Bool
-  meta : Json?
-} derive(Debug, Eq)
-
-///|
-pub impl ToJson for CallToolResult with fn to_json(self : CallToolResult) -> Json {
-  let fields : Map[String, Json] = {
-    "content": self.content.map(fn(block) { block.to_json() }).to_json(),
-  }
-  put_optional_json(fields, "structuredContent", self.structured_content)
-  if self.is_error {
-    fields["isError"] = Json::boolean(true)
-  }
-  put_optional_json(fields, "_meta", self.meta)
-  Json::object(fields)
-}
-
-///|
-/// Return a plain text tool result.
-pub fn CallToolResult::text(
-  text : String,
-  annotations? : Annotations,
-  meta? : Json,
-) -> CallToolResult {
-  {
-    content: [ContentBlock::text(text, annotations?, meta?)],
-    structured_content: None,
-    is_error: false,
-    meta: None,
-  }
-}
-
-///|
-/// Return structured content without a text block.
-pub fn CallToolResult::json(value : Json) -> CallToolResult {
-  { content: [], structured_content: Some(value), is_error: false, meta: None }
-}
-
-///|
-/// Return typed structured content through `ToJson`.
-pub fn[T : ToJson] CallToolResult::structured(value : T) -> CallToolResult {
-  CallToolResult::json(value.to_json())
-}
-
-///|
-pub fn CallToolResult::text_json(
-  text : String,
+pub impl @json.FromJson for Content with fn from_json(
   value : Json,
-  annotations? : Annotations,
-  meta? : Json,
-) -> CallToolResult {
-  {
-    content: [ContentBlock::text(text, annotations?, meta?)],
-    structured_content: Some(value),
-    is_error: false,
-    meta: None,
+  path : @json.JsonPath,
+) -> Content raise {
+  guard value is Object(fields) else {
+    raise JsonDecodeError((path, "expected object"))
+  }
+  let annotations : Annotations? = match fields {
+    { "annotations": v, .. } =>
+      Some(@json.from_json(v, path=path.add_key("annotations")))
+    _ => None
+  }
+  let meta = fields.get("_meta")
+  match fields.get("type") {
+    Some(String("text")) =>
+      match fields.get("text") {
+        Some(String(text)) => Content::text(text, annotations?, meta?)
+        Some(_) =>
+          raise JsonDecodeError((path.add_key("text"), "expected string"))
+        None =>
+          raise JsonDecodeError((path.add_key("text"), "text is required"))
+      }
+    Some(String("image")) => {
+      let data = match fields.get("data") {
+        Some(String(d)) => d
+        Some(_) =>
+          raise JsonDecodeError((path.add_key("data"), "expected string"))
+        None =>
+          raise JsonDecodeError((path.add_key("data"), "data is required"))
+      }
+      let mime_type = match fields.get("mimeType") {
+        Some(String(m)) => m
+        Some(_) =>
+          raise JsonDecodeError((path.add_key("mimeType"), "expected string"))
+        None =>
+          raise JsonDecodeError(
+            (path.add_key("mimeType"), "mimeType is required"),
+          )
+      }
+      Content::image(data~, mime_type~, annotations?, meta?)
+    }
+    Some(String("audio")) => {
+      let data = match fields.get("data") {
+        Some(String(d)) => d
+        Some(_) =>
+          raise JsonDecodeError((path.add_key("data"), "expected string"))
+        None =>
+          raise JsonDecodeError((path.add_key("data"), "data is required"))
+      }
+      let mime_type = match fields.get("mimeType") {
+        Some(String(m)) => m
+        Some(_) =>
+          raise JsonDecodeError((path.add_key("mimeType"), "expected string"))
+        None =>
+          raise JsonDecodeError(
+            (path.add_key("mimeType"), "mimeType is required"),
+          )
+      }
+      Content::audio(data~, mime_type~, annotations?, meta?)
+    }
+    Some(String("resource")) => {
+      guard fields is { "resource": res_val, .. } else {
+        raise JsonDecodeError(
+          (path.add_key("resource"), "resource is required"),
+        )
+      }
+      let resource : ResourceContent = @json.from_json(
+        res_val,
+        path=path.add_key("resource"),
+      )
+      Content::embedded_resource(resource~, annotations?, meta?)
+    }
+    Some(String("resource_link")) => {
+      let link : ResourceLink = @json.from_json(value, path~)
+      Content::resource_link(link)
+    }
+    Some(String(other)) =>
+      raise JsonDecodeError(
+        (path.add_key("type"), "unknown content type: \{other}"),
+      )
+    Some(_) => raise JsonDecodeError((path.add_key("type"), "expected string"))
+    None => raise JsonDecodeError((path.add_key("type"), "type is required"))
   }
 }
 
 ///|
-/// Return a tool error as MCP content, not as a JSON-RPC protocol error.
-pub fn CallToolResult::error_text(
-  text : String,
-  annotations? : Annotations,
-  meta? : Json,
-) -> CallToolResult {
-  {
-    content: [ContentBlock::text(text, annotations?, meta?)],
-    structured_content: None,
-    is_error: true,
-    meta: None,
-  }
+/// Decode one official MCP content union value.
+pub fn Content::from_json(
+  value : Json,
+  path? : @json.JsonPath,
+) -> Content raise McpError {
+  decode_json(value, path?)
 }

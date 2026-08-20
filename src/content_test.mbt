@@ -5,7 +5,7 @@ test "content blocks encode annotations meta and resources" {
     priority=0.75,
     last_modified="2026-05-26T00:00:00Z",
   )
-  let text = @mcp.ContentBlock::text(
+  let text = @mcp.Content::text(
     "hello",
     annotations~,
     meta=Json::object({ "source": Json::string("test") }),
@@ -20,7 +20,7 @@ test "content blocks encode annotations meta and resources" {
     text_fields["_meta"] == Json::object({ "source": Json::string("test") }),
   )
 
-  let embedded = @mcp.ContentBlock::embedded_resource(
+  let embedded = @mcp.Content::embedded_resource(
     resource=@mcp.ResourceContent::text(
       uri="memory://status",
       text="ready",
@@ -37,7 +37,7 @@ test "content blocks encode annotations meta and resources" {
     resource["_meta"] == Json::object({ "etag": Json::string("abc") }),
   )
 
-  let link = @mcp.ContentBlock::resource_link(
+  let link = @mcp.Content::resource_link(
     @mcp.ResourceLink(
       uri="file:///tmp/report.md",
       name="report",
@@ -80,7 +80,7 @@ test "resource descriptors encode annotations icons and size" {
     icons=[icon],
     annotations~,
     size=5000000000L,
-    meta=Json::object({ "owner": Json::string("test") }),
+    meta={ "owner": Json::string("test") },
   ).to_json()
   guard resource is Object(resource_fields) else {
     fail("expected resource descriptor")
@@ -109,7 +109,7 @@ test "resource descriptors encode annotations icons and size" {
     mime_type="text/markdown",
     icons=[icon],
     annotations~,
-    meta=Json::object({ "templated": Json::boolean(true) }),
+    meta={ "templated": Json::boolean(true) },
   ).to_json()
   guard template is Object(template_fields) else {
     fail("expected resource template")
@@ -128,4 +128,18 @@ test "resource descriptors encode annotations icons and size" {
     template_fields["_meta"] ==
     Json::object({ "templated": Json::boolean(true) }),
   )
+}
+
+///|
+test "ResourceLink decodes independently and roundtrips" {
+  let json = Json::object({
+    "uri": Json::string("file:///data.csv"),
+    "name": Json::string("data"),
+    "title": Json::string("Data file"),
+    "size": Json::number(1024.0),
+  })
+  let link = try! @mcp.ResourceLink::from_json(json)
+  assert_true(link.uri == "file:///data.csv")
+  assert_true(link.name == "data")
+  assert_true(link.size == Some(1024L))
 }

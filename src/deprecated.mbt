@@ -1,4 +1,6 @@
 ///|
+/// Deprecated logging level retained for wire compatibility with MCP
+/// 2026-07-28. New integrations should not expose connection-wide logging APIs.
 pub(all) enum LoggingLevel {
   Debug
   Info
@@ -30,7 +32,10 @@ pub impl ToJson for LoggingLevel with fn to_json(self : LoggingLevel) -> Json {
 }
 
 ///|
-fn parse_logging_level(value : Json) -> LoggingLevel raise McpError {
+pub impl @json.FromJson for LoggingLevel with fn from_json(
+  value : Json,
+  path : @json.JsonPath,
+) -> LoggingLevel raise {
   match value {
     String("debug") => Debug
     String("info") => Info
@@ -40,18 +45,16 @@ fn parse_logging_level(value : Json) -> LoggingLevel raise McpError {
     String("critical") => Critical
     String("alert") => Alert
     String("emergency") => Emergency
-    String(other) => raise InvalidParams("unknown logging level: \{other}")
-    _ => raise InvalidParams("logging/setLevel params.level must be a string")
+    String(other) =>
+      raise JsonDecodeError((path, "unknown logging level: \{other}"))
+    _ => raise JsonDecodeError((path, "expected string"))
   }
 }
 
 ///|
-pub fn logging_message_notification(
-  level~ : LoggingLevel,
-  data~ : Json,
-  logger? : String,
-) -> Json {
-  let params : Map[String, Json] = { "level": level.to_json(), "data": data }
-  put_optional_string(params, "logger", logger)
-  jsonrpc_notification("notifications/message", params=Json::object(params))
+pub fn LoggingLevel::from_json(
+  value : Json,
+  path? : @json.JsonPath,
+) -> LoggingLevel raise McpError {
+  decode_json(value, path?)
 }

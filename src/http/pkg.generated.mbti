@@ -1,0 +1,85 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "shiguri-01/mcp/http"
+
+import {
+  "moonbitlang/core/debug",
+  "moonbitlang/core/set",
+  "shiguri-01/mcp",
+  "shiguri-01/mcp/auth",
+  "shiguri-01/mcp/client",
+  "shiguri-01/mcp/server",
+}
+
+// Values
+pub fn decode_mcp_header_value(String) -> String raise HttpHeaderError
+
+pub let default_max_request_body_bytes : Int
+
+pub let default_max_response_body_bytes : Int
+
+pub let default_max_sse_event_bytes : Int
+
+pub fn encode_mcp_header_value(String) -> String
+
+pub fn response_requires_authorization(@moonbitlang/async/http.Response) -> Bool
+
+pub async fn serve(@moonbitlang/async/http.Server, @server.Server, options? : ServerOptions) -> Unit
+
+pub fn tool_argument_headers(Json, Json) -> Map[@moonbitlang/async/http.CaseInsensitiveString, String] raise HttpHeaderError
+
+pub fn validate_tool_argument_headers(Map[@moonbitlang/async/http.CaseInsensitiveString, String], Json, Json) -> Unit raise HttpHeaderError
+
+pub fn validate_tool_header_schema(Json) -> Unit raise HttpHeaderError
+
+// Errors
+pub(all) suberror HttpHeaderError {
+  InvalidHeaderSchema(String)
+  InvalidHeaderValue(String)
+  HeaderMismatch(String)
+} derive(Eq, @debug.Debug)
+
+// Types and methods
+pub struct AuthorizationOptions {
+  provider : @auth.AuthorizationProvider
+  redirect_uri : String
+  client_name : String
+  client_id_metadata_url : String?
+  pre_registered : Map[String, @auth.ClientCredentials]
+  wants_refresh_token : Bool
+  resource_uri : String?
+}
+pub fn AuthorizationOptions::AuthorizationOptions(provider~ : @auth.AuthorizationProvider, redirect_uri~ : String, client_name? : String, client_id_metadata_url? : String, pre_registered? : Map[String, @auth.ClientCredentials], wants_refresh_token? : Bool, resource_uri? : String) -> Self raise @mcp.McpError
+
+pub struct ServerOptions {
+  endpoint_path : String
+  allowed_origins : @set.Set[String]
+  stream_responses : Bool
+  max_request_body_bytes : Int
+  on_subscription : async (@server.Subscription, async (Json) -> Unit) -> Unit
+  on_notification : async (Json) -> Unit
+}
+pub fn ServerOptions::ServerOptions(endpoint_path? : String, allowed_origins? : @set.Set[String], stream_responses? : Bool, max_request_body_bytes? : Int, on_subscription? : async (@server.Subscription, async (Json) -> Unit) -> Unit, on_notification? : async (Json) -> Unit) -> Self raise @mcp.McpError
+
+pub struct Transport {
+  endpoint : String
+  supported_protocol_versions : Array[String]
+  mut protocol_version : String
+  tool_schemas : Map[String, Json]
+  authorization : AuthorizationOptions?
+  credential_cache : @auth.CredentialCache
+  token_cache : @auth.TokenCache
+  retry_policy : @auth.RetryPolicy
+  mut authorization_issuer : String?
+  authorization_resource : String
+  authorization_resource_exact : Bool
+  max_response_body_bytes : Int
+  max_sse_event_bytes : Int
+}
+pub fn Transport::Transport(String, supported_protocol_versions? : Array[String], authorization? : AuthorizationOptions, max_response_body_bytes? : Int, max_sse_event_bytes? : Int) -> Self raise @mcp.McpError
+pub async fn Transport::authorize_challenge(Self, @moonbitlang/async/http.Response, String) -> Unit raise @mcp.McpError
+pub fn Transport::headers(Self, Json, input_schema? : Json) -> Map[@moonbitlang/async/http.CaseInsensitiveString, String] raise HttpHeaderError
+pub impl @client.ClientTransport for Transport
+
+// Type aliases
+
+// Traits

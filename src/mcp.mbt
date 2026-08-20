@@ -1,2 +1,3 @@
 ///|
-pub let latest_protocol_version : String = "2025-11-25"
+/// The Model Context Protocol version.
+pub const PROTOCOL_VERSION : String = "2026-07-28"

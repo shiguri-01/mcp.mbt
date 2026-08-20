@@ -1,45 +1,32 @@
 ///|
 async fn main {
   @async.with_task_group <| group => {
-    let client = @mcp_stdio.Client::spawn(group, "moon", args=[
-      "run", "--target", "native", "src/examples/stdio-server",
-    ])
-    let initialize = try! client.initialize(
-      client_name="stdio-client-example",
-      client_version="0.1.0",
+    let server_executable = match @env.get_env_var("MCP_STDIO_SERVER") {
+      Some(value) => value
+      None =>
+        abort("MCP_STDIO_SERVER must name a built stdio server executable")
+    }
+    let transport = try! @mcp_stdio.Transport(group, server_executable)
+    let client = try! @mcp_client.Client(
+      name="stdio-example-client",
+      version="1.0.0",
+      transport~,
     )
-    println(initialize.stringify(indent=2))
-    println((try! client.ping()).stringify(indent=2))
-    println(
-      (try! client.set_logging_level(level=@mcp.LoggingLevel::Debug)).stringify(
-        indent=2,
-      ),
-    )
-    println((try! client.list_tools()).stringify(indent=2))
-    println(
+    let discovered = try! client.discover()
+    println(discovered.to_json().stringify(indent=2))
+
+    match
       (try! client.call_tool(
-        name="hello",
+        name="greet",
         arguments=Json::object({ "name": Json::string("MoonBit") }),
-      )).stringify(indent=2),
-    )
-    println((try! client.list_resources()).stringify(indent=2))
-    println((try! client.list_resource_templates()).stringify(indent=2))
-    println(
-      (try! client.read_resource(uri="memory://status")).stringify(indent=2),
-    )
-    println(
-      (try! client.get_prompt(
-        name="summarize",
-        arguments=Json::object({ "topic": Json::string("MCP") }),
-      )).stringify(indent=2),
-    )
-    println(
-      (try! client.complete(
-        reference=@mcp.PromptRef(name="summarize"),
-        argument_name="topic",
-        argument_value="M",
-      )).stringify(indent=2),
-    )
-    client.close()
+      )) {
+      @mcp.HandlerOutcome::Complete(result) =>
+        println(result.to_json().stringify(indent=2))
+      @mcp.HandlerOutcome::InputRequired(request) =>
+        println(request.to_json().stringify(indent=2))
+      @mcp.HandlerOutcome::ExtensionResult(_, result) =>
+        println(result.stringify(indent=2))
+    }
+    try! transport.shutdown()
   }
 }

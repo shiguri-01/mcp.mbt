@@ -1,62 +1,78 @@
 # shiguri-01/mcp
 
-A MoonBit library for building Model Context Protocol servers and clients.
+A MoonBit library for building Model Context Protocol (MCP) servers and clients.
+It implements the [2026-07-28 specification](https://modelcontextprotocol.io/specification/2026-07-28).
 
-This module targets the
-[MCP `2025-11-25` specification](https://modelcontextprotocol.io/specification/2025-11-25)
-and provides:
+## Server
 
-- typed server APIs for tools, resources, prompts, completion, logging, and resource subscriptions
-- JSON-RPC request builders for MCP clients
-- typed content blocks, capabilities, lifecycle state, and MCP errors
-- raw `Json` escape hatches for extension fields and low-level handlers
-- native stdio and Streamable HTTP transports
+Define typed inputs with `@schema.JsonSchema` and `@json.FromJson`, register them on `@server.ServerBuilder`, and serve over standard I/O or Streamable HTTP.
 
-## Install
-
-```bash
-moon add shiguri-01/mcp
-```
-
-## Quick Start
-
-```mbt check
-///|
-struct HelloInput {
+```moonbit
+struct GreetInput {
   name : String
-} derive(FromJson)
+} derive(@json.FromJson, ToJson)
 
-///|
-impl @schema.JsonSchema for HelloInput with fn json_schema() {
-  @schema.schema([@schema.string(name="name", required=true)])
+impl @schema.JsonSchema for GreetInput with fn json_schema() {
+  @schema.Schema::object(
+    properties={ "name": @schema.Schema::string(min_length=1) },
+    required=["name"],
+  )
 }
 
-///|
 async fn main {
-  let server = @mcp.Server(name="example", version="0.1.0")
-  try! server.tool(name="hello", description="Return a greeting", fn(
-    input : HelloInput,
-  ) {
-    @mcp.CallToolResult::text("Hello, \{input.name}!")
+  let builder = try! @server.ServerBuilder(name="greeter", version="1.0.0")
+  try! builder.tool(name="greet", fn(_ctx, input : GreetInput) {
+    @mcp.Complete(@mcp.CallToolResult::text("Hello, \{input.name}!"))
   })
-  @mcp_stdio.serve(server)
+
+  // Stdio transport
+  @stdio.serve(builder.build())
+}
+```
+
+## Client
+
+Connect to a server and call tools, read resources, or fetch prompts:
+
+```moonbit
+async fn main {
+  @async.with_task_group(async fn(group) {
+    let transport = try! @stdio.Transport(group, "path/to/server")
+    let client = try! @client.Client(name="client", version="1.0.0", transport~)
+
+    match client.call_tool(name="greet", arguments={ "name": "MoonBit" }) {
+      Complete(res) => println(res.content)
+      InputRequired(pending) => ... // Handle multi-round interactive requests
+      ExtensionResult(kind, val) => ...
+    }
+
+    transport.shutdown()
+  })
 }
 ```
 
 ## Packages
 
-- `shiguri-01/mcp`: transport-neutral MCP types, server dispatch, client
-  request builders, content blocks, capabilities, lifecycle, and errors.
-- `shiguri-01/mcp/schema`: small JSON Schema builders for typed tool inputs.
-- `shiguri-01/mcp/stdio`: stdio server and client helpers for MoonBit's
-  native backend.
-- `shiguri-01/mcp/http`: Streamable HTTP server and client helpers for MoonBit's native backend.
+| Package | Description |
+|---|---|
+| [`shiguri-01/mcp`](./src) | Core protocol types, content models, and error definitions (`McpError`) |
+| [`shiguri-01/mcp/server`](./src/server) | Typed server builder, dispatching, and session management |
+| [`shiguri-01/mcp/client`](./src/client) | Client runtime, discovery, typed invocation, and MRTR resolution |
+| [`shiguri-01/mcp/schema`](./src/schema) | JSON Schema (Draft 2020-12) builder, validator, and typed decoder |
+| [`shiguri-01/mcp/stdio`](./src/stdio) | Stdio transport (server runner & subprocess client) |
+| [`shiguri-01/mcp/http`](./src/http) | Streamable HTTP transport (SSE progress/subscriptions & OAuth 2.0) |
+| [`shiguri-01/mcp/auth`](./src/auth) | Native MCP Authorization (RFC 9728, PKCE S256, token caching) |
+| [`shiguri-01/mcp/jsonrpc`](./src/jsonrpc) | Low-level JSON-RPC 2.0 wire envelopes and parser |
 
 ## Examples
 
 ```bash
-moon run --target native src/examples/stdio-server
-moon run --target native src/examples/stdio-client
+# Stdio Server & Client
+moon build --target native src/examples/stdio-server
+MCP_STDIO_SERVER="$PWD/_build/native/debug/build/examples/stdio-server/stdio-server" \
+  moon run --target native src/examples/stdio-client
+
+# HTTP Server & Client
 moon run --target native src/examples/http-server
 moon run --target native src/examples/http-client
 ```

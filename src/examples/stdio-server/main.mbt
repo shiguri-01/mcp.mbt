@@ -1,69 +1,31 @@
 ///|
-struct HelloInput {
+struct GreetInput {
   name : String
 } derive(FromJson)
 
 ///|
-impl @schema.JsonSchema for HelloInput with fn json_schema() {
-  @schema.schema([
-    @schema.string(name="name", description="Name to greet", required=true),
-  ])
-}
 
 ///|
-struct SummarizeInput {
-  topic : String
-} derive(FromJson)
-
-///|
-impl @mcp.PromptArguments for SummarizeInput with fn prompt_arguments() {
-  [@mcp.PromptArgument(name="topic", required=true)]
+impl @schema.JsonSchema for GreetInput with fn json_schema() -> @schema.Schema {
+  @schema.Schema::object(
+    properties={ "name": @schema.Schema::string(description="Name to greet") },
+    required=["name"],
+  )
 }
 
 ///|
 async fn main {
-  let server = @mcp.Server(
-    name="stdio-example",
-    version="0.1.0",
-    instructions="A minimal MoonBit MCP server over stdio.",
+  let builder = try! @mcp_server.ServerBuilder(
+    name="stdio-greeter",
+    version="1.0.0",
+    instructions="Call greet with a name to receive a greeting.",
   )
-  try! server.tool(name="hello", description="Return a greeting", fn(
-    input : HelloInput,
-  ) {
-    @mcp.CallToolResult::text("Hello, \{input.name}!")
+  try! builder.tool(name="greet", description="Greet someone by name", fn(
+    _context,
+    input : GreetInput,
+  ) -> @mcp.HandlerOutcome[@mcp.CallToolResult] {
+    @mcp.Complete(@mcp.CallToolResult::text("Hello, \{input.name}!"))
   })
-  try! server.resource(
-    uri="memory://status",
-    name="status",
-    description="Server status",
-    mime_type="text/plain",
-    fn(uri) {
-      @mcp.ReadResourceResult::text(uri~, text="ready", mime_type="text/plain")
-    },
-  )
-  try! server.resource_template(
-    uri_template="memory://notes/{name}",
-    name="note",
-    description="Named in-memory note",
-    mime_type="text/plain",
-  )
-  try! server.prompt(
-    name="summarize",
-    description="Create a short summarization prompt",
-    fn(input : SummarizeInput) {
-      @mcp.GetPromptResult::user(
-        "Summarize \{input.topic} in three concise bullets.",
-      )
-    },
-  )
-  try! server.completion(reference=@mcp.PromptRef(name="summarize"), fn(
-    request,
-  ) {
-    if request.argument_name == "topic" && request.argument_value == "M" {
-      @mcp.CompleteResult(values=["MCP", "MoonBit"], total=2)
-    } else {
-      @mcp.CompleteResult(values=[])
-    }
-  })
+  let server = builder.build()
   @mcp_stdio.serve(server)
 }

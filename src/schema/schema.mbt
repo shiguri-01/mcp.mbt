@@ -1,176 +1,98 @@
 ///|
-/// JSON Schema provider for typed tool inputs.
-pub(open) trait JsonSchema {
-  fn json_schema() -> Json
-}
+/// The JSON Schema dialect used by MCP `2026-07-28` when `$schema` is absent.
+pub const DRAFT_2020_12 : String = "https://json-schema.org/draft/2020-12/schema"
 
 ///|
-/// JSON Schema object field descriptor used by `schema`.
-pub struct Property {
-  priv name : String
-  priv schema : Json
-  priv required : Bool
+/// Errors raised while constructing, compiling, or validating a schema.
+pub suberror SchemaError {
+  InvalidDocument(String)
+  UnsupportedDialect(String)
+  UnsupportedKeyword(String)
+  InvalidSchema(String)
 } derive(Debug, Eq)
 
 ///|
-/// Build a JSON Schema object for MCP tool input.
-pub fn schema(
-  properties : Array[Property],
-  additional_properties? : Bool = false,
-) -> Json {
-  let property_fields : Map[String, Json] = Map([])
-  let required : Array[String] = []
-  for property in properties {
-    property_fields[property.name] = property.schema
-    if property.required {
-      required.push(property.name)
-    }
-  }
-  Json::object({
-    "type": Json::string("object"),
-    "properties": Json::object(property_fields),
-    "required": required.to_json(),
-    "additionalProperties": Json::boolean(additional_properties),
-  })
-}
-
-///|
-/// Build an object field from an arbitrary JSON Schema fragment.
-pub fn field(
-  name~ : String,
-  schema~ : Json,
-  required? : Bool = false,
-) -> Property {
-  { name, schema, required }
-}
-
-///|
-/// Build a JSON Schema string type fragment.
-pub fn string_schema(description? : String) -> Json {
-  let fields : Map[String, Json] = { "type": Json::string("string") }
-  put_optional_string(fields, "description", description)
-  Json::object(fields)
-}
-
-///|
-/// Build a JSON Schema integer type fragment.
-pub fn integer_schema(description? : String) -> Json {
-  let fields : Map[String, Json] = { "type": Json::string("integer") }
-  put_optional_string(fields, "description", description)
-  Json::object(fields)
-}
-
-///|
-/// Build a JSON Schema number type fragment.
-pub fn number_schema(description? : String) -> Json {
-  let fields : Map[String, Json] = { "type": Json::string("number") }
-  put_optional_string(fields, "description", description)
-  Json::object(fields)
-}
-
-///|
-/// Build a JSON Schema boolean type fragment.
-pub fn boolean_schema(description? : String) -> Json {
-  let fields : Map[String, Json] = { "type": Json::string("boolean") }
-  put_optional_string(fields, "description", description)
-  Json::object(fields)
-}
-
-///|
-/// Build a JSON Schema array type fragment.
-pub fn array_schema(items~ : Json, description? : String) -> Json {
-  let fields : Map[String, Json] = {
-    "type": Json::string("array"),
-    "items": items,
-  }
-  put_optional_string(fields, "description", description)
-  Json::object(fields)
-}
-
-///|
-/// Build a JSON Schema string enum type fragment.
-pub fn string_enum_schema(
-  values : Array[String],
-  description? : String,
-) -> Json {
-  let fields : Map[String, Json] = {
-    "type": Json::string("string"),
-    "enum": values.to_json(),
-  }
-  put_optional_string(fields, "description", description)
-  Json::object(fields)
-}
-
-///|
-/// Build a string field for a JSON Schema object.
-pub fn string(
-  name~ : String,
-  description? : String,
-  required? : Bool = false,
-) -> Property {
-  field(name~, schema=string_schema(description?), required~)
-}
-
-///|
-/// Build an integer field for a JSON Schema object.
-pub fn integer(
-  name~ : String,
-  description? : String,
-  required? : Bool = false,
-) -> Property {
-  field(name~, schema=integer_schema(description?), required~)
-}
-
-///|
-/// Build a number field for a JSON Schema object.
-pub fn number(
-  name~ : String,
-  description? : String,
-  required? : Bool = false,
-) -> Property {
-  field(name~, schema=number_schema(description?), required~)
-}
-
-///|
-/// Build a boolean field for a JSON Schema object.
-pub fn boolean(
-  name~ : String,
-  description? : String,
-  required? : Bool = false,
-) -> Property {
-  field(name~, schema=boolean_schema(description?), required~)
-}
-
-///|
-/// Build an array field for a JSON Schema object.
-pub fn array(
-  name~ : String,
-  items~ : Json,
-  description? : String,
-  required? : Bool = false,
-) -> Property {
-  field(name~, schema=array_schema(items~, description?), required~)
-}
-
-///|
-/// Build a string enum field for a JSON Schema object.
-pub fn string_enum(
-  name~ : String,
-  values~ : Array[String],
-  description? : String,
-  required? : Bool = false,
-) -> Property {
-  field(name~, schema=string_enum_schema(values, description?), required~)
-}
-
-///|
-fn put_optional_string(
-  fields : Map[String, Json],
-  key : String,
-  value : String?,
+pub impl Show for SchemaError with fn output(
+  self : SchemaError,
+  logger : &Logger,
 ) -> Unit {
-  match value {
-    Some(value) => fields[key] = Json::string(value)
-    None => ()
+  match self {
+    InvalidDocument(msg) => logger.write_string("InvalidDocument: \{msg}")
+    UnsupportedDialect(msg) => logger.write_string("UnsupportedDialect: \{msg}")
+    UnsupportedKeyword(msg) => logger.write_string("UnsupportedKeyword: \{msg}")
+    InvalidSchema(msg) => logger.write_string("InvalidSchema: \{msg}")
   }
+}
+
+///|
+/// JSON Schema provider for typed tool inputs.
+pub(open) trait JsonSchema {
+  fn json_schema() -> Schema raise SchemaError
+}
+
+///|
+pub impl JsonSchema for String with fn json_schema() -> Schema {
+  Schema::string() catch {
+    _ => Schema::always()
+  }
+}
+
+///|
+pub impl JsonSchema for Bool with fn json_schema() -> Schema {
+  Schema::boolean()
+}
+
+///|
+pub impl JsonSchema for Int with fn json_schema() -> Schema {
+  Schema::integer() catch {
+    _ => Schema::always()
+  }
+}
+
+///|
+pub impl JsonSchema for Int64 with fn json_schema() -> Schema {
+  Schema::integer() catch {
+    _ => Schema::always()
+  }
+}
+
+///|
+pub impl JsonSchema for Double with fn json_schema() -> Schema {
+  Schema::number() catch {
+    _ => Schema::always()
+  }
+}
+
+///|
+/// A raw JSON value has no narrower instance constraint.
+pub impl JsonSchema for Json with fn json_schema() -> Schema {
+  Schema::always()
+}
+
+///|
+pub impl[T : JsonSchema] JsonSchema for Array[T] with fn json_schema() -> Schema raise SchemaError {
+  Schema::array(items=schema_of((None : T?)))
+}
+
+///|
+pub impl[T : JsonSchema] JsonSchema for T? with fn json_schema() -> Schema raise SchemaError {
+  Schema::any_of([Schema::null(), schema_of((None : T?))])
+}
+
+///|
+/// Obtain a typed schema without constructing a runtime value of `A`.
+pub fn[A : JsonSchema] schema_of(_witness : A?) -> Schema raise SchemaError {
+  A::json_schema()
+}
+
+///|
+/// Validates a JSON instance against the schema associated with type `T`,
+/// and decodes it into `T`.
+pub fn[T : JsonSchema + @json.FromJson] decode(
+  json : Json,
+  max_depth? : Int = 128,
+) -> T raise Error {
+  let schema = schema_of((None : T?))
+  schema.validate(json, max_depth~)
+  @json.from_json(json)
 }

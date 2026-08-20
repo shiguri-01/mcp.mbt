@@ -1,19 +1,24 @@
 ///|
 async fn main {
-  let client = @mcp_http.Client("http://127.0.0.1:8080/mcp")
-  let initialize = try! client.initialize(
-    client_name="http-client-example",
-    client_version="0.1.0",
+  let transport = try! @mcp_http.Transport("http://127.0.0.1:8080/mcp")
+  let client = try! @mcp_client.Client(
+    name="http-example-client",
+    version="1.0.0",
+    transport~,
   )
-  println(initialize.stringify(indent=2))
-  let session = client.session_id().unwrap_or("<none>")
-  println("session: \{session}")
-  println((try! client.list_tools()).stringify(indent=2))
-  println(
+  let discovered = try! client.discover()
+  println(discovered.to_json().stringify(indent=2))
+
+  match
     (try! client.call_tool(
-      name="hello",
+      name="greet",
       arguments=Json::object({ "name": Json::string("MoonBit") }),
-    )).stringify(indent=2),
-  )
-  try! client.close_session()
+    )) {
+    @mcp.HandlerOutcome::Complete(result) =>
+      println(result.to_json().stringify(indent=2))
+    @mcp.HandlerOutcome::InputRequired(request) =>
+      println(request.to_json().stringify(indent=2))
+    @mcp.HandlerOutcome::ExtensionResult(_, result) =>
+      println(result.stringify(indent=2))
+  }
 }

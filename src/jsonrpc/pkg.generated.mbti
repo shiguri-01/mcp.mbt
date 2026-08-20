@@ -1,0 +1,83 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "shiguri-01/mcp/jsonrpc"
+
+import {
+  "moonbitlang/core/debug",
+  "moonbitlang/core/json",
+}
+
+// Values
+pub const INTERNAL_ERROR : Int = -32603
+
+pub const INVALID_PARAMS : Int = -32602
+
+pub const INVALID_REQUEST : Int = -32600
+
+pub const JSON_RPC_VERSION : String = "2.0"
+
+pub const METHOD_NOT_FOUND : Int = -32601
+
+pub const PARSE_ERROR : Int = -32700
+
+pub fn decode(Json) -> Message raise JsonRpcDecodeError
+
+// Errors
+pub(all) suberror JsonRpcDecodeError {
+  InvalidMessage(String)
+} derive(Eq, @debug.Debug)
+
+pub(all) suberror JsonRpcValidationError {
+  InvalidEnvelope(String)
+} derive(Eq, @debug.Debug)
+
+// Types and methods
+pub struct ErrorObject {
+  code : Int
+  message : String
+  data : Json?
+} derive(Eq, @debug.Debug)
+pub fn ErrorObject::ErrorObject(code~ : Int, message~ : String, data? : Json) -> Self
+pub impl ToJson for ErrorObject
+pub impl @json.FromJson for ErrorObject
+
+pub enum Message {
+  Request(Request[Json])
+  Notification(Notification[Json])
+  Response(Response[Json])
+}
+
+pub struct Notification[Params] {
+  method_name : String
+  params : Params
+} derive(Eq, @debug.Debug)
+pub fn[Params] Notification::Notification(method_name~ : String, params~ : Params) -> Self[Params] raise JsonRpcValidationError
+pub impl[Params : ToJson] ToJson for Notification[Params]
+
+pub struct Request[Params] {
+  id : RequestId
+  method_name : String
+  params : Params
+} derive(Eq, @debug.Debug)
+pub fn[Params] Request::Request(id~ : RequestId, method_name~ : String, params~ : Params) -> Self[Params] raise JsonRpcValidationError
+pub impl[Params : ToJson] ToJson for Request[Params]
+
+pub enum RequestId {
+  String(String)
+  Number(value~ : Double, repr~ : String)
+} derive(Eq, @debug.Debug)
+pub fn RequestId::as_json(Self) -> Json
+pub fn RequestId::number(Double, repr? : String) -> Self raise JsonRpcValidationError
+pub fn RequestId::string(String) -> Self
+pub fn RequestId::to_routing_key(Self) -> String
+pub impl ToJson for RequestId
+pub impl @json.FromJson for RequestId
+
+pub(all) enum Response[Result] {
+  Success(id~ : RequestId, result~ : Result)
+  Failure(id~ : RequestId?, error~ : ErrorObject)
+} derive(Eq, @debug.Debug)
+pub impl[Result : ToJson] ToJson for Response[Result]
+
+// Type aliases
+
+// Traits

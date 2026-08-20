@@ -1,26 +1,35 @@
 # shiguri-01/mcp/schema
 
-Small JSON Schema builders for MCP tool input types.
+Typed JSON Schema (Draft 2020-12) builder, validator, and decoder.
 
-Use this package next to the MoonBit input struct that derives `FromJson`:
+## Defining Schemas
 
-```mbt nocheck
+```moonbit nocheck
 ///|
-struct HelloInput {
+struct UserInput {
   name : String
-} derive(FromJson)
+  age : Int?
+} derive(@json.FromJson, ToJson)
 
 ///|
-impl @schema.JsonSchema for HelloInput with fn json_schema() {
-  @schema.schema([
-    @schema.string(name="name", description="Name to greet", required=true),
-  ])
+impl @schema.JsonSchema for UserInput with fn json_schema() {
+  @schema.Schema::object(
+    properties={
+      "name": @schema.Schema::string(min_length=1),
+      "age": @schema.Schema::integer(minimum=0),
+    },
+    required=["name"],
+  )
 }
 ```
 
-The builders intentionally return `Json`, so advanced schemas can still be
-written directly with `Json::object(...)` and wrapped with `field(...)`.
+## Validating & Decoding
 
-`string()` builds an object field descriptor for `schema([...])`.
-`string_schema()` builds a reusable JSON Schema fragment for places such as
-`array(name="tags", items=string_schema())` or custom `field(...)` calls.
+```moonbit nocheck
+// Validate & decode JSON into typed struct in one step
+let input : UserInput = try! @schema.decode(json)
+
+// Direct instance validation
+let schema = @schema.Schema::string(min_length=3)
+try! schema.validate(Json::string("hello"))
+```
