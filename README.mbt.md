@@ -1,6 +1,7 @@
 # shiguri-01/mcp
 
-An ergonomic MoonBit SDK for the [Model Context Protocol (2026-07-28)](https://modelcontextprotocol.io/specification/2026-07-28).
+A MoonBit library for building Model Context Protocol (MCP) servers and clients.
+It implements the [2026-07-28 specification](https://modelcontextprotocol.io/specification/2026-07-28).
 
 ## Server
 
