@@ -43,9 +43,9 @@ pub struct SubscriptionStreamState {
 }
 
 ///|
-pub fn SubscriptionStreamState::new(
-  expected_id : Json,
-  requested : @mcp.SubscriptionFilter,
+pub fn SubscriptionStreamState::SubscriptionStreamState(
+  expected_id~ : Json,
+  requested~ : @mcp.SubscriptionFilter,
 ) -> SubscriptionStreamState {
   {
     expected_id,
@@ -54,20 +54,6 @@ pub fn SubscriptionStreamState::new(
     subscription_id: Json::null(),
     honored: @mcp.SubscriptionFilter(),
   }
-}
-
-///|
-pub fn SubscriptionStreamState::is_acknowledged(
-  self : SubscriptionStreamState,
-) -> Bool {
-  self.acknowledged
-}
-
-///|
-pub fn SubscriptionStreamState::honored_filter(
-  self : SubscriptionStreamState,
-) -> @mcp.SubscriptionFilter {
-  self.honored
 }
 
 ///|

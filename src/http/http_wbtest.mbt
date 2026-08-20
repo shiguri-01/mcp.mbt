@@ -902,7 +902,7 @@ test "subscription client enforces acknowledgement and stream identity" {
   })
   let expected_id = request_id(request).unwrap()
   let subscription = try! server.accept_subscription(request)
-  let before_ack = @client.SubscriptionStreamState::new(expected_id, requested)
+  let before_ack = @client.SubscriptionStreamState(expected_id~, requested~)
   let premature = try
     before_ack.consume(
       (try! @mcp.ToolsListChangedNotification(subscription_id=subscription.id)).to_json(),
@@ -914,7 +914,7 @@ test "subscription client enforces acknowledgement and stream identity" {
     _ => false
   }
   assert_true(premature)
-  let state = @client.SubscriptionStreamState::new(expected_id, requested)
+  let state = @client.SubscriptionStreamState(expected_id~, requested~)
   assert_true(state.consume(subscription.acknowledgement()) is Acknowledged)
   assert_true(
     state.consume(
@@ -952,9 +952,9 @@ test "subscription client enforces acknowledgement and stream identity" {
 ///|
 test "subscription producer errors retain their JSON-RPC identity" {
   let expected_id = Json::number(7.0, repr="7")
-  let state = @client.SubscriptionStreamState::new(
-    expected_id,
-    @mcp.SubscriptionFilter(tools_list_changed=true),
+  let state = @client.SubscriptionStreamState(
+    expected_id~,
+    requested=@mcp.SubscriptionFilter(tools_list_changed=true),
   )
   let acknowledgement = Json::object({
     "jsonrpc": Json::string("2.0"),
@@ -979,9 +979,7 @@ test "subscription client rejects unhonored filters and wrong final id" {
     subscription_id=expected_id,
     notifications=@mcp.SubscriptionFilter(prompts_list_changed=true),
   )).to_json()
-  let invalid_state = @client.SubscriptionStreamState::new(
-    expected_id, requested,
-  )
+  let invalid_state = @client.SubscriptionStreamState(expected_id~, requested~)
   let unrequested = try invalid_state.consume(invalid_ack) catch {
     @mcp.InvalidRequest(_) => true
     _ => false
@@ -989,7 +987,7 @@ test "subscription client rejects unhonored filters and wrong final id" {
     _ => false
   }
   assert_true(unrequested)
-  let state = @client.SubscriptionStreamState::new(expected_id, requested)
+  let state = @client.SubscriptionStreamState(expected_id~, requested~)
   let ack = (try! @mcp.SubscriptionsAcknowledgedNotification(
     subscription_id=expected_id,
     notifications=requested,

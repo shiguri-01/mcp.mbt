@@ -500,7 +500,7 @@ async fn handle_post(
     send_empty(conn, 202, "Accepted")
     return
   }
-  if server.is_subscription_request(message) {
+  if decoded_message is Request({ method_name: "subscriptions/listen", .. }) {
     let subscription = server.accept_subscription(message) catch {
       error => {
         send_json(

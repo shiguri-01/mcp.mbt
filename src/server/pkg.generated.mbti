@@ -18,8 +18,6 @@ pub struct Server {
 pub fn Server::accept_subscription(Self, Json) -> Subscription raise @mcp.McpError
 pub async fn Server::handle_jsonrpc(Self, Json) -> Json?
 pub async fn Server::handle_jsonrpc_with_hooks(Self, Json, hooks~ : @mcp.RequestHooks) -> Json?
-pub fn Server::is_cancelled_notification(Self, Json) -> Bool
-pub fn Server::is_subscription_request(Self, Json) -> Bool
 pub async fn Server::serve_framed(Self, read_message~ : async () -> Json?, send_message~ : async (Json) -> Unit, on_subscription? : async (Subscription, async (Json) -> Unit) -> Unit) -> Unit
 pub fn Server::supports_protocol_version(Self, String) -> Bool
 pub fn Server::tool_descriptor(Self, String) -> @mcp.Tool?

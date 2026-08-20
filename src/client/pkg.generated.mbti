@@ -58,10 +58,8 @@ pub struct SubscriptionStreamState {
   mut subscription_id : Json
   mut honored : @mcp.SubscriptionFilter
 }
+pub fn SubscriptionStreamState::SubscriptionStreamState(expected_id~ : Json, requested~ : @mcp.SubscriptionFilter) -> Self
 pub fn SubscriptionStreamState::consume(Self, Json) -> SubscriptionStreamEvent raise @mcp.McpError
-pub fn SubscriptionStreamState::honored_filter(Self) -> @mcp.SubscriptionFilter
-pub fn SubscriptionStreamState::is_acknowledged(Self) -> Bool
-pub fn SubscriptionStreamState::new(Json, @mcp.SubscriptionFilter) -> Self
 
 // Type aliases
 pub type InputResolver = async (Map[String, @mcp.InputRequest]) -> Map[String, @mcp.InputResponse] raise @mcp.McpError
