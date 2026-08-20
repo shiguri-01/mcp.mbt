@@ -4,10 +4,10 @@ package "shiguri-01/mcp/client"
 import {
   "moonbitlang/core/debug",
   "shiguri-01/mcp",
+  "shiguri-01/mcp/jsonrpc",
 }
 
 // Values
-pub fn extract_subscription_id(Json) -> Json?
 
 // Errors
 
@@ -52,13 +52,13 @@ pub(all) enum SubscriptionStreamEvent {
 } derive(Eq, @debug.Debug)
 
 pub struct SubscriptionStreamState {
-  expected_id : Json
+  expected_id : @jsonrpc.RequestId
   requested : @mcp.SubscriptionFilter
   mut acknowledged : Bool
-  mut subscription_id : Json
+  mut subscription_id : @jsonrpc.RequestId?
   mut honored : @mcp.SubscriptionFilter
 }
-pub fn SubscriptionStreamState::SubscriptionStreamState(expected_id~ : Json, requested~ : @mcp.SubscriptionFilter) -> Self
+pub fn SubscriptionStreamState::SubscriptionStreamState(expected_id~ : @jsonrpc.RequestId, requested~ : @mcp.SubscriptionFilter) -> Self
 pub fn SubscriptionStreamState::consume(Self, Json) -> SubscriptionStreamEvent raise @mcp.McpError
 
 // Type aliases

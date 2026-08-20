@@ -208,14 +208,33 @@ async fn route_message(
       } catch {
         _ => ()
       }
-    Notification(_) =>
-      match @client.extract_subscription_id(message) {
-        Some(sub_id) => {
-          let sub_key = match sub_id {
-            String(s) => "string:\{s}"
-            Number(num, repr~) => "number:" + repr.unwrap_or(num.to_string())
-            _ => sub_id.stringify()
+    Notification({ method_name, params }) => {
+      let sub_id : @jsonrpc.RequestId? = match method_name {
+        "notifications/subscriptions/acknowledged" =>
+          Some(
+            @mcp.SubscriptionsAcknowledgedNotificationParams::from_json(params).subscription_id,
+          ) catch {
+            _ => None
           }
+        "notifications/tools/list_changed"
+        | "notifications/prompts/list_changed"
+        | "notifications/resources/list_changed" =>
+          Some(
+            @mcp.SubscriptionNotificationParams::from_json(params).subscription_id,
+          ) catch {
+            _ => None
+          }
+        "notifications/resources/updated" =>
+          Some(
+            @mcp.ResourceUpdatedNotificationParams::from_json(params).subscription_id,
+          ) catch {
+            _ => None
+          }
+        _ => None
+      }
+      match sub_id {
+        Some(sub_id) => {
+          let sub_key = sub_id.to_routing_key()
           if pending.get(sub_key) is Some(queue) {
             put_inbound(queue, Message(message))
           }
@@ -227,6 +246,7 @@ async fn route_message(
             }
           }
       }
+    }
     Request(_) =>
       raise InvalidRequest(
         "server-to-client JSON-RPC requests are not valid in MCP 2026-07-28",

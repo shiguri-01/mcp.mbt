@@ -116,18 +116,13 @@ pub impl ToJson for SubscriptionsListenResult with fn to_json(
 ///|
 /// Parameters for list-changed notifications carrying a subscriptionId.
 pub struct SubscriptionNotificationParams {
-  subscription_id : Json
+  subscription_id : @jsonrpc.RequestId
 } derive(Debug, Eq)
 
 ///|
 pub fn SubscriptionNotificationParams::SubscriptionNotificationParams(
-  subscription_id~ : Json,
-) -> SubscriptionNotificationParams raise McpError {
-  guard subscription_id is (String(_) | Number(_)) else {
-    raise InvalidParams(
-      "subscription notification subscriptionId must be a string or number",
-    )
-  }
+  subscription_id~ : @jsonrpc.RequestId,
+) -> SubscriptionNotificationParams {
   { subscription_id, }
 }
 
@@ -144,17 +139,14 @@ pub impl @json.FromJson for SubscriptionNotificationParams with fn from_json(
     Some(_) => raise JsonDecodeError((path.add_key("_meta"), "expected object"))
     None => raise JsonDecodeError((path.add_key("_meta"), "_meta is required"))
   }
-  let subscription_id = match
+  let subscription_id : @jsonrpc.RequestId = match
     meta.get("io.modelcontextprotocol/subscriptionId") {
-    Some(String(_) | Number(_) as id) => id
-    Some(_) =>
-      raise JsonDecodeError(
-        (
-          path
+    Some(id) =>
+      @json.from_json(
+        id,
+        path=path
           .add_key("_meta")
           .add_key("io.modelcontextprotocol/subscriptionId"),
-          "expected string or number",
-        ),
       )
     None =>
       raise JsonDecodeError(
@@ -166,9 +158,7 @@ pub impl @json.FromJson for SubscriptionNotificationParams with fn from_json(
         ),
       )
   }
-  SubscriptionNotificationParams(subscription_id~) catch {
-    error => raise JsonDecodeError((path, error.message()))
-  }
+  SubscriptionNotificationParams(subscription_id~)
 }
 
 ///|
@@ -177,7 +167,7 @@ pub impl ToJson for SubscriptionNotificationParams with fn to_json(
 ) -> Json {
   Json::object({
     "_meta": Json::object({
-      "io.modelcontextprotocol/subscriptionId": self.subscription_id,
+      "io.modelcontextprotocol/subscriptionId": self.subscription_id.as_json(),
     }),
   })
 }
@@ -193,20 +183,15 @@ pub fn SubscriptionNotificationParams::from_json(
 ///|
 /// Parameters for `notifications/subscriptions/acknowledged`.
 pub struct SubscriptionsAcknowledgedNotificationParams {
-  subscription_id : Json
+  subscription_id : @jsonrpc.RequestId
   notifications : SubscriptionFilter
 } derive(Debug, Eq)
 
 ///|
 pub fn SubscriptionsAcknowledgedNotificationParams::SubscriptionsAcknowledgedNotificationParams(
-  subscription_id~ : Json,
+  subscription_id~ : @jsonrpc.RequestId,
   notifications~ : SubscriptionFilter,
-) -> SubscriptionsAcknowledgedNotificationParams raise McpError {
-  guard subscription_id is (String(_) | Number(_)) else {
-    raise InvalidParams(
-      "subscriptions acknowledged notification subscriptionId must be a string or number",
-    )
-  }
+) -> SubscriptionsAcknowledgedNotificationParams {
   { subscription_id, notifications }
 }
 
@@ -223,17 +208,14 @@ pub impl @json.FromJson for SubscriptionsAcknowledgedNotificationParams with fn 
     Some(_) => raise JsonDecodeError((path.add_key("_meta"), "expected object"))
     None => raise JsonDecodeError((path.add_key("_meta"), "_meta is required"))
   }
-  let subscription_id = match
+  let subscription_id : @jsonrpc.RequestId = match
     meta.get("io.modelcontextprotocol/subscriptionId") {
-    Some(String(_) | Number(_) as id) => id
-    Some(_) =>
-      raise JsonDecodeError(
-        (
-          path
+    Some(id) =>
+      @json.from_json(
+        id,
+        path=path
           .add_key("_meta")
           .add_key("io.modelcontextprotocol/subscriptionId"),
-          "expected string or number",
-        ),
       )
     None =>
       raise JsonDecodeError(
@@ -252,9 +234,7 @@ pub impl @json.FromJson for SubscriptionsAcknowledgedNotificationParams with fn 
         (path.add_key("notifications"), "notifications is required"),
       )
   }
-  SubscriptionsAcknowledgedNotificationParams(subscription_id~, notifications~) catch {
-    error => raise JsonDecodeError((path, error.message()))
-  }
+  SubscriptionsAcknowledgedNotificationParams(subscription_id~, notifications~)
 }
 
 ///|
@@ -263,7 +243,7 @@ pub impl ToJson for SubscriptionsAcknowledgedNotificationParams with fn to_json(
 ) -> Json {
   Json::object({
     "_meta": Json::object({
-      "io.modelcontextprotocol/subscriptionId": self.subscription_id,
+      "io.modelcontextprotocol/subscriptionId": self.subscription_id.as_json(),
     }),
     "notifications": ToJson::to_json(self.notifications),
   })
@@ -285,9 +265,9 @@ pub struct SubscriptionsAcknowledgedNotification {
 
 ///|
 pub fn SubscriptionsAcknowledgedNotification::SubscriptionsAcknowledgedNotification(
-  subscription_id~ : Json,
+  subscription_id~ : @jsonrpc.RequestId,
   notifications~ : SubscriptionFilter,
-) -> SubscriptionsAcknowledgedNotification raise McpError {
+) -> SubscriptionsAcknowledgedNotification {
   let params = SubscriptionsAcknowledgedNotificationParams(
     subscription_id~,
     notifications~,

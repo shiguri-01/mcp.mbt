@@ -249,8 +249,8 @@ pub struct ToolsListChangedNotification {
 
 ///|
 pub fn ToolsListChangedNotification::ToolsListChangedNotification(
-  subscription_id~ : Json,
-) -> ToolsListChangedNotification raise McpError {
+  subscription_id~ : @jsonrpc.RequestId,
+) -> ToolsListChangedNotification {
   let params = SubscriptionNotificationParams(subscription_id~)
   { params, }
 }
@@ -287,8 +287,8 @@ pub struct ResourcesListChangedNotification {
 
 ///|
 pub fn ResourcesListChangedNotification::ResourcesListChangedNotification(
-  subscription_id~ : Json,
-) -> ResourcesListChangedNotification raise McpError {
+  subscription_id~ : @jsonrpc.RequestId,
+) -> ResourcesListChangedNotification {
   let params = SubscriptionNotificationParams(subscription_id~)
   { params, }
 }
@@ -325,8 +325,8 @@ pub struct PromptsListChangedNotification {
 
 ///|
 pub fn PromptsListChangedNotification::PromptsListChangedNotification(
-  subscription_id~ : Json,
-) -> PromptsListChangedNotification raise {
+  subscription_id~ : @jsonrpc.RequestId,
+) -> PromptsListChangedNotification {
   let params = SubscriptionNotificationParams(subscription_id~)
   { params, }
 }
@@ -359,21 +359,16 @@ pub impl ToJson for PromptsListChangedNotification with fn to_json(
 /// Parameters for `notifications/resources/updated`.
 pub struct ResourceUpdatedNotificationParams {
   uri : String
-  subscription_id : Json
+  subscription_id : @jsonrpc.RequestId
 } derive(Debug, Eq)
 
 ///|
 pub fn ResourceUpdatedNotificationParams::ResourceUpdatedNotificationParams(
   uri~ : String,
-  subscription_id~ : Json,
+  subscription_id~ : @jsonrpc.RequestId,
 ) -> ResourceUpdatedNotificationParams raise McpError {
   guard !uri.is_empty() else {
     raise InvalidParams("resource uri must not be empty")
-  }
-  guard subscription_id is (String(_) | Number(_)) else {
-    raise InvalidParams(
-      "resource updated notification subscriptionId must be a string or number",
-    )
   }
   { uri, subscription_id }
 }
@@ -400,17 +395,14 @@ pub impl @json.FromJson for ResourceUpdatedNotificationParams with fn from_json(
     Some(_) => raise JsonDecodeError((path.add_key("_meta"), "expected object"))
     None => raise JsonDecodeError((path.add_key("_meta"), "_meta is required"))
   }
-  let subscription_id = match
+  let subscription_id : @jsonrpc.RequestId = match
     meta.get("io.modelcontextprotocol/subscriptionId") {
-    Some(String(_) | Number(_) as id) => id
-    Some(_) =>
-      raise JsonDecodeError(
-        (
-          path
+    Some(id) =>
+      @json.from_json(
+        id,
+        path=path
           .add_key("_meta")
           .add_key("io.modelcontextprotocol/subscriptionId"),
-          "expected string or number",
-        ),
       )
     None =>
       raise JsonDecodeError(
@@ -434,7 +426,7 @@ pub impl ToJson for ResourceUpdatedNotificationParams with fn to_json(
   Json::object({
     "uri": Json::string(self.uri),
     "_meta": Json::object({
-      "io.modelcontextprotocol/subscriptionId": self.subscription_id,
+      "io.modelcontextprotocol/subscriptionId": self.subscription_id.as_json(),
     }),
   })
 }
@@ -456,7 +448,7 @@ pub struct ResourceUpdatedNotification {
 ///|
 pub fn ResourceUpdatedNotification::ResourceUpdatedNotification(
   uri~ : String,
-  subscription_id~ : Json,
+  subscription_id~ : @jsonrpc.RequestId,
 ) -> ResourceUpdatedNotification raise McpError {
   let params = ResourceUpdatedNotificationParams(uri~, subscription_id~)
   { params, }

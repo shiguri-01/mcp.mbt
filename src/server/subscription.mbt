@@ -2,14 +2,14 @@
 /// A validated long-lived subscription request. Transports own the stream;
 /// this value supplies the required acknowledgement and graceful final reply.
 pub struct Subscription {
-  id : Json
+  id : @jsonrpc.RequestId
   notifications : @mcp.SubscriptionFilter
   priv server_info : @mcp.Implementation
 }
 
 ///|
 pub fn Subscription::acknowledgement(self : Subscription) -> Json {
-  try! @mcp.SubscriptionsAcknowledgedNotification(
+  @mcp.SubscriptionsAcknowledgedNotification(
     subscription_id=self.id,
     notifications=self.notifications,
   ).to_json()
@@ -18,13 +18,12 @@ pub fn Subscription::acknowledgement(self : Subscription) -> Json {
 ///|
 pub fn Subscription::close_response(self : Subscription) -> Json {
   let meta = Map::from_array([
-    ("io.modelcontextprotocol/subscriptionId", self.id),
+    ("io.modelcontextprotocol/subscriptionId", self.id.as_json()),
   ])
   let result = try! @mcp.ResultMeta(server_info=self.server_info, extra=meta).stamp_complete(
     @mcp.SubscriptionsListenResult().to_json(),
   )
-  let request_id : @jsonrpc.RequestId = try! @json.from_json(self.id)
-  @jsonrpc.Response::Success(id=request_id, result~).to_json()
+  @jsonrpc.Response::Success(id=self.id, result~).to_json()
 }
 
 ///|
@@ -32,34 +31,40 @@ pub fn Subscription::close_response(self : Subscription) -> Json {
 /// allowed by its negotiated notification filter.
 pub fn Subscription::allows_event(self : Subscription, event : Json) -> Bool {
   try {
-    guard @jsonrpc.decode(event)
-      is Notification(
-        {
-          method_name,
-          params: Object(
-            {
-              "_meta": Object(
-                { "io.modelcontextprotocol/subscriptionId": sub_id, .. }
-              ),
-              ..
-            } as params
-          ),
-        }
-      ) &&
-      sub_id == self.id else {
-      return false
+    let decoded = @jsonrpc.decode(event)
+    let notification = match decoded {
+      Notification(notification) => notification
+      _ => return false
     }
-    let filter = self.notifications
-    match method_name {
-      "notifications/tools/list_changed" => filter.tools_list_changed
-      "notifications/prompts/list_changed" => filter.prompts_list_changed
-      "notifications/resources/list_changed" => filter.resources_list_changed
-      "notifications/resources/updated" =>
-        match params {
-          { "uri": String(uri), .. } =>
-            filter.resource_subscriptions.contains(uri)
-          _ => false
-        }
+    match notification.method_name {
+      "notifications/tools/list_changed" => {
+        let params = @mcp.SubscriptionNotificationParams::from_json(
+          notification.params,
+        )
+        params.subscription_id == self.id &&
+        self.notifications.tools_list_changed
+      }
+      "notifications/prompts/list_changed" => {
+        let params = @mcp.SubscriptionNotificationParams::from_json(
+          notification.params,
+        )
+        params.subscription_id == self.id &&
+        self.notifications.prompts_list_changed
+      }
+      "notifications/resources/list_changed" => {
+        let params = @mcp.SubscriptionNotificationParams::from_json(
+          notification.params,
+        )
+        params.subscription_id == self.id &&
+        self.notifications.resources_list_changed
+      }
+      "notifications/resources/updated" => {
+        let params = @mcp.ResourceUpdatedNotificationParams::from_json(
+          notification.params,
+        )
+        params.subscription_id == self.id &&
+        self.notifications.resource_subscriptions.contains(params.uri)
+      }
       _ => false
     }
   } catch {
@@ -108,5 +113,5 @@ pub fn Server::accept_subscription(
       []
     },
   )
-  { id: request.id.as_json(), notifications: honored, server_info: self.info }
+  { id: request.id, notifications: honored, server_info: self.info }
 }

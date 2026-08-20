@@ -107,11 +107,14 @@ test "subscription filters and acknowledgements use protocol field names" {
     fail("expected subscription filter object")
   }
   assert_eq(fields["toolsListChanged"], Json::boolean(true))
-  let ack = try! @mcp.SubscriptionsAcknowledgedNotification(
-    subscription_id=Json::string("subscription-1"),
+  let ack = @mcp.SubscriptionsAcknowledgedNotification(
+    subscription_id=@jsonrpc.RequestId::string("subscription-1"),
     notifications=filter,
   )
-  assert_eq(ack.params.subscription_id, Json::string("subscription-1"))
+  assert_eq(
+    ack.params.subscription_id,
+    @jsonrpc.RequestId::string("subscription-1"),
+  )
   assert_eq(ack.params.notifications, filter)
   assert_eq(
     ack.to_jsonrpc().method_name,

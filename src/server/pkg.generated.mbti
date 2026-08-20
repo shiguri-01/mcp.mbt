@@ -4,6 +4,7 @@ package "shiguri-01/mcp/server"
 import {
   "moonbitlang/core/json",
   "shiguri-01/mcp",
+  "shiguri-01/mcp/jsonrpc",
   "shiguri-01/mcp/schema",
 }
 
@@ -36,7 +37,7 @@ pub fn[A : @json.FromJson + @schema.JsonSchema] ServerBuilder::tool(Self, name~ 
 pub fn ServerBuilder::tool_raw(Self, name~ : String, title? : String, description? : String, input_schema? : Json, output_schema? : Json, annotations? : @mcp.ToolAnnotations, icons? : Array[@mcp.Icon], meta? : Map[String, Json], async (@mcp.RequestContext, Json) -> @mcp.HandlerOutcome[@mcp.CallToolResult] raise @mcp.McpError) -> Unit raise @mcp.McpError
 
 pub struct Subscription {
-  id : Json
+  id : @jsonrpc.RequestId
   notifications : @mcp.SubscriptionFilter
   // private fields
 }

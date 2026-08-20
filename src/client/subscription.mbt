@@ -1,30 +1,4 @@
 ///|
-/// Extract the subscriptionId from a notification's `params._meta`.
-pub fn extract_subscription_id(message : Json) -> Json? {
-  try {
-    guard @jsonrpc.decode(message)
-      is Notification(
-        {
-          params: Object(
-            {
-              "_meta": Object(
-                { "io.modelcontextprotocol/subscriptionId": sub_id, .. }
-              ),
-              ..
-            }
-          ),
-          ..,
-        }
-      ) else {
-      return None
-    }
-    Some(sub_id)
-  } catch {
-    _ => None
-  }
-}
-
-///|
 /// Events observed on a `subscriptions/listen` transport stream.
 pub(all) enum SubscriptionStreamEvent {
   Acknowledged
@@ -35,23 +9,23 @@ pub(all) enum SubscriptionStreamEvent {
 ///|
 /// Tracks client-side subscription state on a long-lived listen stream.
 pub struct SubscriptionStreamState {
-  expected_id : Json
+  expected_id : @jsonrpc.RequestId
   requested : @mcp.SubscriptionFilter
   mut acknowledged : Bool
-  mut subscription_id : Json
+  mut subscription_id : @jsonrpc.RequestId?
   mut honored : @mcp.SubscriptionFilter
 }
 
 ///|
 pub fn SubscriptionStreamState::SubscriptionStreamState(
-  expected_id~ : Json,
+  expected_id~ : @jsonrpc.RequestId,
   requested~ : @mcp.SubscriptionFilter,
 ) -> SubscriptionStreamState {
   {
     expected_id,
     requested,
     acknowledged: false,
-    subscription_id: Json::null(),
+    subscription_id: None,
     honored: @mcp.SubscriptionFilter(),
   }
 }
@@ -71,7 +45,7 @@ fn subscription_filter_is_subset(
 
 ///|
 fn subscription_notification_allowed(
-  subscription_id : Json,
+  subscription_id : @jsonrpc.RequestId,
   filter : @mcp.SubscriptionFilter,
   message : Json,
 ) -> Bool {
@@ -80,28 +54,40 @@ fn subscription_notification_allowed(
     @jsonrpc.Message::Notification(notification) => notification
     _ => return false
   }
-  let params = match notification.params {
-    Object(params) => params
-    _ => return false
-  }
-  let meta = match params {
-    { "_meta": Object(meta), .. } => meta
-    _ => return false
-  }
-  guard meta is { "io.modelcontextprotocol/subscriptionId": sub_id, .. } &&
-    sub_id == subscription_id else {
-    return false
-  }
   match notification.method_name {
-    "notifications/tools/list_changed" => filter.tools_list_changed
-    "notifications/prompts/list_changed" => filter.prompts_list_changed
-    "notifications/resources/list_changed" => filter.resources_list_changed
-    "notifications/resources/updated" =>
-      match params {
-        { "uri": String(uri), .. } =>
-          filter.resource_subscriptions.contains(uri)
-        _ => false
+    "notifications/tools/list_changed" => {
+      let params = @mcp.SubscriptionNotificationParams::from_json(
+        notification.params,
+      ) catch {
+        _ => return false
       }
+      params.subscription_id == subscription_id && filter.tools_list_changed
+    }
+    "notifications/prompts/list_changed" => {
+      let params = @mcp.SubscriptionNotificationParams::from_json(
+        notification.params,
+      ) catch {
+        _ => return false
+      }
+      params.subscription_id == subscription_id && filter.prompts_list_changed
+    }
+    "notifications/resources/list_changed" => {
+      let params = @mcp.SubscriptionNotificationParams::from_json(
+        notification.params,
+      ) catch {
+        _ => return false
+      }
+      params.subscription_id == subscription_id && filter.resources_list_changed
+    }
+    "notifications/resources/updated" => {
+      let params = @mcp.ResourceUpdatedNotificationParams::from_json(
+        notification.params,
+      ) catch {
+        _ => return false
+      }
+      params.subscription_id == subscription_id &&
+      filter.resource_subscriptions.contains(params.uri)
+    }
     _ => false
   }
 }
@@ -127,54 +113,36 @@ pub fn SubscriptionStreamState::consume(
           "subscription stream must start with an acknowledgement",
         )
     }
-    let (subscription_id, notifications) = match notification.params {
-      Object(
-        {
-          "_meta": Object(
-            { "io.modelcontextprotocol/subscriptionId": sub_id, .. }
-          ),
-          "notifications": notifications,
-          ..
-        }
-      ) => (sub_id, notifications)
-      Object({ "_meta": Object(_), "notifications": _, .. }) =>
-        raise @mcp.InvalidRequest(
-          "subscription acknowledgement is missing subscriptionId",
-        )
-      Object(_) =>
-        raise @mcp.InvalidRequest(
-          "subscription acknowledgement is missing _meta or notifications",
-        )
-      _ =>
-        raise @mcp.InvalidRequest(
-          "subscription acknowledgement params must be an object",
-        )
+    let ack = @mcp.SubscriptionsAcknowledgedNotificationParams::from_json(
+      notification.params,
+    ) catch {
+      error => raise @mcp.InvalidRequest(error.message())
     }
-    let honored : @mcp.SubscriptionFilter = @json.from_json(notifications) catch {
-      error => raise @mcp.InvalidRequest(error.to_string())
-    }
-    if subscription_id != self.expected_id {
+    if ack.subscription_id != self.expected_id {
       raise @mcp.InvalidRequest(
         "subscription acknowledgement id does not match request id",
       )
     }
-    if !subscription_filter_is_subset(honored, self.requested) {
+    if !subscription_filter_is_subset(ack.notifications, self.requested) {
       raise @mcp.InvalidRequest(
         "subscription acknowledgement honors an unrequested filter",
       )
     }
     self.acknowledged = true
-    self.subscription_id = subscription_id
-    self.honored = honored
+    self.subscription_id = Some(ack.subscription_id)
+    self.honored = ack.notifications
     return Acknowledged
+  }
+  let sub_id = match self.subscription_id {
+    Some(id) => id
+    None =>
+      raise @mcp.InvalidRequest(
+        "subscription stream received event before acknowledgement",
+      )
   }
   match decoded {
     @jsonrpc.Message::Notification(_) => {
-      if !subscription_notification_allowed(
-          self.subscription_id,
-          self.honored,
-          message,
-        ) {
+      if !subscription_notification_allowed(sub_id, self.honored, message) {
         raise @mcp.InvalidRequest(
           "subscription notification does not match the acknowledged subscription",
         )
@@ -182,7 +150,7 @@ pub fn SubscriptionStreamState::consume(
       Notification(message)
     }
     @jsonrpc.Message::Response(@jsonrpc.Response::Failure(id~, ..)) => {
-      if id.map(fn(id) { id.as_json() }) != Some(self.expected_id) {
+      if id != Some(self.expected_id) {
         raise @mcp.InvalidRequest(
           "subscription error response id does not match request id",
         )
@@ -190,23 +158,39 @@ pub fn SubscriptionStreamState::consume(
       Final(message)
     }
     @jsonrpc.Message::Response(@jsonrpc.Response::Success(id~, result~)) => {
-      if id.as_json() != self.expected_id {
+      if id != self.expected_id {
         raise @mcp.InvalidRequest(
-          "subscription final response does not match the active subscription",
+          "subscription final response id does not match request id",
         )
       }
-      let sub_id = match result {
-        Object(
-          {
-            "_meta": Object(
-              { "io.modelcontextprotocol/subscriptionId": sub_id, .. }
-            ),
-            ..
+      let meta = match result {
+        Object(fields) =>
+          match fields.get("_meta") {
+            Some(Object(m)) => m
+            _ =>
+              raise @mcp.InvalidRequest(
+                "subscription final response is missing _meta",
+              )
           }
-        ) => Some(sub_id)
-        _ => None
+        _ =>
+          raise @mcp.InvalidRequest(
+            "subscription final response result must be an object",
+          )
       }
-      if sub_id != Some(self.subscription_id) {
+      let sub_json = match meta.get("io.modelcontextprotocol/subscriptionId") {
+        Some(v) => v
+        None =>
+          raise @mcp.InvalidRequest(
+            "subscription final response is missing subscriptionId",
+          )
+      }
+      let final_sub_id : @jsonrpc.RequestId = @json.from_json(sub_json) catch {
+        _ =>
+          raise @mcp.InvalidRequest(
+            "subscription final response subscriptionId is invalid",
+          )
+      }
+      if final_sub_id != sub_id {
         raise @mcp.InvalidRequest(
           "subscription final response does not match the active subscription",
         )

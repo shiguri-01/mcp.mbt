@@ -43,7 +43,7 @@ fn ServerSession::dispatch_subscription(
       return
     }
   }
-  let key = subscription.id.stringify()
+  let key = subscription.id.to_routing_key()
   let cancelled = Ref(false)
   let task = self.group.spawn(() => {
     self.emit(subscription.acknowledgement())

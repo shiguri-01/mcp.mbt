@@ -113,10 +113,9 @@ async fn send_subscription_stream(
     if !stopped.val {
       let final_response = match producer_error.val {
         Some(message) =>
-          jsonrpc_error(
-            subscription.id,
-            @mcp.InternalError("subscription producer failed: \{message}"),
-          )
+          @mcp.InternalError("subscription producer failed: \{message}")
+          .to_response(id=subscription.id)
+          .to_json()
         None => subscription.close_response()
       }
       outbound.put(Some(sse_message(final_response)))
