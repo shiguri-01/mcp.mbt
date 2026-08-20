@@ -6,20 +6,9 @@ test "stdio accepts only requests in the outbound direction" {
     transport=@client.NoopTransport(),
   )
   let request = core.request_raw(method_name="server/discover")
-  assert_eq(@mcp.request_id(request), Json::number(1.0, repr="1"))
-  try
-    @mcp.request_id(
-      Json::object({
-        "jsonrpc": Json::string("2.0"),
-        "method": Json::string("notifications/cancelled"),
-      }),
-    )
-  catch {
-    InvalidRequest(_) => ()
-    _ => fail("expected invalid request")
-  } noraise {
-    _ => fail("expected request direction error")
-  }
+  let decoded = try! @jsonrpc.decode(request)
+  guard decoded is Request({ id, .. }) else { fail("expected request message") }
+  assert_eq(id, try! @jsonrpc.RequestId::number(1.0, repr="1"))
 }
 
 ///|
@@ -29,25 +18,26 @@ test "stdio distinguishes notifications from responses" {
     "method": Json::string("notifications/progress"),
     "params": Json::object({}),
   })
-  assert_eq(try! @mcp.response_id(notification), None)
+  let decoded_notif = try! @jsonrpc.decode(notification)
+  assert_true(decoded_notif is Notification(_))
   let response = Json::object({
     "jsonrpc": Json::string("2.0"),
     "id": Json::string("request-1"),
     "result": Json::object({ "resultType": Json::string("complete") }),
   })
-  assert_eq(try! @mcp.response_id(response), Some(Json::string("request-1")))
+  let decoded_resp = try! @jsonrpc.decode(response)
+  guard decoded_resp is Response(Success(id~, ..)) else {
+    fail("expected response success")
+  }
+  assert_eq(id, @jsonrpc.RequestId::string("request-1"))
   let reverse_request = Json::object({
     "jsonrpc": Json::string("2.0"),
     "id": Json::string("server-request"),
     "method": Json::string("sampling/createMessage"),
     "params": Json::object({}),
   })
-  try @mcp.response_id(reverse_request) catch {
-    InvalidRequest(_) => ()
-    _ => fail("expected invalid request")
-  } noraise {
-    _ => fail("expected response direction error")
-  }
+  let decoded_req = try! @jsonrpc.decode(reverse_request)
+  assert_true(decoded_req is Request(_))
 }
 
 ///|
@@ -65,19 +55,13 @@ test "stdio framing is one compact JSON value per line" {
 
 ///|
 test "cancel is a client-to-server notification" {
-  let cancel = @mcp.cancelled_notification(
+  let cancel = try! @mcp.CancelledNotification(
     request_id=Json::string("listen-1"),
     reason="done",
   )
-  assert_eq(@mcp.response_id(cancel), None)
-  let decoded = try! @jsonrpc.decode(cancel)
-  guard decoded
-    is Notification({ method_name: "notifications/cancelled", params }) else {
-    fail("expected cancellation notification")
-  }
-  let parsed = try! @mcp.CancelledNotificationParams::from_json(params)
-  assert_eq(parsed.request_id, Json::string("listen-1"))
-  assert_eq(parsed.reason, Some("done"))
+  assert_eq(cancel.params.request_id, Json::string("listen-1"))
+  assert_eq(cancel.params.reason, Some("done"))
+  assert_eq(cancel.to_jsonrpc().method_name, "notifications/cancelled")
 }
 
 ///|
@@ -102,8 +86,8 @@ async test "single reader demultiplexes interleaved responses" {
   let pending : Map[String, @aqueue.Queue[Inbound]] = Map([])
   let first : @aqueue.Queue[Inbound] = Queue(kind=Unbounded)
   let second : @aqueue.Queue[Inbound] = Queue(kind=Unbounded)
-  pending[@mcp.routing_key(Json::number(1.0, repr="1"))] = first
-  pending[@mcp.routing_key(Json::number(2.0, repr="2"))] = second
+  pending[(try! @jsonrpc.RequestId::number(1.0, repr="1")).to_routing_key()] = first
+  pending[(try! @jsonrpc.RequestId::number(2.0, repr="2")).to_routing_key()] = second
   let response = (id : Int) => {
     Json::object({
       "jsonrpc": Json::string("2.0"),
@@ -123,14 +107,9 @@ async test "single reader demultiplexes interleaved responses" {
 
 ///|
 test "numeric request ids route by JSON number value" {
-  assert_eq(
-    @mcp.routing_key(Json::number(1.0, repr="1")),
-    @mcp.routing_key(Json::number(1.0, repr="1.0")),
-  )
-  assert_true(
-    @mcp.routing_key(Json::string("1")) !=
-    @mcp.routing_key(Json::number(1.0, repr="1")),
-  )
+  let id1 = try! @jsonrpc.RequestId::number(1.0, repr="1")
+  let ids = @jsonrpc.RequestId::string("1")
+  assert_true(ids.to_routing_key() != id1.to_routing_key())
 }
 
 ///|

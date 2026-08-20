@@ -1068,3 +1068,25 @@ pub fn[T] HandlerOutcome::require_complete(
       )
   }
 }
+
+///|
+/// Decode a raw JSON-RPC response message into a HandlerOutcome.
+pub fn HandlerOutcome::decode_response(
+  message : Json,
+) -> HandlerOutcome[Json] raise McpError {
+  let decoded = decode_message(message)
+  let result = match decoded {
+    Response(Success(result~, ..)) => result
+    Response(Failure(error~, ..)) => raise McpError::from_error_object(error)
+    _ => raise InvalidRequest("JSON-RPC response expected")
+  }
+  match result {
+    Object({ "resultType": String("input_required"), .. }) =>
+      InputRequired(InputRequiredResult::from_json(result))
+    Object({ "resultType": String("complete"), .. }) => Complete(result)
+    Object({ "resultType": String(type_name), .. }) =>
+      ExtensionResult(type_name, result)
+    Object(_) => Complete(result)
+    _ => raise InvalidRequest("MCP result must be an object")
+  }
+}

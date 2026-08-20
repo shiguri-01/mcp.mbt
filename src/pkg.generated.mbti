@@ -11,49 +11,9 @@ import {
 // Values
 pub const LATEST_PROTOCOL_VERSION : String = "2026-07-28"
 
-pub fn cancelled_notification(request_id~ : Json, reason? : String) -> Json raise McpError
-
-pub fn complete_result(Json, server_info? : Implementation, meta? : Map[String, Json]) -> Json raise McpError
-
 pub fn[T : @json.FromJson] decode_json(Json, path? : @json.JsonPath) -> T raise McpError
 
 pub fn decode_message(Json) -> @jsonrpc.Message raise McpError
-
-pub fn error_response(id? : @jsonrpc.RequestId, McpError) -> Json
-
-pub fn error_response_from_json_id(id? : Json, McpError) -> Json
-
-pub fn extract_notification_progress_token(Json) -> Json?
-
-pub fn extract_request_progress_token(Json) -> Json?
-
-pub fn logging_message_notification(level~ : LoggingLevel, data~ : Json, logger? : String) -> Json
-
-pub fn progress_notification(progress_token~ : Json, progress~ : Double, total? : Double, message? : String) -> Json raise McpError
-
-pub fn prompts_list_changed_notification(subscription_id~ : Json) -> Json
-
-pub fn request_id(Json) -> Json raise McpError
-
-pub fn require_result_type(Json) -> String raise McpError
-
-pub fn resource_updated_notification(uri~ : String, subscription_id~ : Json) -> Json
-
-pub fn resources_list_changed_notification(subscription_id~ : Json) -> Json
-
-pub fn response_id(Json) -> Json? raise McpError
-
-pub fn routing_key(Json) -> String
-
-pub fn rpc_response_result(Json) -> Json raise McpError
-
-pub fn stamp_result_meta(Json, server_info? : Implementation, meta? : Map[String, Json]) -> Json raise McpError
-
-pub fn subscriptions_acknowledged_notification(subscription_id~ : Json, notifications~ : SubscriptionFilter) -> Json
-
-pub fn success_response(@jsonrpc.RequestId, Json) -> Json
-
-pub fn tools_list_changed_notification(subscription_id~ : Json) -> Json
 
 // Errors
 pub(all) suberror McpError {
@@ -75,6 +35,7 @@ pub fn McpError::from_jsonrpc_decode_error(@jsonrpc.JsonRpcDecodeError) -> Self
 pub fn McpError::from_rpc_parts(Int, String, data? : Json) -> Self raise Self
 pub fn McpError::message(Self) -> String
 pub fn McpError::to_error_object(Self) -> @jsonrpc.ErrorObject
+pub fn McpError::to_response(Self, id? : @jsonrpc.RequestId) -> @jsonrpc.Response[Json]
 pub fn McpError::to_string(Self) -> String
 pub impl Show for McpError
 pub impl ToJson for McpError
@@ -131,6 +92,14 @@ pub fn[T : ToJson] CallToolResult::structured(T) -> Self
 pub fn CallToolResult::text(String, annotations? : Annotations, meta? : Json) -> Self
 pub impl ToJson for CallToolResult
 pub impl @json.FromJson for CallToolResult
+
+pub struct CancelledNotification {
+  params : CancelledNotificationParams
+} derive(Eq, @debug.Debug)
+pub fn CancelledNotification::CancelledNotification(request_id~ : Json, reason? : String) -> Self raise McpError
+pub fn CancelledNotification::to_json(Self) -> Json
+pub fn CancelledNotification::to_jsonrpc(Self) -> @jsonrpc.Notification[CancelledNotificationParams]
+pub impl ToJson for CancelledNotification
 
 pub struct CancelledNotificationParams {
   request_id : Json
@@ -290,6 +259,7 @@ pub(all) enum HandlerOutcome[T] {
   InputRequired(InputRequiredResult)
   ExtensionResult(String, Json)
 }
+pub fn HandlerOutcome::decode_response(Json) -> Self[Json] raise McpError
 pub fn[T] HandlerOutcome::require_complete(Self[T], context~ : String) -> T raise McpError
 
 pub struct Icon {
@@ -420,6 +390,43 @@ pub fn LoggingLevel::to_string(Self) -> String
 pub impl ToJson for LoggingLevel
 pub impl @json.FromJson for LoggingLevel
 
+pub struct LoggingMessageNotification {
+  params : LoggingMessageNotificationParams
+} derive(Eq, @debug.Debug)
+pub fn LoggingMessageNotification::LoggingMessageNotification(level~ : LoggingLevel, data~ : Json, logger? : String) -> Self
+pub fn LoggingMessageNotification::to_json(Self) -> Json
+pub fn LoggingMessageNotification::to_jsonrpc(Self) -> @jsonrpc.Notification[LoggingMessageNotificationParams]
+pub impl ToJson for LoggingMessageNotification
+
+pub struct LoggingMessageNotificationParams {
+  level : LoggingLevel
+  data : Json
+  logger : String?
+} derive(Eq, @debug.Debug)
+pub fn LoggingMessageNotificationParams::LoggingMessageNotificationParams(level~ : LoggingLevel, data~ : Json, logger? : String) -> Self
+pub fn LoggingMessageNotificationParams::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
+pub impl ToJson for LoggingMessageNotificationParams
+pub impl @json.FromJson for LoggingMessageNotificationParams
+
+pub struct ProgressNotification {
+  params : ProgressNotificationParams
+} derive(Eq, @debug.Debug)
+pub fn ProgressNotification::ProgressNotification(progress_token~ : Json, progress~ : Double, total? : Double, message? : String) -> Self raise McpError
+pub fn ProgressNotification::to_json(Self) -> Json
+pub fn ProgressNotification::to_jsonrpc(Self) -> @jsonrpc.Notification[ProgressNotificationParams]
+pub impl ToJson for ProgressNotification
+
+pub struct ProgressNotificationParams {
+  progress_token : Json
+  progress : Double
+  total : Double?
+  message : String?
+} derive(Eq, @debug.Debug)
+pub fn ProgressNotificationParams::ProgressNotificationParams(progress_token~ : Json, progress~ : Double, total? : Double, message? : String) -> Self raise McpError
+pub fn ProgressNotificationParams::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
+pub impl ToJson for ProgressNotificationParams
+pub impl @json.FromJson for ProgressNotificationParams
+
 pub struct Prompt {
   name : String
   title : String?
@@ -462,6 +469,14 @@ pub fn PromptsCapability::PromptsCapability(list_changed? : Bool) -> Self
 pub fn PromptsCapability::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
 pub impl ToJson for PromptsCapability
 pub impl @json.FromJson for PromptsCapability
+
+pub struct PromptsListChangedNotification {
+  params : SubscriptionNotificationParams
+} derive(Eq, @debug.Debug)
+pub fn PromptsListChangedNotification::PromptsListChangedNotification(subscription_id~ : Json) -> Self raise
+pub fn PromptsListChangedNotification::to_json(Self) -> Json
+pub fn PromptsListChangedNotification::to_jsonrpc(Self) -> @jsonrpc.Notification[SubscriptionNotificationParams]
+pub impl ToJson for PromptsListChangedNotification
 
 pub struct ReadResourceParams {
   uri : String
@@ -582,6 +597,23 @@ pub fn ResourceTemplate::from_json(Json, path? : @json.JsonPath) -> Self raise M
 pub impl ToJson for ResourceTemplate
 pub impl @json.FromJson for ResourceTemplate
 
+pub struct ResourceUpdatedNotification {
+  params : ResourceUpdatedNotificationParams
+} derive(Eq, @debug.Debug)
+pub fn ResourceUpdatedNotification::ResourceUpdatedNotification(uri~ : String, subscription_id~ : Json) -> Self raise McpError
+pub fn ResourceUpdatedNotification::to_json(Self) -> Json
+pub fn ResourceUpdatedNotification::to_jsonrpc(Self) -> @jsonrpc.Notification[ResourceUpdatedNotificationParams]
+pub impl ToJson for ResourceUpdatedNotification
+
+pub struct ResourceUpdatedNotificationParams {
+  uri : String
+  subscription_id : Json
+} derive(Eq, @debug.Debug)
+pub fn ResourceUpdatedNotificationParams::ResourceUpdatedNotificationParams(uri~ : String, subscription_id~ : Json) -> Self raise McpError
+pub fn ResourceUpdatedNotificationParams::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
+pub impl ToJson for ResourceUpdatedNotificationParams
+pub impl @json.FromJson for ResourceUpdatedNotificationParams
+
 pub struct ResourcesCapability {
   subscribe : Bool?
   list_changed : Bool?
@@ -591,12 +623,22 @@ pub fn ResourcesCapability::from_json(Json, path? : @json.JsonPath) -> Self rais
 pub impl ToJson for ResourcesCapability
 pub impl @json.FromJson for ResourcesCapability
 
+pub struct ResourcesListChangedNotification {
+  params : SubscriptionNotificationParams
+} derive(Eq, @debug.Debug)
+pub fn ResourcesListChangedNotification::ResourcesListChangedNotification(subscription_id~ : Json) -> Self raise McpError
+pub fn ResourcesListChangedNotification::to_json(Self) -> Json
+pub fn ResourcesListChangedNotification::to_jsonrpc(Self) -> @jsonrpc.Notification[SubscriptionNotificationParams]
+pub impl ToJson for ResourcesListChangedNotification
+
 pub struct ResultMeta {
   server_info : Implementation?
   extra : Map[String, Json]
 } derive(Eq, @debug.Debug)
 pub fn ResultMeta::ResultMeta(server_info? : Implementation, extra? : Map[String, Json]) -> Self raise McpError
 pub fn ResultMeta::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
+pub fn ResultMeta::stamp(Self, Json) -> Json raise McpError
+pub fn ResultMeta::stamp_complete(Self, Json) -> Json raise McpError
 pub impl ToJson for ResultMeta
 pub impl @json.FromJson for ResultMeta
 
@@ -716,6 +758,31 @@ pub fn SubscriptionFilter::SubscriptionFilter(tools_list_changed? : Bool, prompt
 pub impl ToJson for SubscriptionFilter
 pub impl @json.FromJson for SubscriptionFilter
 
+pub struct SubscriptionNotificationParams {
+  subscription_id : Json
+} derive(Eq, @debug.Debug)
+pub fn SubscriptionNotificationParams::SubscriptionNotificationParams(subscription_id~ : Json) -> Self raise McpError
+pub fn SubscriptionNotificationParams::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
+pub impl ToJson for SubscriptionNotificationParams
+pub impl @json.FromJson for SubscriptionNotificationParams
+
+pub struct SubscriptionsAcknowledgedNotification {
+  params : SubscriptionsAcknowledgedNotificationParams
+} derive(Eq, @debug.Debug)
+pub fn SubscriptionsAcknowledgedNotification::SubscriptionsAcknowledgedNotification(subscription_id~ : Json, notifications~ : SubscriptionFilter) -> Self raise McpError
+pub fn SubscriptionsAcknowledgedNotification::to_json(Self) -> Json
+pub fn SubscriptionsAcknowledgedNotification::to_jsonrpc(Self) -> @jsonrpc.Notification[SubscriptionsAcknowledgedNotificationParams]
+pub impl ToJson for SubscriptionsAcknowledgedNotification
+
+pub struct SubscriptionsAcknowledgedNotificationParams {
+  subscription_id : Json
+  notifications : SubscriptionFilter
+} derive(Eq, @debug.Debug)
+pub fn SubscriptionsAcknowledgedNotificationParams::SubscriptionsAcknowledgedNotificationParams(subscription_id~ : Json, notifications~ : SubscriptionFilter) -> Self raise McpError
+pub fn SubscriptionsAcknowledgedNotificationParams::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
+pub impl ToJson for SubscriptionsAcknowledgedNotificationParams
+pub impl @json.FromJson for SubscriptionsAcknowledgedNotificationParams
+
 pub struct SubscriptionsListenResult {
 } derive(Eq, @debug.Debug)
 pub fn SubscriptionsListenResult::SubscriptionsListenResult() -> Self
@@ -756,6 +823,14 @@ pub fn ToolsCapability::ToolsCapability(list_changed? : Bool) -> Self
 pub fn ToolsCapability::from_json(Json, path? : @json.JsonPath) -> Self raise McpError
 pub impl ToJson for ToolsCapability
 pub impl @json.FromJson for ToolsCapability
+
+pub struct ToolsListChangedNotification {
+  params : SubscriptionNotificationParams
+} derive(Eq, @debug.Debug)
+pub fn ToolsListChangedNotification::ToolsListChangedNotification(subscription_id~ : Json) -> Self raise McpError
+pub fn ToolsListChangedNotification::to_json(Self) -> Json
+pub fn ToolsListChangedNotification::to_jsonrpc(Self) -> @jsonrpc.Notification[SubscriptionNotificationParams]
+pub impl ToJson for ToolsListChangedNotification
 
 // Type aliases
 

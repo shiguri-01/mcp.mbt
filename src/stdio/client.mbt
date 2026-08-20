@@ -177,37 +177,60 @@ async fn get_inbound(
 }
 
 ///|
+
+///|
 async fn route_message(
   pending : Map[String, @aqueue.Queue[Inbound]],
   progress_routes : Map[String, String],
   message : Json,
 ) -> Unit raise @mcp.McpError {
-  match @mcp.response_id(message) {
-    Some(id) =>
-      if pending.get(@mcp.routing_key(id)) is Some(queue) {
+  let decoded = @jsonrpc.decode(message) catch {
+    error => raise @mcp.McpError::from_jsonrpc_decode_error(error)
+  }
+  match decoded {
+    Response(Success(id~, ..)) | Response(Failure(id=Some(id), ..)) =>
+      if pending.get(id.to_routing_key()) is Some(queue) {
         put_inbound(queue, Message(message))
       }
-    None =>
+    Response(Failure(id=None, ..)) => ()
+    Notification({ method_name: "notifications/progress", params }) =>
+      try {
+        let progress_params = @mcp.ProgressNotificationParams::from_json(params)
+        let token_key = match progress_params.progress_token {
+          String(s) => "string:\{s}"
+          Number(num, repr~) => "number:" + repr.unwrap_or(num.to_string())
+          _ => progress_params.progress_token.stringify()
+        }
+        if progress_routes.get(token_key) is Some(request_key) &&
+          pending.get(request_key) is Some(queue) {
+          put_inbound(queue, Message(message))
+        }
+      } catch {
+        _ => ()
+      }
+    Notification(_) =>
       match @client.extract_subscription_id(message) {
-        Some(id) =>
-          if pending.get(@mcp.routing_key(id)) is Some(queue) {
+        Some(sub_id) => {
+          let sub_key = match sub_id {
+            String(s) => "string:\{s}"
+            Number(num, repr~) => "number:" + repr.unwrap_or(num.to_string())
+            _ => sub_id.stringify()
+          }
+          if pending.get(sub_key) is Some(queue) {
             put_inbound(queue, Message(message))
           }
+        }
         None =>
-          match @mcp.extract_notification_progress_token(message) {
-            Some(token) =>
-              if progress_routes.get(@mcp.routing_key(token))
-                is Some(request_key) &&
-                pending.get(request_key) is Some(queue) {
-                put_inbound(queue, Message(message))
-              }
-            None if pending.length() == 1 =>
-              for _, queue in pending {
-                put_inbound(queue, Message(message))
-              }
-            None => ()
+          if pending.length() == 1 {
+            for _, queue in pending {
+              put_inbound(queue, Message(message))
+            }
           }
       }
+    Request(_) =>
+      raise InvalidRequest(
+        "server-to-client JSON-RPC requests are not valid in MCP 2026-07-28",
+      )
   }
 }
 
@@ -242,37 +265,40 @@ async fn read_messages(
 fn decode_raw_response(
   message : Json,
 ) -> @mcp.HandlerOutcome[Json] raise @mcp.McpError {
-  let result = @mcp.rpc_response_result(message)
-  match @mcp.require_result_type(result) {
-    "complete" => @mcp.Complete(result)
-    "input_required" =>
-      @mcp.InputRequired(@mcp.InputRequiredResult::from_json(result))
-    result_type => @mcp.ExtensionResult(result_type, result)
-  }
+  @mcp.HandlerOutcome::decode_response(message)
 }
 
 ///|
 async fn Transport::read_response(
   self : Transport,
   queue : @aqueue.Queue[Inbound],
-  expected_id : Json,
+  expected_id : @jsonrpc.RequestId,
   on_notification : (Json) -> Unit,
 ) -> @mcp.HandlerOutcome[Json] raise @mcp.McpError {
   match get_inbound(queue) {
     Failed(error) => raise error
-    Message(message) =>
-      match @mcp.response_id(message) {
-        None => {
+    Message(message) => {
+      let decoded = @jsonrpc.decode(message) catch {
+        error => raise @mcp.McpError::from_jsonrpc_decode_error(error)
+      }
+      match decoded {
+        Notification(_) => {
           on_notification(message)
           self.read_response(queue, expected_id, on_notification)
         }
-        Some(actual_id) => {
-          if actual_id != expected_id {
+        Response(Success(id~, ..)) | Response(Failure(id=Some(id), ..)) => {
+          if id != expected_id {
             raise InvalidRequest("stdio response id does not match request id")
           }
           decode_raw_response(message)
         }
+        Response(Failure(id=None, ..)) => decode_raw_response(message)
+        Request(_) =>
+          raise InvalidRequest(
+            "server-to-client JSON-RPC requests are not valid in MCP 2026-07-28",
+          )
       }
+    }
   }
 }
 
@@ -284,14 +310,39 @@ pub impl @client.ClientTransport for Transport with fn request_with_notification
   request : Json,
   on_notification~ : (Json) -> Unit,
 ) -> @mcp.HandlerOutcome[Json] raise @mcp.McpError {
-  let id = @mcp.request_id(request)
-  let key = @mcp.routing_key(id)
+  let decoded = @jsonrpc.decode(request) catch {
+    _ => raise InvalidRequest("request is not a valid JSON-RPC message")
+  }
+  guard decoded is Request(req) else {
+    raise InvalidRequest("message must be a JSON-RPC request")
+  }
+  let id = req.id
+  let key = id.to_routing_key()
   if self.pending.contains(key) {
     raise InvalidRequest("stdio request id is already active")
   }
-  let progress_key = @mcp.extract_request_progress_token(request).map(
-    @mcp.routing_key,
-  )
+  let progress_token = match decoded {
+    Request(
+      {
+        params: Object(
+          {
+            "_meta": Object(
+              { "progressToken": String(_) | Number(_) as token, .. }
+            ),
+            ..
+          }
+        ),
+        ..,
+      }
+    ) => Some(token)
+    _ => None
+  }
+  let progress_key = match progress_token {
+    Some(String(s)) => Some("string:\{s}")
+    Some(Number(num, repr~)) =>
+      Some("number:" + repr.unwrap_or(num.to_string()))
+    _ => None
+  }
   if progress_key is Some(token_key) && self.progress_routes.contains(token_key) {
     raise InvalidRequest("stdio progress token is already active")
   }
@@ -320,7 +371,7 @@ pub impl @client.ClientTransport for Transport with fn notify(
   let decoded = @jsonrpc.decode(notification) catch {
     _ => raise InvalidRequest("stdio notify requires a JSON-RPC notification")
   }
-  guard decoded is @jsonrpc.Message::Notification(_) else {
+  guard decoded is Notification(_) else {
     raise InvalidRequest("stdio notify requires a JSON-RPC notification")
   }
   self.outbound.put(Some(encode_frame(notification))) catch {

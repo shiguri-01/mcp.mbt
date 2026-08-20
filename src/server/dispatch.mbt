@@ -113,7 +113,7 @@ fn Server::input_required_json(
   result : @mcp.InputRequiredResult,
 ) -> Json raise @mcp.McpError {
   self.validate_input_requests(context, result)
-  @mcp.stamp_result_meta(result.to_json(), server_info=self.info)
+  @mcp.ResultMeta(server_info=self.info).stamp(result.to_json())
 }
 
 ///|
@@ -132,7 +132,7 @@ fn Server::extension_result_json(
   }
   let fields = fields.copy_json()
   fields["resultType"] = Json::string(result_type)
-  @mcp.stamp_result_meta(Json::object(fields), server_info=self.info)
+  @mcp.ResultMeta(server_info=self.info).stamp(Json::object(fields))
 }
 
 ///|
@@ -144,7 +144,7 @@ fn[T : ToJson] Server::outcome_json(
 ) -> Json raise @mcp.McpError {
   match outcome {
     @mcp.Complete(value) =>
-      @mcp.complete_result(value.to_json(), server_info=self.info)
+      @mcp.ResultMeta(server_info=self.info).stamp_complete(value.to_json())
     @mcp.InputRequired(result) => {
       if method_name != "tools/call" &&
         method_name != "resources/read" &&
@@ -174,7 +174,7 @@ fn Server::cacheable_complete(
     repr="\{self.cache_policy.ttl_ms}",
   )
   fields["cacheScope"] = self.cache_policy.scope.to_json()
-  @mcp.complete_result(Json::object(fields), server_info=self.info)
+  @mcp.ResultMeta(server_info=self.info).stamp_complete(Json::object(fields))
 }
 
 ///|
@@ -441,9 +441,8 @@ async fn Server::complete(
   guard self.completions.get(key) is Some(handler) else {
     raise @mcp.InvalidParams("no completion handler registered for \{key}")
   }
-  @mcp.complete_result(
+  @mcp.ResultMeta(server_info=self.info).stamp_complete(
     handler(context, request).to_json(),
-    server_info=self.info,
   )
 }
 
@@ -506,29 +505,29 @@ pub async fn Server::handle_jsonrpc_with_hooks(
   let decoded = @jsonrpc.decode(message) catch {
     error =>
       return Some(
-        @mcp.error_response(
-          @mcp.InvalidRequest(
-            match error {
-              InvalidMessage(msg) => msg
-            },
-          ),
-        ),
+        @mcp.InvalidRequest(
+          match error {
+            InvalidMessage(msg) => msg
+          },
+        )
+        .to_response()
+        .to_json(),
       )
   }
   match decoded {
     @jsonrpc.Message::Notification(_) => None
     @jsonrpc.Message::Response(_) =>
       Some(
-        @mcp.error_response(
-          @mcp.InvalidRequest("MCP server expected a request"),
-        ),
+        @mcp.InvalidRequest("MCP server expected a request")
+        .to_response()
+        .to_json(),
       )
     @jsonrpc.Message::Request(request) =>
       try {
         let result = self.dispatch_request(request, hooks~)
-        Some(@mcp.success_response(request.id, result))
+        Some(@jsonrpc.Response::Success(id=request.id, result~).to_json())
       } catch {
-        error => Some(@mcp.error_response(id=request.id, error))
+        error => Some(error.to_response(id=request.id).to_json())
       } noraise {
         response => response
       }

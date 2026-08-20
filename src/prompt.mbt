@@ -438,3 +438,82 @@ pub fn ListPromptsResult::from_json(
 ) -> ListPromptsResult raise McpError {
   decode_json(value, path?)
 }
+
+///|
+/// Parameters for `prompts/get`.
+pub struct GetPromptParams {
+  name : String
+  arguments : Map[String, String]
+} derive(Debug, Eq)
+
+///|
+pub fn GetPromptParams::GetPromptParams(
+  name~ : String,
+  arguments? : Map[String, String] = Map([]),
+) -> GetPromptParams raise McpError {
+  guard !name.is_empty() else {
+    raise InvalidParams("prompt name must not be empty")
+  }
+  { name, arguments }
+}
+
+///|
+pub impl @json.FromJson for GetPromptParams with fn from_json(
+  value : Json,
+  path : @json.JsonPath,
+) -> GetPromptParams raise {
+  guard value is Object(fields) else {
+    raise JsonDecodeError((path, "expected object"))
+  }
+  let name = match fields.get("name") {
+    Some(String(name)) if !name.is_empty() => name
+    Some(String(_)) =>
+      raise JsonDecodeError(
+        (path.add_key("name"), "prompt name must not be empty"),
+      )
+    Some(_) => raise JsonDecodeError((path.add_key("name"), "expected string"))
+    None => raise JsonDecodeError((path.add_key("name"), "name is required"))
+  }
+  let arguments : Map[String, String] = match fields.get("arguments") {
+    Some(Object(map)) => {
+      let result : Map[String, String] = Map([])
+      for k, v in map {
+        match v {
+          String(s) => result[k] = s
+          _ =>
+            raise JsonDecodeError(
+              (path.add_key("arguments").add_key(k), "expected string"),
+            )
+        }
+      }
+      result
+    }
+    Some(Null) | None => Map([])
+    Some(_) =>
+      raise JsonDecodeError((path.add_key("arguments"), "expected object"))
+  }
+  GetPromptParams(name~, arguments~) catch {
+    error => raise JsonDecodeError((path, error.message()))
+  }
+}
+
+///|
+pub impl ToJson for GetPromptParams with fn to_json(self : GetPromptParams) -> Json {
+  let fields : Map[String, Json] = { "name": Json::string(self.name) }
+  if !self.arguments.is_empty() {
+    let args : Map[String, Json] = Map([])
+    for k, v in self.arguments {
+      args[k] = Json::string(v)
+    }
+    fields["arguments"] = Json::object(args)
+  }
+  Json::object(fields)
+}
+
+///|
+pub fn GetPromptParams::from_json(
+  value : Json,
+  path? : @json.JsonPath,
+) -> GetPromptParams raise McpError {
+  decode_json(value, path?)
+}

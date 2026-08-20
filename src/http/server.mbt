@@ -1,6 +1,14 @@
 ///|
 fn jsonrpc_error(id : Json, error : @mcp.McpError) -> Json {
-  @mcp.error_response_from_json_id(id~, error)
+  let request_id : @jsonrpc.RequestId? = match id {
+    String(s) => Some(@jsonrpc.RequestId::string(s))
+    Number(num, repr~) =>
+      Some(@jsonrpc.RequestId::number(num, repr?)) catch {
+        _ => None
+      }
+    _ => None
+  }
+  error.to_response(id?=request_id).to_json()
 }
 
 ///|

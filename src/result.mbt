@@ -136,33 +136,31 @@ fn merge_result_meta(
 }
 
 ///|
-/// Stamp a method-specific result object with mandatory modern result metadata.
-pub fn stamp_result_meta(
+/// Stamp a method-specific result object with modern metadata.
+pub fn ResultMeta::stamp(
+  self : ResultMeta,
   value : Json,
-  server_info? : Implementation,
-  meta? : Map[String, Json] = {},
 ) -> Json raise McpError {
   guard value is Object(fields) else {
     raise InvalidParams("result must be an object")
   }
   let fields = fields.copy_json()
-  merge_result_meta(fields, server_info?, extra=meta)
+  merge_result_meta(fields, server_info?=self.server_info, extra=self.extra)
   Json::object(fields)
 }
 
 ///|
 /// Stamp a method-specific result object with complete resultType and modern metadata.
-pub fn complete_result(
+pub fn ResultMeta::stamp_complete(
+  self : ResultMeta,
   value : Json,
-  server_info? : Implementation,
-  meta? : Map[String, Json] = {},
 ) -> Json raise McpError {
   guard value is Object(fields) else {
     raise InvalidParams("complete result must be an object")
   }
   let fields = fields.copy_json()
   fields["resultType"] = ToJson::to_json(ResultType::Complete)
-  merge_result_meta(fields, server_info?, extra=meta)
+  merge_result_meta(fields, server_info?=self.server_info, extra=self.extra)
   Json::object(fields)
 }
 

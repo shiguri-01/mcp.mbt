@@ -809,13 +809,7 @@ fn Transport::filter_and_remember_tools(
 fn decode_raw_response(
   message : Json,
 ) -> @mcp.HandlerOutcome[Json] raise @mcp.McpError {
-  let result = @mcp.rpc_response_result(message)
-  match @mcp.require_result_type(result) {
-    "complete" => @mcp.Complete(result)
-    "input_required" =>
-      @mcp.InputRequired(@mcp.InputRequiredResult::from_json(result))
-    result_type => @mcp.ExtensionResult(result_type, result)
-  }
+  @mcp.HandlerOutcome::decode_response(message)
 }
 
 ///|

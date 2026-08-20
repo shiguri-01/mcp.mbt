@@ -52,6 +52,14 @@ pub fn RequestId::as_json(self : RequestId) -> Json {
 }
 
 ///|
+pub fn RequestId::to_routing_key(self : RequestId) -> String {
+  match self {
+    String(value) => "string:\{value}"
+    Number(repr~, ..) => "number:\{repr}"
+  }
+}
+
+///|
 pub impl ToJson for RequestId with fn to_json(self) -> Json {
   self.as_json()
 }

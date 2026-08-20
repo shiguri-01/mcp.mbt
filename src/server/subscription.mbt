@@ -9,10 +9,10 @@ pub struct Subscription {
 
 ///|
 pub fn Subscription::acknowledgement(self : Subscription) -> Json {
-  @mcp.subscriptions_acknowledged_notification(
+  try! @mcp.SubscriptionsAcknowledgedNotification(
     subscription_id=self.id,
     notifications=self.notifications,
-  )
+  ).to_json()
 }
 
 ///|
@@ -20,10 +20,8 @@ pub fn Subscription::close_response(self : Subscription) -> Json {
   let meta = Map::from_array([
     ("io.modelcontextprotocol/subscriptionId", self.id),
   ])
-  let result = try! @mcp.complete_result(
-    @mcp.SubscriptionsListenResult::SubscriptionsListenResult().to_json(),
-    server_info=self.server_info,
-    meta~,
+  let result = try! @mcp.ResultMeta(server_info=self.server_info, extra=meta).stamp_complete(
+    @mcp.SubscriptionsListenResult().to_json(),
   )
   let request_id : @jsonrpc.RequestId = try! @json.from_json(self.id)
   @jsonrpc.Response::Success(id=request_id, result~).to_json()

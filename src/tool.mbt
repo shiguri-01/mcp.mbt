@@ -445,3 +445,67 @@ pub fn ListToolsResult::from_json(
 ) -> ListToolsResult raise McpError {
   decode_json(value, path?)
 }
+
+///|
+/// Parameters for `tools/call`.
+pub struct CallToolParams {
+  name : String
+  arguments : Json
+} derive(Debug, Eq)
+
+///|
+pub fn CallToolParams::CallToolParams(
+  name~ : String,
+  arguments? : Json = Json::object({}),
+) -> CallToolParams raise McpError {
+  guard !name.is_empty() else {
+    raise InvalidParams("tool name must not be empty")
+  }
+  let args = match arguments {
+    Object(_) as obj => obj
+    Null => Json::object({})
+    _ => raise InvalidParams("tools/call params.arguments must be an object")
+  }
+  { name, arguments: args }
+}
+
+///|
+pub impl @json.FromJson for CallToolParams with fn from_json(
+  value : Json,
+  path : @json.JsonPath,
+) -> CallToolParams raise {
+  guard value is Object(fields) else {
+    raise JsonDecodeError((path, "expected object"))
+  }
+  let name = match fields.get("name") {
+    Some(String(name)) if !name.is_empty() => name
+    Some(String(_)) =>
+      raise JsonDecodeError(
+        (path.add_key("name"), "tool name must not be empty"),
+      )
+    Some(_) => raise JsonDecodeError((path.add_key("name"), "expected string"))
+    None => raise JsonDecodeError((path.add_key("name"), "name is required"))
+  }
+  let arguments = match fields.get("arguments") {
+    Some(Object(_) as args) => args
+    Some(Null) | None => Json::object({})
+    Some(_) =>
+      raise JsonDecodeError((path.add_key("arguments"), "expected object"))
+  }
+  CallToolParams(name~, arguments~) catch {
+    error => raise JsonDecodeError((path, error.message()))
+  }
+}
+
+///|
+pub impl ToJson for CallToolParams with fn to_json(self : CallToolParams) -> Json {
+  Json::object({ "name": Json::string(self.name), "arguments": self.arguments })
+}
+
+///|
+pub fn CallToolParams::from_json(
+  value : Json,
+  path? : @json.JsonPath,
+) -> CallToolParams raise McpError {
+  decode_json(value, path?)
+}

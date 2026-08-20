@@ -384,7 +384,7 @@ pub async fn RequestContext::report_progress(
     )
   }
   (self.hooks.emit_notification)(
-    progress_notification(progress_token=token, progress~, total?, message?),
+    ProgressNotification(progress_token=token, progress~, total?, message?).to_json(),
   )
   self.hooks.last_progress.val = Some(progress)
 }

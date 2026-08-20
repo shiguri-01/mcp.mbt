@@ -30,14 +30,14 @@ async fn ServerSession::emit(self : ServerSession, message : Json) -> Unit {
 ///|
 fn ServerSession::dispatch_subscription(
   self : ServerSession,
-  request_id : Json,
+  request_id : @jsonrpc.RequestId,
   message : Json,
 ) -> Unit {
   let subscription = self.server.accept_subscription(message) catch {
     error => {
       ignore(
         self.group.spawn(() => {
-          self.emit(@mcp.error_response_from_json_id(id=request_id, error))
+          self.emit(error.to_response(id=request_id).to_json())
         }),
       )
       return
@@ -83,10 +83,10 @@ fn ServerSession::cancel_task(self : ServerSession, message : Json) -> Unit {
 ///|
 fn ServerSession::dispatch_rpc(
   self : ServerSession,
-  request_id : Json?,
+  request_id : @jsonrpc.RequestId?,
   message : Json,
 ) -> Unit {
-  let key_opt = request_id.map(fn(id) { id.stringify() })
+  let key_opt = request_id.map(fn(id) { id.to_routing_key() })
   let cancelled = Ref(false)
   let task = self.group.spawn(() => {
     let hooks = @mcp.RequestHooks(
@@ -115,10 +115,10 @@ fn ServerSession::handle_message(self : ServerSession, message : Json) -> Unit {
   let decoded = Some(@jsonrpc.decode(message)) catch { _ => None }
   match decoded {
     Some(Request({ id, method_name: "subscriptions/listen", .. })) =>
-      self.dispatch_subscription(id.as_json(), message)
+      self.dispatch_subscription(id, message)
     Some(Notification({ method_name: "notifications/cancelled", .. })) =>
       self.cancel_task(message)
-    Some(Request({ id, .. })) => self.dispatch_rpc(Some(id.as_json()), message)
+    Some(Request({ id, .. })) => self.dispatch_rpc(Some(id), message)
     _ => self.dispatch_rpc(None, message)
   }
 }

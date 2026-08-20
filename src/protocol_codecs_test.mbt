@@ -1,7 +1,10 @@
 ///|
 test "result metadata merges extras and protects serverInfo" {
   let sdk_info = @mcp.Implementation(name="sdk", version="2")
-  let result = try! @mcp.complete_result(
+  let meta = try! @mcp.ResultMeta(server_info=sdk_info, extra={
+    "added": Json::boolean(true),
+  })
+  let result = try! meta.stamp(
     Json::object({
       "_meta": Json::object({
         "existing": Json::string("kept"),
@@ -11,8 +14,6 @@ test "result metadata merges extras and protects serverInfo" {
         }),
       }),
     }),
-    server_info=sdk_info,
-    meta={ "added": Json::boolean(true) },
   )
   guard result
     is Object(

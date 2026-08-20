@@ -22,11 +22,11 @@ test "wire accepts a single request and rejects a batch" {
 
 ///|
 test "clients treat an absent resultType as complete" {
-  assert_eq(
-    require_result_type(
-      Json::object({ "resultType": Json::string("complete") }),
-    ),
-    "complete",
-  )
-  assert_eq(require_result_type(Json::object({})), "complete")
+  let response = Json::object({
+    "jsonrpc": Json::string("2.0"),
+    "id": Json::number(1.0, repr="1"),
+    "result": Json::object({}),
+  })
+  let outcome = try! HandlerOutcome::decode_response(response)
+  assert_true(outcome is Complete(_))
 }

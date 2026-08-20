@@ -58,24 +58,3 @@ pub fn LoggingLevel::from_json(
 ) -> LoggingLevel raise McpError {
   decode_json(value, path?)
 }
-
-///|
-/// Deprecated request-scoped log notification retained only for peers that
-/// negotiated the legacy logging capability.
-pub fn logging_message_notification(
-  level~ : LoggingLevel,
-  data~ : Json,
-  logger? : String,
-) -> Json {
-  let params : Map[String, Json] = {
-    "level": ToJson::to_json(level),
-    "data": data,
-  }
-  params.set_opt("logger", logger.map(Json::string))
-  @jsonrpc.Notification(
-    method_name="notifications/message",
-    params=Json::object(params),
-  ).to_json() catch {
-    _ => Json::null()
-  }
-}

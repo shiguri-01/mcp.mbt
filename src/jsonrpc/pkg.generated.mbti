@@ -68,6 +68,7 @@ pub enum RequestId {
 pub fn RequestId::as_json(Self) -> Json
 pub fn RequestId::number(Double, repr? : String) -> Self raise JsonRpcValidationError
 pub fn RequestId::string(String) -> Self
+pub fn RequestId::to_routing_key(Self) -> String
 pub impl ToJson for RequestId
 pub impl @json.FromJson for RequestId
 

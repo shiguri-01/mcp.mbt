@@ -705,3 +705,56 @@ pub fn ListResourceTemplatesResult::from_json(
 ) -> ListResourceTemplatesResult raise McpError {
   decode_json(value, path?)
 }
+
+///|
+/// Parameters for `resources/read`.
+pub struct ReadResourceParams {
+  uri : String
+} derive(Debug, Eq)
+
+///|
+pub fn ReadResourceParams::ReadResourceParams(
+  uri~ : String,
+) -> ReadResourceParams raise McpError {
+  guard !uri.is_empty() else {
+    raise InvalidParams("resource uri must not be empty")
+  }
+  { uri, }
+}
+
+///|
+pub impl @json.FromJson for ReadResourceParams with fn from_json(
+  value : Json,
+  path : @json.JsonPath,
+) -> ReadResourceParams raise {
+  guard value is Object(fields) else {
+    raise JsonDecodeError((path, "expected object"))
+  }
+  let uri = match fields.get("uri") {
+    Some(String(uri)) if !uri.is_empty() => uri
+    Some(String(_)) =>
+      raise JsonDecodeError(
+        (path.add_key("uri"), "resource uri must not be empty"),
+      )
+    Some(_) => raise JsonDecodeError((path.add_key("uri"), "expected string"))
+    None => raise JsonDecodeError((path.add_key("uri"), "uri is required"))
+  }
+  ReadResourceParams(uri~) catch {
+    error => raise JsonDecodeError((path, error.message()))
+  }
+}
+
+///|
+pub impl ToJson for ReadResourceParams with fn to_json(
+  self : ReadResourceParams,
+) -> Json {
+  Json::object({ "uri": Json::string(self.uri) })
+}
+
+///|
+pub fn ReadResourceParams::from_json(
+  value : Json,
+  path? : @json.JsonPath,
+) -> ReadResourceParams raise McpError {
+  decode_json(value, path?)
+}

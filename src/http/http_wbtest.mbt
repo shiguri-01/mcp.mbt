@@ -700,17 +700,19 @@ test "subscription SSE starts with acknowledgement and ends with response" {
   assert_true(close.contains("\"result\""))
   assert_true(
     subscription.allows_event(
-      @mcp.tools_list_changed_notification(subscription_id=subscription.id),
+      (try! @mcp.ToolsListChangedNotification(subscription_id=subscription.id)).to_json(),
     ),
   )
   assert_true(
     !subscription.allows_event(
-      @mcp.prompts_list_changed_notification(subscription_id=subscription.id),
+      (try! @mcp.PromptsListChangedNotification(subscription_id=subscription.id)).to_json(),
     ),
   )
   assert_true(
     !subscription.allows_event(
-      @mcp.tools_list_changed_notification(subscription_id=Json::number(99.0)),
+      (try! @mcp.ToolsListChangedNotification(
+        subscription_id=Json::number(99.0),
+      )).to_json(),
     ),
   )
 }
@@ -903,7 +905,7 @@ test "subscription client enforces acknowledgement and stream identity" {
   let before_ack = @client.SubscriptionStreamState::new(expected_id, requested)
   let premature = try
     before_ack.consume(
-      @mcp.tools_list_changed_notification(subscription_id=subscription.id),
+      (try! @mcp.ToolsListChangedNotification(subscription_id=subscription.id)).to_json(),
     )
   catch {
     @mcp.InvalidRequest(_) => true
@@ -916,13 +918,13 @@ test "subscription client enforces acknowledgement and stream identity" {
   assert_true(state.consume(subscription.acknowledgement()) is Acknowledged)
   assert_true(
     state.consume(
-      @mcp.tools_list_changed_notification(subscription_id=subscription.id),
+      (try! @mcp.ToolsListChangedNotification(subscription_id=subscription.id)).to_json(),
     )
     is Notification(_),
   )
   let outside_filter = try
     state.consume(
-      @mcp.prompts_list_changed_notification(subscription_id=subscription.id),
+      (try! @mcp.PromptsListChangedNotification(subscription_id=subscription.id)).to_json(),
     )
   catch {
     @mcp.InvalidRequest(_) => true
@@ -933,7 +935,9 @@ test "subscription client enforces acknowledgement and stream identity" {
   assert_true(outside_filter)
   let wrong_id = try
     state.consume(
-      @mcp.tools_list_changed_notification(subscription_id=Json::number(99.0)),
+      (try! @mcp.ToolsListChangedNotification(
+        subscription_id=Json::number(99.0),
+      )).to_json(),
     )
   catch {
     @mcp.InvalidRequest(_) => true
@@ -971,10 +975,10 @@ test "subscription producer errors retain their JSON-RPC identity" {
 test "subscription client rejects unhonored filters and wrong final id" {
   let expected_id = Json::number(1.0, repr="1")
   let requested = @mcp.SubscriptionFilter(tools_list_changed=true)
-  let invalid_ack = @mcp.subscriptions_acknowledged_notification(
+  let invalid_ack = (try! @mcp.SubscriptionsAcknowledgedNotification(
     subscription_id=expected_id,
     notifications=@mcp.SubscriptionFilter(prompts_list_changed=true),
-  )
+  )).to_json()
   let invalid_state = @client.SubscriptionStreamState::new(
     expected_id, requested,
   )
@@ -986,10 +990,10 @@ test "subscription client rejects unhonored filters and wrong final id" {
   }
   assert_true(unrequested)
   let state = @client.SubscriptionStreamState::new(expected_id, requested)
-  let ack = @mcp.subscriptions_acknowledged_notification(
+  let ack = (try! @mcp.SubscriptionsAcknowledgedNotification(
     subscription_id=expected_id,
     notifications=requested,
-  )
+  )).to_json()
   ignore(try! state.consume(ack))
   let wrong_final = Json::object({
     "jsonrpc": Json::string("2.0"),

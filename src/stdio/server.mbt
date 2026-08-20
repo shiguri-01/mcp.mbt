@@ -24,7 +24,7 @@ pub async fn serve(
         match @async_stdio.stdin.read_until("\n") {
           Some(line) => {
             let message = decode_frame(line) catch {
-              error => @mcp.error_response_from_json_id(error)
+              error => error.to_response().to_json()
             }
             Some(message)
           }

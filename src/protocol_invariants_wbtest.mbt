@@ -202,7 +202,7 @@ test "MRTR retry options preserve request metadata" {
 
 ///|
 test "cancellation identifiers are never null" {
-  try cancelled_notification(request_id=Json::null()) catch {
+  try CancelledNotification(request_id=Json::null()) catch {
     InvalidParams(_) => ()
     _ => fail("expected InvalidParams")
   } noraise {
