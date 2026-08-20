@@ -40,7 +40,7 @@ test "discover and request implementation codecs retain icons and metadata" {
   let discover : @mcp.DiscoverResult = try! @json.from_json(
     Json::object({
       "resultType": Json::string("complete"),
-      "supportedVersions": [Json::string(@mcp.LATEST_PROTOCOL_VERSION)].to_json(),
+      "supportedVersions": [Json::string(@mcp.PROTOCOL_VERSION)].to_json(),
       "capabilities": Json::object({}),
       "ttlMs": Json::number(5.0),
       "cacheScope": Json::string("private"),
@@ -73,7 +73,7 @@ test "discover and request implementation codecs retain icons and metadata" {
   let request_meta = try! @mcp.RequestMeta::from_json(
     Json::object({
       "io.modelcontextprotocol/protocolVersion": Json::string(
-        @mcp.LATEST_PROTOCOL_VERSION,
+        @mcp.PROTOCOL_VERSION,
       ),
       "io.modelcontextprotocol/clientCapabilities": Json::object({}),
       "io.modelcontextprotocol/clientInfo": Json::object({
@@ -93,7 +93,7 @@ test "client capabilities and unknown properties round trip" {
   let meta = try! @mcp.RequestMeta::from_json(
     Json::object({
       "io.modelcontextprotocol/protocolVersion": Json::string(
-        @mcp.LATEST_PROTOCOL_VERSION,
+        @mcp.PROTOCOL_VERSION,
       ),
       "io.modelcontextprotocol/clientCapabilities": Json::object({
         "roots": Json::object({ "listChanged": Json::boolean(true) }),

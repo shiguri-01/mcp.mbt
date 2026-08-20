@@ -67,7 +67,7 @@ test "input_required includes inputRequests or requestState" {
 ///|
 test "unsupported protocol errors identify requested and supported versions" {
   let error = UnsupportedProtocolVersion(requested="1900-01-01", supported=[
-    LATEST_PROTOCOL_VERSION,
+    PROTOCOL_VERSION,
   ])
   guard ToJson::to_json(error)
     is Object(
@@ -214,7 +214,7 @@ test "cancellation identifiers are never null" {
 test "discover accepts complete results without resultType" {
   let result = DiscoverResult::from_json(
     Json::object({
-      "supportedVersions": Json::array([Json::string(LATEST_PROTOCOL_VERSION)]),
+      "supportedVersions": Json::array([Json::string(PROTOCOL_VERSION)]),
       "capabilities": Json::object({
         "com.example/custom": Json::object({ "enabled": Json::boolean(true) }),
       }),

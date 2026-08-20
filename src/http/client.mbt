@@ -66,7 +66,7 @@ pub fn AuthorizationOptions::AuthorizationOptions(
 /// Create a modern MCP HTTP transport.
 pub fn Transport::Transport(
   endpoint : String,
-  supported_protocol_versions? : Array[String] = [@mcp.LATEST_PROTOCOL_VERSION],
+  supported_protocol_versions? : Array[String] = [@mcp.PROTOCOL_VERSION],
   authorization? : AuthorizationOptions,
   max_response_body_bytes? : Int = default_max_response_body_bytes,
   max_sse_event_bytes? : Int = default_max_sse_event_bytes,

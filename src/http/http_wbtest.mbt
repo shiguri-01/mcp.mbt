@@ -12,7 +12,7 @@ fn metadata_request(
 ) -> Json {
   params["_meta"] = Json::object({
     "io.modelcontextprotocol/protocolVersion": Json::string(
-      @mcp.LATEST_PROTOCOL_VERSION,
+      @mcp.PROTOCOL_VERSION,
     ),
     "io.modelcontextprotocol/clientCapabilities": Json::object({}),
   })
@@ -33,7 +33,7 @@ fn standard_validation_error(
     validate_standard_headers_with_policy(
       request,
       message,
-      Some([@mcp.LATEST_PROTOCOL_VERSION]),
+      Some([@mcp.PROTOCOL_VERSION]),
     )
     None
   } catch {
@@ -48,7 +48,7 @@ test "standard request headers are required and match body metadata" {
     standard_validation_error(post_request(headers=Map([])), ping)
     is Some(@mcp.HeaderMismatch(_)),
   )
-  let headers = standard_request_headers(ping, @mcp.LATEST_PROTOCOL_VERSION)
+  let headers = standard_request_headers(ping, @mcp.PROTOCOL_VERSION)
   let request = post_request(headers~)
   assert_true(standard_validation_error(request, ping) is None)
   headers["Mcp-Method"] = "PING"
@@ -67,7 +67,7 @@ test "standard headers require matching protocol metadata in the body" {
     "params": Json::object({}),
   })
   let request = post_request(headers={
-    "MCP-Protocol-Version": @mcp.LATEST_PROTOCOL_VERSION,
+    "MCP-Protocol-Version": @mcp.PROTOCOL_VERSION,
     "Mcp-Method": "server/discover",
   })
   assert_true(
@@ -79,7 +79,7 @@ test "standard headers require matching protocol metadata in the body" {
 test "standard header names ignore case but values do not" {
   let ping = metadata_request("ping")
   let accepted = post_request(headers={
-    "mcp-protocol-version": @mcp.LATEST_PROTOCOL_VERSION,
+    "mcp-protocol-version": @mcp.PROTOCOL_VERSION,
     "MCP-METHOD": "ping",
   })
   assert_true(standard_validation_error(accepted, ping) is None)
@@ -112,7 +112,7 @@ test "Mcp-Name is conditional and Base64 decoded before comparison" {
   let read = metadata_request("resources/read", params={
     "uri": Json::string("memory://東京"),
   })
-  let headers = standard_request_headers(read, @mcp.LATEST_PROTOCOL_VERSION)
+  let headers = standard_request_headers(read, @mcp.PROTOCOL_VERSION)
   assert_eq(headers["Mcp-Name"], "=?base64?bWVtb3J5Oi8v5p2x5Lqs?=")
   assert_true(standard_validation_error(post_request(headers~), read) is None)
   headers.remove("Mcp-Name")
@@ -121,7 +121,7 @@ test "Mcp-Name is conditional and Base64 decoded before comparison" {
     is Some(@mcp.HeaderMismatch(_)),
   )
   let ping = metadata_request("ping")
-  let extra = standard_request_headers(ping, @mcp.LATEST_PROTOCOL_VERSION)
+  let extra = standard_request_headers(ping, @mcp.PROTOCOL_VERSION)
   extra["Mcp-Name"] = "unexpected"
   assert_true(
     standard_validation_error(post_request(headers=extra), ping)
@@ -299,7 +299,7 @@ test "POST requests require both JSON and SSE response media types" {
   let message = metadata_request("server/discover")
   let accepted_headers = standard_request_headers(
     message,
-    @mcp.LATEST_PROTOCOL_VERSION,
+    @mcp.PROTOCOL_VERSION,
   )
   accepted_headers["Accept"] = "application/json, text/event-stream"
   accepted_headers["Content-Type"] = "application/json; charset=utf-8"
@@ -400,12 +400,12 @@ test "standard header values ignore surrounding HTTP whitespace" {
   let request = metadata_request("tools/call", params={
     "name": Json::string("greet"),
   })
-  let headers = standard_request_headers(request, @mcp.LATEST_PROTOCOL_VERSION)
+  let headers = standard_request_headers(request, @mcp.PROTOCOL_VERSION)
   headers["Mcp-Name"] = "  greet\t"
   try! validate_standard_headers_with_policy(
     post_request(headers~),
     request,
-    Some([@mcp.LATEST_PROTOCOL_VERSION]),
+    Some([@mcp.PROTOCOL_VERSION]),
   )
 }
 
@@ -454,7 +454,7 @@ test "client derives standard and tool parameter headers" {
     }),
   })
   let headers = try! transport.headers(request, input_schema=schema)
-  assert_eq(headers["MCP-Protocol-Version"], @mcp.LATEST_PROTOCOL_VERSION)
+  assert_eq(headers["MCP-Protocol-Version"], @mcp.PROTOCOL_VERSION)
   assert_eq(headers["Mcp-Method"], "tools/call")
   assert_eq(headers["Mcp-Name"], "echo")
   assert_eq(headers["Mcp-Param-Region"], "=?base64?5p2x5Lqs?=")
@@ -545,10 +545,10 @@ test "HTTP notifications carry standard headers and accept only empty 202" {
   })
   let prepared = try! notification_with_protocol_version(
     notification,
-    @mcp.LATEST_PROTOCOL_VERSION,
+    @mcp.PROTOCOL_VERSION,
   )
   let headers = try! client.headers(prepared)
-  assert_eq(headers["MCP-Protocol-Version"], @mcp.LATEST_PROTOCOL_VERSION)
+  assert_eq(headers["MCP-Protocol-Version"], @mcp.PROTOCOL_VERSION)
   assert_eq(headers["Mcp-Method"], "notifications/cancelled")
   let notification_with_meta = Json::object({
     "jsonrpc": Json::string("2.0"),
@@ -563,7 +563,7 @@ test "HTTP notifications carry standard headers and accept only empty 202" {
   assert_true(
     (try! notification_with_protocol_version(
       notification_with_meta,
-      @mcp.LATEST_PROTOCOL_VERSION,
+      @mcp.PROTOCOL_VERSION,
     ))
     is Object(
       {
@@ -830,12 +830,12 @@ test "accepted notifications still require every standard header" {
     "params": Json::object({
       "_meta": Json::object({
         "io.modelcontextprotocol/protocolVersion": Json::string(
-          @mcp.LATEST_PROTOCOL_VERSION,
+          @mcp.PROTOCOL_VERSION,
         ),
       }),
     }),
   })
-  let headers = standard_request_headers(message, @mcp.LATEST_PROTOCOL_VERSION)
+  let headers = standard_request_headers(message, @mcp.PROTOCOL_VERSION)
   headers["Accept"] = "application/json, text/event-stream"
   headers["Content-Type"] = "application/json"
   try! validate_post_request(post_request(headers~), message, server)

@@ -42,9 +42,7 @@ async test "client discover over ClientTransport" {
     @mcp.Complete(
       Json::object({
         "resultType": Json::string("complete"),
-        "supportedVersions": Json::array([
-          Json::string(@mcp.LATEST_PROTOCOL_VERSION),
-        ]),
+        "supportedVersions": Json::array([Json::string(@mcp.PROTOCOL_VERSION)]),
         "capabilities": Json::object({}),
         "ttlMs": Json::number(3600.0, repr="3600"),
         "cacheScope": Json::string("public"),
@@ -57,7 +55,7 @@ async test "client discover over ClientTransport" {
     transport=discover_transport,
   )
   let discover_res = try! client.discover()
-  assert_eq(discover_res.supported_versions, [@mcp.LATEST_PROTOCOL_VERSION])
+  assert_eq(discover_res.supported_versions, [@mcp.PROTOCOL_VERSION])
 }
 
 ///|

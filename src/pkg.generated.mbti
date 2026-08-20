@@ -9,7 +9,7 @@ import {
 }
 
 // Values
-pub const LATEST_PROTOCOL_VERSION : String = "2026-07-28"
+pub const PROTOCOL_VERSION : String = "2026-07-28"
 
 pub fn[T : @json.FromJson] decode_json(Json, path? : @json.JsonPath) -> T raise McpError
 

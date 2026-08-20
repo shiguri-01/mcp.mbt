@@ -34,7 +34,7 @@ pub fn Client::Client(
   website_url? : String,
   capabilities? : @mcp.ClientCapabilities = @mcp.ClientCapabilities::empty(),
   extension_result_types? : Map[String, String] = Map([]),
-  protocol_version? : String = @mcp.LATEST_PROTOCOL_VERSION,
+  protocol_version? : String = @mcp.PROTOCOL_VERSION,
 ) -> Client raise @mcp.McpError {
   if name.is_empty() || version.is_empty() || protocol_version.is_empty() {
     raise @mcp.InvalidParams(

@@ -1,3 +1,3 @@
 ///|
-/// The latest Model Context Protocol version.
-pub const LATEST_PROTOCOL_VERSION : String = "2026-07-28"
+/// The Model Context Protocol version.
+pub const PROTOCOL_VERSION : String = "2026-07-28"

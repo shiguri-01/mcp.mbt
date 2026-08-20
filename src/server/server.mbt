@@ -66,7 +66,7 @@ pub fn ServerBuilder::ServerBuilder(
   website_url? : String,
   instructions? : String,
   cache_policy? : @mcp.CachePolicy,
-  supported_versions? : Array[String] = [@mcp.LATEST_PROTOCOL_VERSION],
+  supported_versions? : Array[String] = [@mcp.PROTOCOL_VERSION],
   tool_list_changed? : Bool = false,
   resource_list_changed? : Bool = false,
   prompt_list_changed? : Bool = false,

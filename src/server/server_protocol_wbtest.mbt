@@ -471,7 +471,7 @@ test "server constructor rejects empty protocol identities" {
 
 ///|
 test "server retains independent copies of mutable inputs" {
-  let versions = [@mcp.LATEST_PROTOCOL_VERSION]
+  let versions = [@mcp.PROTOCOL_VERSION]
   let builder = try! ServerBuilder(
     name="server",
     version="1",
@@ -479,7 +479,7 @@ test "server retains independent copies of mutable inputs" {
   )
   let server = builder.build()
   versions[0] = "mutated"
-  assert_true(server.supports_protocol_version(@mcp.LATEST_PROTOCOL_VERSION))
+  assert_true(server.supports_protocol_version(@mcp.PROTOCOL_VERSION))
   assert_false(server.supports_protocol_version("mutated"))
 }
 
